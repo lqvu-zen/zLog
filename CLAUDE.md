@@ -2,12 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code
 in this repository. It is the load-bearing summary to read before touching the
-code; deeper rationale lives in `docs/ARCHITECTURE.md`, and the actual workflows
-live in `.claude/skills/` (`add-zlog-feature`, `review-zlog-ui`, `run-zlog`).
+code; deeper rationale lives in `docs/ARCHITECTURE.md`, plans live in `docs/plans/`,
+and the actual workflows live in `.claude/skills/` (`add-zlog-feature`,
+`review-zlog-ui`, `run-zlog`).
 
 zLog is a **Windows-first desktop GUI for viewing Android `adb logcat`**, inspired
 by [plog](https://github.com/katatunix/plog). Built with **Python + PySide6 (Qt)**,
 managed with **uv**. The code is intentionally cross-platform.
+
+## Plan first — always
+
+Before writing code for any feature, fix, or notable change, write or update a plan
+in `docs/plans/` and get it approved. One plan per purpose; split a large effort
+into several focused files (e.g. `device-picker.md`, `package-filter.md`) rather
+than one giant plan. Copy `docs/plans/TEMPLATE.md` to `docs/plans/<slug>.md`, keep
+its status line current (Draft → Approved → In progress → Done), and only implement
+once it's approved. The `add-zlog-feature` and `review-zlog-ui` skills enforce this.
+See `docs/plans/README.md`.
 
 ## Commands
 
@@ -52,6 +63,7 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | `__version__` | `src/zlog/__init__.py` |
 | deps, scripts, tooling config | `pyproject.toml` |
 | unit tests | `tests/` |
+| plans (write one before coding) | `docs/plans/` |
 
 ## Architecture
 
@@ -82,6 +94,8 @@ Qt event loop. Stopped by setting `_running = False` and calling `proc.terminate
 
 The invariants. Most "looked fine, broke in practice" bugs come from violating one.
 
+- **Plan first.** No code without an approved plan in `docs/plans/` (see
+  "Plan first — always" above).
 - **`core/` must never import Qt.** Keep it that way so tests run without a display.
   New Qt-free logic (e.g. PID→process-name mapping) belongs in `core/`; anything
   needing a `QObject` belongs in `adb/` or `ui/`.

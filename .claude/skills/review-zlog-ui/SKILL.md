@@ -1,6 +1,6 @@
 ---
 name: review-zlog-ui
-description: Review and improve the zLog desktop app's UI and UX. Use this whenever the user wants a design/usability review of zLog, mentions the app "looks off," wants feedback on layout, spacing, colors, contrast, visual hierarchy, affordances, empty states, or accessibility — or asks to polish, clean up, modernize, or improve the look and feel of any zLog screen (the log table, toolbar, level/search controls, status bar, future dialogs). Trigger even when the user doesn't say the words "UI" or "UX" but is clearly asking whether a screen is good, what to fix, or to make it nicer. Produces a prioritized findings report and then concrete edits to src/zlog/ui/*. Do NOT use it for adding features (use add-zlog-feature) or just launching the app (use run-zlog).
+description: Review and improve the zLog desktop app's UI and UX. Use this whenever the user wants a design/usability review of zLog, mentions the app "looks off," wants feedback on layout, spacing, colors, contrast, visual hierarchy, affordances, empty states, or accessibility — or asks to polish, clean up, modernize, or improve the look and feel of any zLog screen (the log table, toolbar, level/search controls, status bar, future dialogs). Trigger even when the user doesn't say the words "UI" or "UX" but is clearly asking whether a screen is good, what to fix, or to make it nicer. Produces a prioritized findings report, then an approved plan in docs/plans/, then concrete edits to src/zlog/ui/*. Do NOT use it for adding features (use add-zlog-feature) or just launching the app (use run-zlog).
 ---
 
 # Reviewing & improving zLog UI/UX
@@ -11,6 +11,10 @@ gives you: **what the app actually looks like when running** (screenshots) and
 **why it looks that way** (the source). Gather both, judge against the heuristics
 below, then propose fixes that respect the app's existing design language instead
 of importing generic web-design advice that doesn't fit a native desktop tool.
+
+zLog is **plan-first**: a review may end in code changes, and those changes — like
+any change — need an approved plan in `docs/plans/` before they're written (see
+phase 5 and `docs/plans/README.md`).
 
 ## Where the UI lives
 
@@ -70,7 +74,7 @@ heuristics are tuned to zLog — a single-window, keyboard-and-mouse, local desk
 log viewer — not a mobile app or a website. Don't apply web conventions that don't
 belong here.
 
-### 4. Write the report
+### 4. Write the findings report
 
 Use the template in `assets/report-template.md`. The core of a useful report is
 **prioritized, located, justified** findings:
@@ -84,17 +88,33 @@ Use the template in `assets/report-template.md`. The core of a useful report is
 
 Order findings by severity. Lead with a 2–3 sentence summary so the user gets the
 gist before the details. Reference screenshots by filename. Save the report to the
-outputs folder (or the project root if the user prefers) as a markdown file.
+outputs folder (or the project root if the user prefers) as a markdown file. A pure
+review that the user only wants as feedback can stop here.
 
-### 5. Propose the edits
+### 5. Turn the accepted fixes into a plan — in `docs/plans/` — and get it approved
 
-After the report, turn the High and Medium findings into concrete code changes.
-Prefer **small, surgical diffs** that respect existing patterns:
+If the user wants the fixes applied, **don't edit code yet.** Capture the High/Medium
+fixes you'll make as a plan first (the same plan-first gate the `add-zlog-feature`
+skill uses):
+
+- Copy `docs/plans/TEMPLATE.md` to `docs/plans/ui-<scope>.md` (e.g. `ui-table-polish.md`).
+- Fill in **Scope** (which findings are in, which are deferred), **Design** (the
+  `src/zlog/ui/*` files and lines, color tokens added to `LEVEL_COLOR` or a new
+  `theme.py`), **Risks** (must not break threading, virtualization, proxy filtering,
+  or autoscroll-at-bottom), and **Verification** (which `run-zlog` scenarios you'll
+  re-shoot). Split a big redesign into several plan files by area.
+- Add a row in `docs/plans/README.md`, set **Status: Draft**, show it to the user,
+  and set **Status: Approved** once they're on board.
+
+### 6. Propose and make the edits
+
+Set the plan **Status: In progress**. Prefer **small, surgical diffs** that respect
+existing patterns:
 
 - Route colors through `LEVEL_COLOR` (or a new `theme.py`); never hard-code hex at a
   widget.
-- Preserve behavior that is load-bearing: the worker-thread→signal→slot output path,
-  the virtualized model (`append_entries`, no per-row widgets), proxy-based
+- Preserve behavior that is load-bearing: the worker-thread to signal to slot output
+  path, the virtualized model (`append_entries`, no per-row widgets), proxy-based
   filtering, and autoscroll-only-when-at-bottom. A visual change must not break
   threading, virtualization, or layout.
 - Show edits as a clear before/after, grouped by file. Don't bundle unrelated
@@ -103,7 +123,8 @@ Prefer **small, surgical diffs** that respect existing patterns:
 After editing, **re-run the relevant `run-zlog` scenario and screenshot again** to
 verify the change actually looks better and didn't break the layout. Reading the new
 screenshot is the verification step — don't claim an improvement you haven't looked
-at.
+at. Tick the plan's Verification boxes, set **Status: Done**, and commit the plan
+file alongside the UI changes.
 
 ## Tone
 

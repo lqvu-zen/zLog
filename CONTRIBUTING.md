@@ -14,6 +14,17 @@ uv run pytest           # run the test suite
 A live run needs Android platform-tools (`adb`) on your PATH and a connected
 device or emulator. The tests need neither.
 
+## Plan first
+
+zLog is **plan-first**: before writing code for any feature, fix, or notable change,
+add a short plan under [`docs/plans/`](docs/plans/) and get it agreed before you
+start. Copy [`docs/plans/TEMPLATE.md`](docs/plans/TEMPLATE.md) to
+`docs/plans/<short-slug>.md`, fill it in, and keep its status line current
+(`Draft → Approved → In progress → Done`). Use one plan per purpose — split a large
+effort into several focused files rather than one sprawling document. Commit the
+plan alongside the code that implements it. See
+[`docs/plans/README.md`](docs/plans/README.md) for the full convention.
+
 ## Before you open a PR
 
 Please make sure these all pass — CI runs the same checks:

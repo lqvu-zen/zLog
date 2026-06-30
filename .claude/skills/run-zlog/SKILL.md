@@ -1,6 +1,6 @@
 ---
 name: run-zlog
-description: Launch the zLog desktop app and capture screenshots of its running UI, including headlessly (no physical display). Use this whenever you need to SEE zLog running — to smoke-test that the app still launches and renders after a change, to capture a specific UI state, or to provide the screenshots the review-zlog-ui skill judges. Trigger when the user says "run the app", "does it still launch", "show me what it looks like", "take a screenshot", or when another skill needs a visual of a given state. Do NOT use it to design-review the UI (use review-zlog-ui) or to add a feature (use add-zlog-feature).
+description: Launch the zLog desktop app and capture screenshots of its running UI, including headlessly (no physical display). Use this whenever you need to SEE zLog running — to smoke-test that the app still launches and renders after a change, to capture a specific UI state, or to provide the screenshots the review-zlog-ui skill judges and the plan-first verification step needs. Trigger when the user says "run the app", "does it still launch", "show me what it looks like", "take a screenshot", or when another skill needs a visual of a given state. Do NOT use it to design-review the UI (use review-zlog-ui) or to add a feature (use add-zlog-feature).
 ---
 
 # Running & screenshotting zLog
@@ -64,3 +64,8 @@ A screenshot is only verification if you **read it**. After running a scenario, 
 the PNG and confirm what you claim. If the environment can't render at all (rare —
 offscreen usually works), say so plainly rather than asserting the UI looks fine.
 Screenshots are throwaway artifacts: don't commit `screenshots/` (it's gitignored).
+
+When a UI change is driven by a plan in `docs/plans/` (the `add-zlog-feature` and
+`review-zlog-ui` skills work this way), use the scenario screenshots to tick that
+plan's **Verification** checkboxes — the picture is the evidence the planned change
+landed as intended.

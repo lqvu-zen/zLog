@@ -127,3 +127,12 @@ When adding any of these, keep the dependency arrows pointing one way and keep a
 background work behind signals. If a change seems to require `core` importing Qt or
 a worker touching a widget, that's the signal the design is being bent — stop and
 reconsider the placement.
+
+## Planning changes
+
+zLog is plan-first: before implementing a feature or notable change, capture it as a
+plan in `docs/plans/` (one file per purpose; split large efforts into several). The
+plan names the files and layers it touches and shows how it respects the rules
+above, and it is approved before any code is written. See `docs/plans/README.md` for
+the convention and `docs/plans/TEMPLATE.md` for the structure. The `add-zlog-feature`
+and `review-zlog-ui` skills drive this workflow.
