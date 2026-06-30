@@ -24,18 +24,28 @@ class AdbReader(QThread):
     batch_ready = Signal(list)  # list[LogEntry]
     error = Signal(str)
 
-    def __init__(self, adb_path: str = "adb", parent=None):
+    def __init__(self, serial: str | None = None, adb_path: str = "adb", parent=None):
         super().__init__(parent)
+        # serial selects a specific device (`adb -s <serial>`); None uses the
+        # single default device, matching adb's own behavior.
+        self.serial = serial
         self.adb_path = adb_path
         self._proc: subprocess.Popen | None = None
         self._running = False
+
+    def _command(self) -> list[str]:
+        cmd = [self.adb_path]
+        if self.serial:
+            cmd += ["-s", self.serial]
+        cmd += ["logcat", "-v", "threadtime"]
+        return cmd
 
     def run(self) -> None:
         """Runs on the background thread once start() is called."""
         self._running = True
         try:
             self._proc = subprocess.Popen(
-                [self.adb_path, "logcat", "-v", "threadtime"],
+                self._command(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

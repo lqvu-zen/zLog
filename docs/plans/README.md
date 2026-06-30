@@ -28,4 +28,4 @@ which is cheaper than reworking a built feature.
 
 | Plan | Status | Summary |
 |---|---|---|
-| _none yet_ | — | — |
+| [device-picker.md](device-picker.md) | Done | Choose which connected device/emulator to stream from |

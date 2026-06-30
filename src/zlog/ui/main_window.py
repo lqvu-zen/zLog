@@ -25,7 +25,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from zlog.adb.devices import list_devices
 from zlog.adb.reader import AdbReader
+from zlog.core.devices import Device
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
@@ -48,7 +50,12 @@ class MainWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(MESSAGE_COL, QHeaderView.Stretch)
 
-        # toolbar
+        # device picker
+        self.device_box = QComboBox()
+        self.device_box.setMinimumWidth(180)
+        self.refresh_btn = QPushButton("Refresh")
+
+        # stream controls
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.clear_btn = QPushButton("Clear")
@@ -62,6 +69,10 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText("Filter by tag or message…")
 
         toolbar = QHBoxLayout()
+        toolbar.addWidget(QLabel("Device:"))
+        toolbar.addWidget(self.device_box)
+        toolbar.addWidget(self.refresh_btn)
+        toolbar.addSpacing(16)
         toolbar.addWidget(self.start_btn)
         toolbar.addWidget(self.stop_btn)
         toolbar.addWidget(self.clear_btn)
@@ -79,8 +90,11 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar())
 
         self.reader: AdbReader | None = None
+        self._devices: list[Device] = []
 
         # connections
+        self.refresh_btn.clicked.connect(self.refresh_devices)
+        self.device_box.currentIndexChanged.connect(self._update_start_enabled)
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
@@ -89,24 +103,84 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self.proxy.set_text)
 
+        # initial device scan
+        self.refresh_devices()
+
+    # --- devices -----------------------------------------------------------
+    def refresh_devices(self) -> None:
+        try:
+            devices = list_devices()
+        except FileNotFoundError:
+            self._show_device_error(
+                "adb not found — install Android platform-tools and add it to PATH."
+            )
+            return
+        except Exception as exc:  # timeout or other adb failure
+            self._show_device_error(f"Could not list devices: {exc}")
+            return
+        self._populate_devices(devices)
+
+    def _populate_devices(self, devices: list[Device]) -> None:
+        """Fill the picker from a device list (also called by the run-zlog driver
+        with fake devices, so it stays free of subprocess calls)."""
+        self._devices = list(devices)
+        self.device_box.clear()
+        if not devices:
+            self.device_box.addItem("No devices", None)
+            self.device_box.setEnabled(False)
+            self._update_start_enabled()
+            self.statusBar().showMessage("Connect a device and press Refresh (USB debugging on).")
+            return
+        self.device_box.setEnabled(True)
+        first_streamable = -1
+        for i, dev in enumerate(devices):
+            # Only streamable devices carry a serial as item data; others are
+            # shown but can't be selected for streaming.
+            self.device_box.addItem(dev.label, dev.serial if dev.streamable else None)
+            if first_streamable < 0 and dev.streamable:
+                first_streamable = i
+        if first_streamable >= 0:
+            self.device_box.setCurrentIndex(first_streamable)
+        self._update_start_enabled()
+        self.statusBar().showMessage(f"{len(devices)} device(s) found.")
+
+    def _show_device_error(self, msg: str) -> None:
+        self._devices = []
+        self.device_box.clear()
+        self.device_box.addItem("No devices", None)
+        self.device_box.setEnabled(False)
+        self._update_start_enabled()
+        self.statusBar().showMessage(msg)
+
+    def _update_start_enabled(self) -> None:
+        streaming = self.reader is not None and self.reader.isRunning()
+        streamable = bool(self._devices) and self.device_box.currentData() is not None
+        self.start_btn.setEnabled(streamable and not streaming)
+
     # --- actions -----------------------------------------------------------
     def start(self) -> None:
         if self.reader and self.reader.isRunning():
             return
-        self.reader = AdbReader()
+        serial = self.device_box.currentData()
+        self.reader = AdbReader(serial=serial)
         self.reader.batch_ready.connect(self.on_batch)
         self.reader.error.connect(self.on_error)
         self.reader.start()
+        # Lock device selection while streaming; switching needs Stop first.
+        self.device_box.setEnabled(False)
+        self.refresh_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        self.statusBar().showMessage("Streaming adb logcat…")
+        self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
     def stop(self) -> None:
         if self.reader:
             self.reader.stop()
             self.reader = None
-        self.start_btn.setEnabled(True)
+        self.refresh_btn.setEnabled(True)
+        self.device_box.setEnabled(bool(self._devices))
         self.stop_btn.setEnabled(False)
+        self._update_start_enabled()
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:

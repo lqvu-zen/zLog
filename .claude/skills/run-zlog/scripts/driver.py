@@ -11,13 +11,15 @@ Scenarios:
     smoke      (default) idle, empty window
     populated  table seeded with sample log lines
     filtered   seeded, then min-level set to Warning
+    devices    device picker populated with fake devices
 
 Screenshots are written to ``../screenshots/`` next to this script.
 
 The driver talks to the live app objects directly (``window.model``,
-``window.proxy``, ``window.search``), so it can reach UI states without a device
-or a running ``adb``. To add a state, copy a ``scenario_*`` function, drive the
-widgets, call ``_shot(...)``, and register it in ``SCENARIOS``.
+``window.proxy``, ``window.search``, ``window._populate_devices``), so it can reach
+UI states without a device or a running ``adb``. To add a state, copy a
+``scenario_*`` function, drive the widgets, call ``_shot(...)``, and register it in
+``SCENARIOS``.
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ if (
 
 from PySide6.QtWidgets import QApplication  # noqa: E402  (after env setup)
 
+from zlog.core.devices import Device  # noqa: E402
 from zlog.core.models import LogEntry  # noqa: E402
 from zlog.ui.main_window import MainWindow  # noqa: E402
 
@@ -81,6 +84,12 @@ SAMPLE = [
     LogEntry("", "", "", "", "", "--------- beginning of crash"),
 ]
 
+FAKE_DEVICES = [
+    Device("emulator-5554", "device"),
+    Device("0A2B1C3D4E5F", "device"),
+    Device("FFEE9988", "unauthorized"),
+]
+
 
 def _shot(window: MainWindow, name: str) -> None:
     QApplication.processEvents()  # let layout/geometry settle before grabbing
@@ -109,10 +118,17 @@ def scenario_filtered(window: MainWindow) -> None:
     _shot(window, "filtered-warn-and-above")
 
 
+def scenario_devices(window: MainWindow) -> None:
+    # Inject fake devices directly so no adb/device is needed.
+    window._populate_devices(FAKE_DEVICES)
+    _shot(window, "devices")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
     "filtered": scenario_filtered,
+    "devices": scenario_devices,
 }
 
 
