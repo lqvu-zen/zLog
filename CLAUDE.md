@@ -115,8 +115,9 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
   as theming grows, move tokens into a single `ui/theme.py` rather than hard-coding
   hex at call sites.
 - **Comments explain WHY, not WHAT.**
-- **Bump `__version__`** in `src/zlog/__init__.py` (and `version` in
-  `pyproject.toml`) as part of any feature or fix.
+- **Version bumps happen only on release.** Don't change `__version__`
+  (`src/zlog/__init__.py`) or `version` (`pyproject.toml`) per feature or fix —
+  bump them only when cutting a release.
 
 ## Environment notes
 

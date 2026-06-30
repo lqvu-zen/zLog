@@ -4,8 +4,9 @@ LogTableModel holds every entry but is *virtualized*: QTableView only asks for
 the rows currently on screen, so a million lines cost almost nothing to render.
 
 LogFilterProxy sits between model and view and decides which rows show, based on
-a minimum level and a free-text search. Filtering this way keeps the master list
-intact, so clearing a filter instantly restores everything.
+a minimum level, a free-text search, and (optionally) a set of PIDs for a chosen
+package. Filtering this way keeps the master list intact, so clearing a filter
+instantly restores everything.
 """
 
 from __future__ import annotations
@@ -89,6 +90,7 @@ class LogFilterProxy(QSortFilterProxyModel):
         super().__init__(parent)
         self._min_level = 0
         self._text = ""
+        self._pids: set[str] | None = None  # None = no package filter
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -98,9 +100,18 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._text = text.lower()
         self.invalidateFilter()
 
+    def set_pids(self, pids) -> None:
+        """Restrict to these PID strings, or pass None to clear the package filter."""
+        self._pids = set(pids) if pids is not None else None
+        self.invalidateFilter()
+
     def filterAcceptsRow(self, source_row, source_parent) -> bool:
         model: LogTableModel = self.sourceModel()
         entry = model.entry_at(source_row)
+        # Package gate: when active, only rows from those PIDs pass (this hides
+        # unparsed/banner lines, whose pid is "").
+        if self._pids is not None and entry.pid not in self._pids:
+            return False
         # Level gate (unparsed lines, level "", always pass).
         if entry.level and entry.rank < self._min_level:
             return False

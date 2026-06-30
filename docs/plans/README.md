@@ -29,3 +29,4 @@ which is cheaper than reworking a built feature.
 | Plan | Status | Summary |
 |---|---|---|
 | [device-picker.md](device-picker.md) | Done | Choose which connected device/emulator to stream from |
+| [package-filter.md](package-filter.md) | Done | Filter the view to one app's process (package → PIDs) |

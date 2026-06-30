@@ -1,6 +1,6 @@
 [project]
 name = "zlog"
-version = "0.2.0"
+version = "0.1.0"
 description = "A desktop GUI for viewing Android logcat — inspired by plog."
 readme = "README.md"
 requires-python = ">=3.10"

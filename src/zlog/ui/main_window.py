@@ -4,7 +4,7 @@ Data flow:
 
     AdbReader (thread) --batch_ready--> LogTableModel (master list)
                                               |
-                                        LogFilterProxy (level + text)
+                                        LogFilterProxy (level + text + package PIDs)
                                               |
                                          QTableView (what you see)
 """
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from zlog.adb.devices import list_devices
+from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
@@ -50,16 +51,33 @@ class MainWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(MESSAGE_COL, QHeaderView.Stretch)
 
-        # device picker
+        # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(180)
         self.refresh_btn = QPushButton("Refresh")
-
-        # stream controls
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.clear_btn = QPushButton("Clear")
         self.stop_btn.setEnabled(False)
+
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Device:"))
+        row1.addWidget(self.device_box)
+        row1.addWidget(self.refresh_btn)
+        row1.addSpacing(16)
+        row1.addWidget(self.start_btn)
+        row1.addWidget(self.stop_btn)
+        row1.addWidget(self.clear_btn)
+        row1.addStretch(1)
+
+        # --- row 2: filters ---
+        self.package_box = QComboBox()
+        self.package_box.setEditable(True)
+        self.package_box.setMinimumWidth(220)
+        self.package_box.lineEdit().setPlaceholderText("Package, e.g. com.example.app")
+        self.load_pkgs_btn = QPushButton("Load")
+        self.apply_pkg_btn = QPushButton("Filter")
+        self.clear_pkg_btn = QPushButton("Clear pkg")
 
         self.level_box = QComboBox()
         for letter in LEVELS:
@@ -68,21 +86,20 @@ class MainWindow(QMainWindow):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
 
-        toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("Device:"))
-        toolbar.addWidget(self.device_box)
-        toolbar.addWidget(self.refresh_btn)
-        toolbar.addSpacing(16)
-        toolbar.addWidget(self.start_btn)
-        toolbar.addWidget(self.stop_btn)
-        toolbar.addWidget(self.clear_btn)
-        toolbar.addSpacing(16)
-        toolbar.addWidget(QLabel("Min level:"))
-        toolbar.addWidget(self.level_box)
-        toolbar.addWidget(self.search, stretch=1)
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Package:"))
+        row2.addWidget(self.package_box)
+        row2.addWidget(self.load_pkgs_btn)
+        row2.addWidget(self.apply_pkg_btn)
+        row2.addWidget(self.clear_pkg_btn)
+        row2.addSpacing(16)
+        row2.addWidget(QLabel("Min level:"))
+        row2.addWidget(self.level_box)
+        row2.addWidget(self.search, stretch=1)
 
         layout = QVBoxLayout()
-        layout.addLayout(toolbar)
+        layout.addLayout(row1)
+        layout.addLayout(row2)
         layout.addWidget(self.table)
         container = QWidget()
         container.setLayout(layout)
@@ -98,6 +115,10 @@ class MainWindow(QMainWindow):
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
+        self.load_pkgs_btn.clicked.connect(self.load_packages)
+        self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
+        self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
+        self.package_box.lineEdit().returnPressed.connect(self.apply_package_filter)
         self.level_box.currentIndexChanged.connect(
             lambda: self.proxy.set_min_level(self.level_box.currentData())
         )
@@ -152,10 +173,64 @@ class MainWindow(QMainWindow):
         self._update_start_enabled()
         self.statusBar().showMessage(msg)
 
+    def _current_serial(self) -> str | None:
+        """The device we'd act on: the streaming reader's, else the picker's."""
+        if self.reader and self.reader.isRunning():
+            return self.reader.serial
+        return self.device_box.currentData()
+
     def _update_start_enabled(self) -> None:
         streaming = self.reader is not None and self.reader.isRunning()
         streamable = bool(self._devices) and self.device_box.currentData() is not None
         self.start_btn.setEnabled(streamable and not streaming)
+        self._update_package_enabled()
+
+    def _update_package_enabled(self) -> None:
+        enabled = self._current_serial() is not None
+        for w in (self.package_box, self.load_pkgs_btn, self.apply_pkg_btn, self.clear_pkg_btn):
+            w.setEnabled(enabled)
+
+    # --- package / PID filter ----------------------------------------------
+    def load_packages(self) -> None:
+        serial = self._current_serial()
+        if serial is None:
+            return
+        try:
+            pkgs = list_packages(serial)
+        except FileNotFoundError:
+            self.statusBar().showMessage("adb not found.")
+            return
+        except Exception as exc:
+            self.statusBar().showMessage(f"Could not list packages: {exc}")
+            return
+        current = self.package_box.currentText()
+        self.package_box.clear()
+        self.package_box.addItems(pkgs)
+        self.package_box.setEditText(current)
+        self.statusBar().showMessage(f"{len(pkgs)} packages loaded.")
+
+    def apply_package_filter(self) -> None:
+        serial = self._current_serial()
+        package = self.package_box.currentText().strip()
+        if serial is None or not package:
+            return
+        try:
+            pids = resolve_pids(serial, package)
+        except FileNotFoundError:
+            self.statusBar().showMessage("adb not found.")
+            return
+        except Exception as exc:
+            self.statusBar().showMessage(f"Could not resolve PIDs: {exc}")
+            return
+        if not pids:
+            self.statusBar().showMessage(f"{package} isn't running — start it and apply again.")
+            return
+        self.proxy.set_pids(pids)
+        self.statusBar().showMessage(f"Showing {package} (pid {', '.join(pids)}).")
+
+    def clear_package_filter(self) -> None:
+        self.proxy.set_pids(None)
+        self.statusBar().showMessage("Package filter cleared.")
 
     # --- actions -----------------------------------------------------------
     def start(self) -> None:
@@ -171,6 +246,7 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
+        self._update_package_enabled()
         self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
     def stop(self) -> None:

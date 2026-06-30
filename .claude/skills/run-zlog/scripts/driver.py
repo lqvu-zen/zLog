@@ -12,6 +12,7 @@ Scenarios:
     populated  table seeded with sample log lines
     filtered   seeded, then min-level set to Warning
     devices    device picker populated with fake devices
+    package-filter  rows narrowed to a single PID (as the package filter does)
 
 Screenshots are written to ``../screenshots/`` next to this script.
 
@@ -124,11 +125,19 @@ def scenario_devices(window: MainWindow) -> None:
     _shot(window, "devices")
 
 
+def scenario_package_filter(window: MainWindow) -> None:
+    # Seed rows from two PIDs, then keep only one PID (as the package filter does).
+    _seed(window, 8)
+    window.proxy.set_pids({"1287"})
+    _shot(window, "package-filter")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
     "filtered": scenario_filtered,
     "devices": scenario_devices,
+    "package-filter": scenario_package_filter,
 }
 
 

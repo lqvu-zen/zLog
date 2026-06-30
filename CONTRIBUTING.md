@@ -50,8 +50,8 @@ The essentials:
   delivered to the main thread (see `AdbReader.batch_ready`).
 - **Keep the table model virtualized** and **filter through the proxy**, not by
   mutating the master list.
-- **Bump `__version__`** in `src/zlog/__init__.py` (and `version` in
-  `pyproject.toml`) with each change.
+- **Don't bump the version per change.** `__version__` / `version` change only on
+  a release, not for individual features or fixes.
 
 The full reasoning is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); a quick
 reference is in [`CLAUDE.md`](CLAUDE.md).

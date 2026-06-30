@@ -91,9 +91,9 @@ bugs come from violating one, so internalize the *why*, not just the rule.
 - **Comments explain WHY, not WHAT.** Add one only when a line's reason is
   non-obvious.
 
-- **Bump `__version__`.** It lives in `src/zlog/__init__.py`; mirror it in
-  `pyproject.toml`'s `version`. Bump the patch for fixes/small features, the minor
-  for a notable new capability.
+- **Version bumps happen only on release.** Don't change `__version__`
+  (`src/zlog/__init__.py`) or `pyproject.toml`'s `version` for individual features
+  or fixes — bump them only when cutting a release.
 
 ## The workflow
 
@@ -148,11 +148,12 @@ user has approved it.**
 ### 4. Implement
 
 Set the plan's **Status: In progress**. Edit only inside `src/zlog/` (and `tests/`
-when the feature adds testable logic). Don't touch `pyproject.toml` beyond the
-`version` bump and a genuinely required new dependency. Follow the approved plan; if
+when the feature adds testable logic). Don't touch `pyproject.toml` except for a genuinely required new dependency
+(versions change only at release, not here). Follow the approved plan; if
 reality forces a deviation, update the plan file rather than silently diverging.
-Bump `__version__` in `src/zlog/__init__.py` in the same pass so it's never
-forgotten. Keep `core/` Qt-free and keep all background work behind signals.
+(Don't touch `__version__` or `pyproject.toml`'s `version` — those change only at
+release time, not per feature.) Keep `core/` Qt-free and keep all background work
+behind signals.
 
 ### 5. Test and smoke-check — not optional
 
@@ -209,7 +210,7 @@ plan and the architecture rules:
 - A new Qt import sneaked into `core/`?
 - A full model reset where an in-place `append_entries` belongs?
 - Filtering done by mutating `_rows` instead of the proxy?
-- `__version__` bumped in both places?
+- No stray version bump (versions change only at release)?
 
 For a non-trivial diff, a fresh-eyes pass pays off; if subagents are available, hand
 the diff to one for independent review and fix real issues before committing. Don't
@@ -236,5 +237,5 @@ EOF
 ### 8. Report back
 
 Tell the user briefly: what was added and where it appears in the UI, which files
-under `src/zlog/` changed, the plan file it followed, the new `__version__`, and any
+under `src/zlog/` changed, the plan file it followed, and any
 known limitation or follow-up worth doing next.
