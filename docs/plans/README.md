@@ -32,3 +32,4 @@ which is cheaper than reworking a built feature.
 | [package-filter.md](package-filter.md) | Done | Filter the view to one app's process (package → PIDs) |
 | [regex-search.md](regex-search.md) | Done | Match log lines with a regular expression |
 | [save-load.md](save-load.md) | Done | Save the captured log to a file and reopen it offline |
+| [theming-dark-mode.md](theming-dark-mode.md) | Done | Light/Dark themes with colors centralized in ui/theme.py |

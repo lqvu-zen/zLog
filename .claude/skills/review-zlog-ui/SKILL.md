@@ -21,16 +21,18 @@ phase 5 and `docs/plans/README.md`).
 | Concern | File |
 |---|---|
 | Main window, toolbar, controls, wiring, autoscroll | `src/zlog/ui/main_window.py` |
-| Table model, filter proxy, **level row colors (`LEVEL_COLOR`)**, columns | `src/zlog/ui/log_model.py` |
+| Table model, filter proxy, columns | `src/zlog/ui/log_model.py` |
+| **Color themes (Light/Dark) + all palette tokens** | `src/zlog/ui/theme.py` |
 | App bootstrap / where a global stylesheet would go | `src/zlog/app.py` |
 
-**Colors are currently centralized in `LEVEL_COLOR`** (in `log_model.py`). Before
-recommending any color change, read it and refer to entries by meaning (warning /
-error / fatal). Never hard-code a hex value into a widget when a token exists or
-should exist — if the palette is growing, recommend introducing a single
-`src/zlog/ui/theme.py` and migrating tokens there, so the palette stays the one
-source of truth. Keep typography consistent (Qt's default application font unless a
-deliberate choice is made and applied app-wide in `app.py`).
+**Colors are centralized in `src/zlog/ui/theme.py`** — a Qt-free module with a
+`Theme` for **Light** and **Dark** (chrome colors, per-level row tints, the
+regex-error tint) plus `build_stylesheet`. Before recommending any color change,
+read it and refer to tokens by meaning (warning / error / fatal, window, base…).
+Never hard-code a hex value into a widget: add or adjust a token on the theme so the
+palette stays the one source of truth, and check the change in **both** themes. Keep
+typography consistent (Qt's default application font unless a deliberate choice is
+applied app-wide in `app.py`).
 
 ## The review workflow
 
@@ -63,7 +65,7 @@ already in the `run-zlog/screenshots/` folder.
 
 For each screen under review, read the file(s) that build it. You're looking for the
 *structural causes* of what you see: layout margins/spacing, `addWidget` stretch
-factors, column resize modes, header visibility, the `LEVEL_COLOR` choices,
+factors, column resize modes, header visibility, the theme color choices,
 selection behavior, placeholder text, disabled states. A finding is only actionable
 if you can point to the line that produces it.
 
@@ -99,7 +101,7 @@ skill uses):
 
 - Copy `docs/plans/TEMPLATE.md` to `docs/plans/ui-<scope>.md` (e.g. `ui-table-polish.md`).
 - Fill in **Scope** (which findings are in, which are deferred), **Design** (the
-  `src/zlog/ui/*` files and lines, color tokens added to `LEVEL_COLOR` or a new
+  `src/zlog/ui/*` files and lines, color tokens added to `ui/theme.py` or a new
   `theme.py`), **Risks** (must not break threading, virtualization, proxy filtering,
   or autoscroll-at-bottom), and **Verification** (which `run-zlog` scenarios you'll
   re-shoot). Split a big redesign into several plan files by area.
@@ -111,8 +113,8 @@ skill uses):
 Set the plan **Status: In progress**. Prefer **small, surgical diffs** that respect
 existing patterns:
 
-- Route colors through `LEVEL_COLOR` (or a new `theme.py`); never hard-code hex at a
-  widget.
+- Route colors through `ui/theme.py` (adjust/add a `Theme` token); never hard-code
+  hex at a widget, and verify both Light and Dark.
 - Preserve behavior that is load-bearing: the worker-thread to signal to slot output
   path, the virtualized model (`append_entries`, no per-row widgets), proxy-based
   filtering, and autoscroll-only-when-at-bottom. A visual change must not break

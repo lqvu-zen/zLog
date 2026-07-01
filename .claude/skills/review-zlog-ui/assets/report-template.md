@@ -11,7 +11,7 @@
 > Hurts usability or looks broken.
 
 #### H1. <short title>
-- **Screen / location:** <screen> — `src/zlog/ui/<file>.py:<line>` (or token in `LEVEL_COLOR`)
+- **Screen / location:** <screen> — `src/zlog/ui/<file>.py:<line>` (or a token in `ui/theme.py`)
 - **What & why:** <what's wrong and why it matters to the user>
 - **Recommendation:** <concrete, zLog-appropriate fix>
 - **Screenshot:** <filename.png>

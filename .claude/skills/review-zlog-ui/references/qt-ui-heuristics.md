@@ -24,7 +24,7 @@ irrelevant to the screen under review.
 - Toolbar controls should align on a baseline with even gaps, not ragged.
 
 ## 3. Color & contrast
-- Row tints (`LEVEL_COLOR`) must keep text readable. Pale yellow/red backgrounds
+- Row tints (from `ui/theme.py`) must keep text readable in both Light and Dark. Pale yellow/red backgrounds
   with the default near-black text are usually fine — verify contrast, especially if
   a dark theme is added later.
 - Semantic color should be consistent: warning = amber, error/fatal = red. Don't

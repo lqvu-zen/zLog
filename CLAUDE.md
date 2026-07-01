@@ -57,7 +57,8 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | `LogEntry`, `LEVEL_RANK`, severity `rank` | `src/zlog/core/models.py` |
 | logcat line parsing (`parse_line`) | `src/zlog/core/parser.py` |
 | `adb logcat` streaming thread (`AdbReader`) | `src/zlog/adb/reader.py` |
-| Qt table model, filter proxy, level colors | `src/zlog/ui/log_model.py` |
+| Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
+| color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
 | main window, toolbar, wiring | `src/zlog/ui/main_window.py` |
 | `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
@@ -111,9 +112,9 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
 - **Filter through the proxy, not the master list.** Keep `_rows` complete so
   clearing a filter is instant.
 - **Preserve reader→UI batching** (`_BATCH_SIZE`) when changing the read loop.
-- **Centralize colors.** Level colors live in `LEVEL_COLOR` in `ui/log_model.py`;
-  as theming grows, move tokens into a single `ui/theme.py` rather than hard-coding
-  hex at call sites.
+- **Centralize colors in `ui/theme.py`.** All palette tokens (chrome colors,
+  per-level row tints, the regex-error tint) live there; the model gets its tints
+  from the active theme. Add new colors to a `Theme`, never hard-code hex at a widget.
 - **Comments explain WHY, not WHAT.**
 - **Version bumps happen only on release.** Don't change `__version__`
   (`src/zlog/__init__.py`) or `version` (`pyproject.toml`) per feature or fix —

@@ -14,7 +14,9 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+from PySide6.QtGui import QActionGroup
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -36,6 +38,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
+from zlog.ui.theme import THEMES, build_stylesheet
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
 
@@ -123,6 +126,18 @@ class MainWindow(QMainWindow):
         save_act.setShortcut("Ctrl+S")
         save_act.triggered.connect(self.save_log)
 
+        # View menu: theme picker (Light default)
+        theme_menu = self.menuBar().addMenu("&View").addMenu("&Theme")
+        self._theme_group = QActionGroup(self)
+        self._theme_group.setExclusive(True)
+        for name in THEMES:
+            act = theme_menu.addAction(name)
+            act.setCheckable(True)
+            act.setChecked(name == "Light")
+            self._theme_group.addAction(act)
+            act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
+        self._search_error_color = "#ffd7d7"
+
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
 
@@ -144,6 +159,9 @@ class MainWindow(QMainWindow):
 
         # initial device scan
         self.refresh_devices()
+
+        # apply the default theme (styles the app + model tints)
+        self.apply_theme("Light")
 
     # --- devices -----------------------------------------------------------
     def refresh_devices(self) -> None:
@@ -257,8 +275,21 @@ class MainWindow(QMainWindow):
         else:
             # Invalid regex: keep the previous filter and flag the box. (This
             # tint would move into ui/theme.py once that exists.)
-            self.search.setStyleSheet("QLineEdit { background-color: #ffd7d7; }")
+            self.search.setStyleSheet(
+                f"QLineEdit {{ background-color: {self._search_error_color}; }}"
+            )
             self.statusBar().showMessage("Invalid regex — showing previous match.")
+
+    # --- theme -------------------------------------------------------------
+    def apply_theme(self, name: str) -> None:
+        theme = THEMES[name]
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(build_stylesheet(theme))
+        self.model.set_level_colors(theme.level_colors)
+        self._search_error_color = theme.search_error
+        self.table.viewport().update()  # repaint existing rows with new tints
+        self._apply_search()  # re-tint the search box under the new theme
 
     # --- save / load -------------------------------------------------------
     def save_log(self) -> None:

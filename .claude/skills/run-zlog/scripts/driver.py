@@ -15,6 +15,7 @@ Scenarios:
     package-filter  rows narrowed to a single PID (as the package filter does)
     regex-search    rows matched by a regular expression
     opened          a log loaded from saved threadtime text
+    dark            the Dark theme applied to a populated table
 
 Screenshots are written to ``../screenshots/`` next to this script.
 
@@ -157,6 +158,12 @@ def scenario_opened(window: MainWindow) -> None:
     _shot(window, "opened")
 
 
+def scenario_dark(window: MainWindow) -> None:
+    window.apply_theme("Dark")
+    _seed(window, 8)
+    _shot(window, "dark")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
@@ -165,6 +172,7 @@ SCENARIOS = {
     "package-filter": scenario_package_filter,
     "regex-search": scenario_regex_search,
     "opened": scenario_opened,
+    "dark": scenario_dark,
 }
 
 

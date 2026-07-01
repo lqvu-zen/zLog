@@ -26,7 +26,8 @@ a feature that isn't planned and verified isn't done.
 | `LogEntry`, `LEVEL_RANK`, severity `rank` | `src/zlog/core/models.py` |
 | logcat line parsing (`parse_line`) | `src/zlog/core/parser.py` |
 | `adb logcat` streaming thread (`AdbReader`) | `src/zlog/adb/reader.py` |
-| Qt table model, filter proxy, level colors | `src/zlog/ui/log_model.py` |
+| Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
+| color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
 | main window, toolbar, wiring | `src/zlog/ui/main_window.py` |
 | `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
@@ -84,9 +85,10 @@ bugs come from violating one, so internalize the *why*, not just the rule.
   per signal so a busy log doesn't flood the event loop. If you change the read
   loop, keep batching.
 
-- **Route colors through one place.** Level colors live in `LEVEL_COLOR` in
-  `ui/log_model.py`. If a feature needs a new color, add it there (or introduce
-  `ui/theme.py` and migrate tokens) rather than hard-coding a hex value at a widget.
+- **Route colors through `ui/theme.py`.** All palette tokens live there (per-level
+  row tints, chrome colors, the regex-error tint) and the model gets its tints from
+  the active theme. Add a new color to a `Theme` rather than hard-coding a hex value
+  at a widget.
 
 - **Comments explain WHY, not WHAT.** Add one only when a line's reason is
   non-obvious.

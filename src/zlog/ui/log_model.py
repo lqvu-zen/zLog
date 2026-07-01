@@ -7,6 +7,9 @@ LogFilterProxy sits between model and view and decides which rows show, based on
 a minimum level, a search matcher (substring or regex), and (optionally) a set of
 PIDs for a chosen package. Filtering this way keeps the master list intact, so
 clearing a filter instantly restores everything.
+
+Row tint colors come from the active theme (see `ui/theme.py`), applied per
+instance via `LogTableModel.set_level_colors` so a theme switch repaints live.
 """
 
 from __future__ import annotations
@@ -23,22 +26,18 @@ from PySide6.QtGui import QColor
 
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.search import compile_matcher
+from zlog.ui.theme import LIGHT
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
-
-# Row background tint per level.
-LEVEL_COLOR = {
-    "W": QColor(255, 244, 200),  # warning -> pale yellow
-    "E": QColor(255, 215, 215),  # error   -> pale red
-    "F": QColor(255, 190, 190),  # fatal   -> stronger red
-}
 
 
 class LogTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows: list[LogEntry] = []
+        self._level_colors: dict[str, QColor] = {}
+        self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
     def rowCount(self, parent=QModelIndex()) -> int:
@@ -61,7 +60,7 @@ class LogTableModel(QAbstractTableModel):
                 entry.message,
             )[index.column()]
         if role == Qt.BackgroundRole:
-            return LEVEL_COLOR.get(entry.level)
+            return self._level_colors.get(entry.level)
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -90,6 +89,10 @@ class LogTableModel(QAbstractTableModel):
     def all_entries(self) -> list[LogEntry]:
         """A copy of the full master list (used by Save Log)."""
         return list(self._rows)
+
+    def set_level_colors(self, hexmap: dict[str, str]) -> None:
+        """Set per-level row tints from a theme's hex values (W/E/F)."""
+        self._level_colors = {level: QColor(value) for level, value in hexmap.items()}
 
 
 class LogFilterProxy(QSortFilterProxyModel):
