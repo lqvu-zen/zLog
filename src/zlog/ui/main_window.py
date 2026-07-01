@@ -36,6 +36,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
+from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.theme import THEMES, build_stylesheet
@@ -58,7 +59,14 @@ class MainWindow(QMainWindow):
         self.table.setModel(self.proxy)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(MESSAGE_COL, QHeaderView.Stretch)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(MESSAGE_COL, QHeaderView.Stretch)
+        # Fixed-ish initial widths for the narrow columns so Time fits on one line;
+        # left Interactive (draggable) rather than ResizeToContents (which would
+        # measure every row and hurt large logs). Message keeps stretching.
+        for col, width in ((0, 145), (1, 60), (2, 60), (3, 55), (4, 170)):
+            header.setSectionResizeMode(col, QHeaderView.Interactive)
+            self.table.setColumnWidth(col, width)
 
         # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
@@ -67,6 +75,8 @@ class MainWindow(QMainWindow):
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.clear_btn = QPushButton("Clear")
+        self.follow_check = QCheckBox("Follow")
+        self.follow_check.setChecked(True)
         self.stop_btn.setEnabled(False)
 
         row1 = QHBoxLayout()
@@ -77,6 +87,7 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.start_btn)
         row1.addWidget(self.stop_btn)
         row1.addWidget(self.clear_btn)
+        row1.addWidget(self.follow_check)
         row1.addStretch(1)
 
         # --- row 2: filters ---
@@ -140,6 +151,8 @@ class MainWindow(QMainWindow):
 
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
+        self._filter_package: str | None = None
+        self._filter_pids: set[str] = set()
 
         # connections
         self.refresh_btn.clicked.connect(self.refresh_devices)
@@ -261,10 +274,14 @@ class MainWindow(QMainWindow):
         if not pids:
             self.statusBar().showMessage(f"{package} isn't running — start it and apply again.")
             return
-        self.proxy.set_pids(pids)
+        self._filter_package = package
+        self._filter_pids = set(pids)
+        self.proxy.set_pids(self._filter_pids)
         self.statusBar().showMessage(f"Showing {package} (pid {', '.join(pids)}).")
 
     def clear_package_filter(self) -> None:
+        self._filter_package = None
+        self._filter_pids = set()
         self.proxy.set_pids(None)
         self.statusBar().showMessage("Package filter cleared.")
 
@@ -357,19 +374,33 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
-        at_bottom = self._is_scrolled_to_bottom()
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"{self.model.rowCount()} lines")
-        if at_bottom:
+        if self._filter_package is not None:
+            self._track_new_pids(entries)
+        if self.follow_check.isChecked():
             self.table.scrollToBottom()
+
+    def _track_new_pids(self, entries) -> None:
+        """Keep an active package filter live: add PIDs of newly started
+        processes of the filtered package (so a restart keeps showing)."""
+        added = False
+        for entry in entries:
+            result = parse_proc_start(entry.message)
+            if result is None:
+                continue
+            pid, package = result
+            if package == self._filter_package and pid not in self._filter_pids:
+                self._filter_pids.add(pid)
+                added = True
+        if added:
+            self.proxy.set_pids(self._filter_pids)
+            pids = ", ".join(sorted(self._filter_pids))
+            self.statusBar().showMessage(f"{self._filter_package} restarted → tracking pid {pids}.")
 
     def on_error(self, msg: str) -> None:
         self.statusBar().showMessage(msg)
         self.stop()
-
-    def _is_scrolled_to_bottom(self) -> bool:
-        bar = self.table.verticalScrollBar()
-        return bar.value() >= bar.maximum() - 4
 
     def closeEvent(self, event) -> None:
         self.stop()

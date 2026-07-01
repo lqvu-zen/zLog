@@ -33,3 +33,6 @@ which is cheaper than reworking a built feature.
 | [regex-search.md](regex-search.md) | Done | Match log lines with a regular expression |
 | [save-load.md](save-load.md) | Done | Save the captured log to a file and reopen it offline |
 | [theming-dark-mode.md](theming-dark-mode.md) | Done | Light/Dark themes with colors centralized in ui/theme.py |
+| [pause-autoscroll.md](pause-autoscroll.md) | Done | Follow toggle for tail-following vs free scrolling |
+| [live-pid-tracking.md](live-pid-tracking.md) | Done | Keep the package filter live across app restarts |
+| [ui-column-polish.md](ui-column-polish.md) | Done | Sensible column widths; stop the Time column wrapping |
