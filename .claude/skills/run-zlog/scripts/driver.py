@@ -183,6 +183,13 @@ def _guide_setup(window: MainWindow, dark: bool = False) -> None:
     _seed(window, 20)
 
 
+def scenario_columns(window: MainWindow) -> None:
+    _seed(window, 8)
+    window._column_actions[1].setChecked(False)  # hide PID
+    window._column_actions[2].setChecked(False)  # hide TID
+    _shot(window, "columns")
+
+
 def scenario_details(window: MainWindow) -> None:
     _seed(window, 4)
     # Select the FATAL EXCEPTION row to show its full message in the detail pane.
@@ -253,6 +260,7 @@ SCENARIOS = {
     "copy": scenario_copy,
     "highlight": scenario_highlight,
     "details": scenario_details,
+    "columns": scenario_columns,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,
     "guide-level": scenario_guide_level,

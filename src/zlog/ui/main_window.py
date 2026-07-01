@@ -46,7 +46,7 @@ from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import load_settings, save_settings
 from zlog.core.summary import format_level_summary
-from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
+from zlog.ui.log_model import COLUMNS, MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
@@ -189,6 +189,15 @@ class MainWindow(QMainWindow):
         self.details_action.setCheckable(True)
         self.details_action.setChecked(True)
         self.details_action.toggled.connect(self.detail.setVisible)
+
+        columns_menu = view_menu.addMenu("&Columns")
+        self._column_actions = []
+        for col, name in enumerate(COLUMNS):
+            act = columns_menu.addAction(name)
+            act.setCheckable(True)
+            act.setChecked(True)
+            act.toggled.connect(lambda checked, c=col: self.table.setColumnHidden(c, not checked))
+            self._column_actions.append(act)
 
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
@@ -505,6 +514,12 @@ class MainWindow(QMainWindow):
         self.regex_check.setChecked(bool(data.get("regex", False)))
         self.details_action.setChecked(bool(data.get("show_details", True)))
         self.detail.setVisible(self.details_action.isChecked())
+        hidden = data.get("hidden_columns") or []
+        if isinstance(hidden, list):
+            for col, act in enumerate(self._column_actions):
+                visible = col not in hidden
+                act.setChecked(visible)
+                self.table.setColumnHidden(col, not visible)
         highlights = data.get("tag_highlights") or {}
         if isinstance(highlights, dict):
             for tag, color in highlights.items():
@@ -520,6 +535,9 @@ class MainWindow(QMainWindow):
             "regex": self.regex_check.isChecked(),
             "tag_highlights": self.model.tag_colors(),
             "show_details": self.details_action.isChecked(),
+            "hidden_columns": [
+                c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
+            ],
         }
         try:
             save_settings(str(self._settings_path()), data)

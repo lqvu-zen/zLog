@@ -19,6 +19,7 @@ DEFAULTS: dict = {
     "regex": False,
     "tag_highlights": {},  # tag -> hex color
     "show_details": True,
+    "hidden_columns": [],
 }
 
 
