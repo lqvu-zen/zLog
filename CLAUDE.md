@@ -122,7 +122,7 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
 
 ## Environment notes
 
-- `requires-python = ">=3.10"` (set to 3.10 so a lockfile could be generated in a
-  3.10-only environment; bump to 3.11 and re-run `uv lock` if preferred).
+- `requires-python = ">=3.14"`. uv reads `.python-version` (3.14) and will fetch a
+  matching interpreter automatically if you don't have one.
 - The live app needs Android **platform-tools** (`adb`) on PATH and a connected
   device/emulator. The parser/filter tests need neither.

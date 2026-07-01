@@ -3,7 +3,7 @@ name = "zlog"
 version = "0.1.0"
 description = "A desktop GUI for viewing Android logcat — inspired by plog."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = { text = "MIT" }
 authors = [{ name = "Vu" }]
 dependencies = [

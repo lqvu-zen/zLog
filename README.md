@@ -58,7 +58,7 @@ the model is **virtualized** (Qt only asks for visible rows); and filtering is a
   on your PATH (run `adb version` to confirm).
 - A device with USB debugging on, or a running emulator.
 
-> Note: `requires-python` is `>=3.10`. uv will fetch a matching Python for you
+> Note: `requires-python` is `>=3.14`. uv will fetch a matching Python for you
 > automatically if you don't have one.
 
 ## User guide
