@@ -14,7 +14,8 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtGui import QActionGroup
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -36,6 +37,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
+from zlog.core.models import LogEntry
 from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
@@ -69,6 +71,15 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(col, QHeaderView.Interactive)
             self.table.setColumnWidth(col, width)
         self.table.setAlternatingRowColors(True)
+        # Copy (Ctrl+C) and Select All, available via keyboard and right-click menu.
+        self.table.setContextMenuPolicy(Qt.ActionsContextMenu)
+        self.copy_action = QAction("Copy", self)
+        self.copy_action.setShortcut(QKeySequence.Copy)
+        self.copy_action.triggered.connect(self.copy_selection)
+        self.select_all_action = QAction("Select All", self)
+        self.select_all_action.triggered.connect(self.table.selectAll)
+        self.table.addAction(self.copy_action)
+        self.table.addAction(self.select_all_action)
 
         # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
@@ -327,6 +338,25 @@ class MainWindow(QMainWindow):
         else:
             text = ""
         self.table.set_placeholder(text)
+
+    # --- copy / selection --------------------------------------------------
+    def _selected_entries(self) -> list[LogEntry]:
+        """The entries for the selected rows, in top-to-bottom order, mapped from
+        the proxy (what's visible) back to the source model."""
+        rows = self.table.selectionModel().selectedRows()
+        source_rows = sorted(self.proxy.mapToSource(index).row() for index in rows)
+        return [self.model.entry_at(row) for row in source_rows]
+
+    def _selected_text(self) -> str:
+        return entries_to_text(self._selected_entries())
+
+    def copy_selection(self) -> None:
+        text = self._selected_text()
+        if not text:
+            return
+        QApplication.clipboard().setText(text)
+        n = text.count("\n")
+        self.statusBar().showMessage(f"Copied {n} line{'s' if n != 1 else ''}.")
 
     # --- save / load -------------------------------------------------------
     def save_log(self) -> None:

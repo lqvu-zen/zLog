@@ -61,6 +61,10 @@ the model is **virtualized** (Qt only asks for visible rows); and filtering is a
 > Note: `requires-python` is `>=3.10`. uv will fetch a matching Python for you
 > automatically if you don't have one.
 
+## User guide
+
+See **[docs/GUIDE.md](docs/GUIDE.md)** for a walkthrough with screenshots.
+
 ## Run
 
 ```bash

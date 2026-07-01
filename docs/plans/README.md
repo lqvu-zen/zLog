@@ -37,3 +37,4 @@ which is cheaper than reworking a built feature.
 | [live-pid-tracking.md](live-pid-tracking.md) | Done | Keep the package filter live across app restarts |
 | [ui-column-polish.md](ui-column-polish.md) | Done | Sensible column widths; stop the Time column wrapping |
 | [empty-state-and-polish.md](empty-state-and-polish.md) | Done | Empty-table placeholder + PID/TID align, row banding, button copy |
+| [copy-to-clipboard.md](copy-to-clipboard.md) | Done | Copy selected rows to the clipboard (Ctrl+C, context menu) |

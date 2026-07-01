@@ -176,6 +176,53 @@ def scenario_dark(window: MainWindow) -> None:
     _shot(window, "dark")
 
 
+def _guide_setup(window: MainWindow, dark: bool = False) -> None:
+    if dark:
+        window.apply_theme("Dark")
+    window._populate_devices([Device("emulator-5554", "device")])
+    _seed(window, 20)
+
+
+def scenario_copy(window: MainWindow) -> None:
+    # Seed rows, filter to W+ so the proxy shows a subset, select all visible rows,
+    # and print the copied text to prove proxy->source mapping respects the filter.
+    _seed(window, 2)
+    window.proxy.set_min_level("W")
+    window.table.selectAll()
+    print("COPIED TEXT >>>")
+    print(window._selected_text(), end="")
+    print("<<< END")
+    _shot(window, "copy")
+
+
+def scenario_guide_streaming(window: MainWindow) -> None:
+    _guide_setup(window)
+    window.statusBar().showMessage("Streaming adb logcat (emulator-5554)…  1,204 lines")
+    _shot(window, "guide-streaming")
+
+
+def scenario_guide_dark(window: MainWindow) -> None:
+    _guide_setup(window, dark=True)
+    window.statusBar().showMessage("Streaming adb logcat (emulator-5554)…  1,204 lines")
+    _shot(window, "guide-dark")
+
+
+def scenario_guide_level(window: MainWindow) -> None:
+    _guide_setup(window)
+    window.level_box.setCurrentText("W")
+    window.proxy.set_min_level("W")
+    window.statusBar().showMessage("Showing Warning and above.")
+    _shot(window, "guide-level")
+
+
+def scenario_guide_package(window: MainWindow) -> None:
+    _guide_setup(window)
+    window.package_box.setEditText("com.example.app")
+    window.proxy.set_pids({"1287"})
+    window.statusBar().showMessage("Showing com.example.app (pid 1287).")
+    _shot(window, "guide-package")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
@@ -187,6 +234,11 @@ SCENARIOS = {
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,
+    "copy": scenario_copy,
+    "guide-streaming": scenario_guide_streaming,
+    "guide-dark": scenario_guide_dark,
+    "guide-level": scenario_guide_level,
+    "guide-package": scenario_guide_package,
 }
 
 
