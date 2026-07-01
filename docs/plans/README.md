@@ -43,4 +43,4 @@ which is cheaper than reworking a built feature.
 | [detail-pane.md](detail-pane.md) | Done | Panel showing the full wrapped text of the selected log line |
 | [level-counts.md](level-counts.md) | Done | Status-bar tally of total lines and per-level counts |
 | [column-visibility.md](column-visibility.md) | Done | Show/hide table columns from the View menu, persisted |
-| [release-1.0.0.md](release-1.0.0.md) | In progress | Cut the 1.0.0 release (version, CHANGELOG, tag, exe) |
+| [release-1.0.0.md](release-1.0.0.md) | Done | Cut the 1.0.0 release (version, CHANGELOG, tag, exe) |

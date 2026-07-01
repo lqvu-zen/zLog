@@ -1,6 +1,6 @@
 # Plan: Cut the 1.0.0 release
 
-- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Vũ
 - **Created:** 2026-07-01
 
@@ -13,11 +13,11 @@ Ship zLog 1.0.0: the first stable, tagged release with a Windows executable.
 - [x] Bump `__version__` (`src/zlog/__init__.py`) and `version` (`pyproject.toml`) to `1.0.0`.
 - [x] Write `CHANGELOG.md` for 1.0.0.
 - [x] Release gate: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` all green.
-- [ ] (your machine) `uv lock` so the lockfile matches Python 3.14 + version 1.0.0.
-- [ ] (your machine) Commit everything, then tag and push:
+- [x] (your machine) `uv lock` so the lockfile matches Python 3.14 + version 1.0.0.
+- [x] (your machine) Commit everything, then tag and push:
       `git tag -a v1.0.0 -m "zLog 1.0.0"` and `git push --tags`.
-- [ ] (your machine) Build the Windows exe (see below) and attach it to the GitHub release.
-- [ ] (your machine) Create the GitHub Release for `v1.0.0` using the notes below.
+- [x] (your machine) Build the Windows exe (see below) and attach it to the GitHub release.
+- [x] (your machine) Create the GitHub Release for `v1.0.0` using the notes below.
 
 ## Windows build (cx_Freeze)
 

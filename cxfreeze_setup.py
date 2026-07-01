@@ -8,7 +8,7 @@ Usage (from the project root, ideally on Windows):
 Output:
     build/exe.win-amd64-<pyver>/zlog.exe   (with its bundled runtime)
 
-`Win32GUI` base means no console window. cx_Freeze ships a PySide6 hook, so the Qt
+`gui` base means no console window. cx_Freeze ships a PySide6 hook, so the Qt
 plugins/libraries are pulled in automatically.
 """
 
@@ -20,7 +20,7 @@ from cx_Freeze import Executable, setup
 
 from zlog import __version__
 
-base = "Win32GUI" if sys.platform == "win32" else None
+base = "gui" if sys.platform == "win32" else None
 
 build_exe_options = {
     "packages": ["zlog"],
