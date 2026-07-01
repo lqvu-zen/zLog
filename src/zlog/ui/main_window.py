@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QByteArray, QStandardPaths, Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -42,6 +42,7 @@ from zlog.core.devices import Device
 from zlog.core.models import LogEntry
 from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
+from zlog.core.settings import load_settings, save_settings
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
@@ -170,6 +171,7 @@ class MainWindow(QMainWindow):
         self._devices: list[Device] = []
         self._filter_package: str | None = None
         self._filter_pids: set[str] = set()
+        self._theme_name = "Light"
 
         # connections
         self.refresh_btn.clicked.connect(self.refresh_devices)
@@ -194,8 +196,9 @@ class MainWindow(QMainWindow):
         # initial device scan
         self.refresh_devices()
 
-        # apply the default theme (styles the app + model tints)
-        self.apply_theme("Light")
+        # restore saved settings (theme, geometry, filters, highlights); falls
+        # back to defaults on first run.
+        self._load_and_apply_settings()
 
         self._update_placeholder()
 
@@ -322,6 +325,7 @@ class MainWindow(QMainWindow):
 
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
+        self._theme_name = name
         theme = THEMES[name]
         app = QApplication.instance()
         if app is not None:
@@ -430,6 +434,49 @@ class MainWindow(QMainWindow):
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
 
+    # --- settings ----------------------------------------------------------
+    def _settings_path(self) -> Path:
+        base = QStandardPaths.writableLocation(QStandardPaths.AppConfigLocation) or str(
+            Path.home() / ".zlog"
+        )
+        return Path(base) / "settings.json"
+
+    def _load_and_apply_settings(self) -> None:
+        data = load_settings(str(self._settings_path()))
+        geometry = data.get("geometry") or ""
+        if geometry:
+            self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
+        theme = data.get("theme", "Light")
+        if theme not in THEMES:
+            theme = "Light"
+        for act in self._theme_group.actions():
+            act.setChecked(act.text() == theme)
+        self.apply_theme(theme)
+        self.follow_check.setChecked(bool(data.get("follow", True)))
+        idx = self.level_box.findData(data.get("min_level", "V"))
+        if idx >= 0:
+            self.level_box.setCurrentIndex(idx)
+        self.regex_check.setChecked(bool(data.get("regex", False)))
+        highlights = data.get("tag_highlights") or {}
+        if isinstance(highlights, dict):
+            for tag, color in highlights.items():
+                self.model.set_tag_color(str(tag), str(color))
+        self.table.viewport().update()
+
+    def _save_settings(self) -> None:
+        data = {
+            "geometry": bytes(self.saveGeometry().toBase64()).decode("ascii"),
+            "theme": self._theme_name,
+            "follow": self.follow_check.isChecked(),
+            "min_level": self.level_box.currentData(),
+            "regex": self.regex_check.isChecked(),
+            "tag_highlights": self.model.tag_colors(),
+        }
+        try:
+            save_settings(str(self._settings_path()), data)
+        except OSError:
+            pass  # never let a settings write failure break shutdown
+
     # --- actions -----------------------------------------------------------
     def start(self) -> None:
         if self.reader and self.reader.isRunning():
@@ -487,5 +534,6 @@ class MainWindow(QMainWindow):
         self.stop()
 
     def closeEvent(self, event) -> None:
+        self._save_settings()
         self.stop()
         super().closeEvent(event)

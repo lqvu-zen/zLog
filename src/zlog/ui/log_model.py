@@ -105,6 +105,10 @@ class LogTableModel(QAbstractTableModel):
     def clear_tag_colors(self) -> None:
         self._tag_colors = {}
 
+    def tag_colors(self) -> dict[str, str]:
+        """Current tag highlights as hex strings (for saving)."""
+        return {tag: color.name() for tag, color in self._tag_colors.items()}
+
 
 class LogFilterProxy(QSortFilterProxyModel):
     def __init__(self, parent=None):

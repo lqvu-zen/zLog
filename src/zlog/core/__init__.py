@@ -11,6 +11,7 @@ from zlog.core.parser import parse_line
 from zlog.core.proc import parse_proc_start
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
+from zlog.core.settings import DEFAULTS, load_settings, save_settings
 
 __all__ = [
     "LogEntry",
@@ -24,4 +25,7 @@ __all__ = [
     "compile_matcher",
     "entries_to_text",
     "text_to_entries",
+    "DEFAULTS",
+    "load_settings",
+    "save_settings",
 ]

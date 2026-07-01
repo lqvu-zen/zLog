@@ -12,6 +12,9 @@ from zlog.ui.main_window import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
+    # Names give QStandardPaths a proper per-user config dir for settings.
+    app.setApplicationName("zlog")
+    app.setOrganizationName("zlog")
     window = MainWindow()
     window.show()
     return app.exec()
