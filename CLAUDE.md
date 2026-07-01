@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 in this repository. It is the load-bearing summary to read before touching the
 code; deeper rationale lives in `docs/ARCHITECTURE.md`, plans live in `docs/plans/`,
 and the actual workflows live in `.claude/skills/` (`add-zlog-feature`,
-`review-zlog-ui`, `run-zlog`).
+`review-zlog-ui`, `run-zlog`, `release-zlog`).
 
 zLog is a **Windows-first desktop GUI for viewing Android `adb logcat`**, inspired
 by [plog](https://github.com/katatunix/plog). Built with **Python + PySide6 (Qt)**,
@@ -37,9 +37,10 @@ uv run --with pillow python .claude/skills/run-zlog/scripts/driver.py smoke
 # → .claude/skills/run-zlog/screenshots/*.png
 ```
 
-Build a standalone Windows exe:
+Build the Windows executable (cx_Freeze) — see the `release-zlog` skill:
 ```bash
-uv run --with pyinstaller pyinstaller --noconsole --onefile --name zlog src/zlog/__main__.py
+uv run --extra build python cxfreeze_setup.py build   # or double-click build.bat
+# → build/exe.win-amd64-<pyver>/zlog.exe
 ```
 
 Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.

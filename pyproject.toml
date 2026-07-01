@@ -1,6 +1,6 @@
 [project]
 name = "zlog"
-version = "0.1.0"
+version = "1.0.0"
 description = "A desktop GUI for viewing Android logcat — inspired by plog."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -17,6 +17,9 @@ zlog = "zlog.app:main"
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
+]
+build = [
+    "cx_Freeze>=7.2",
 ]
 
 [build-system]

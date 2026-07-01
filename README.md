@@ -88,11 +88,14 @@ uv run ruff format .    # format
 
 ## Build a Windows .exe
 
+Built with [cx_Freeze](https://cx-freeze.readthedocs.io/) (run on Windows):
+
 ```bash
-uv run --with pyinstaller pyinstaller --noconsole --onefile --name zlog src/zlog/__main__.py
+uv run --extra build python cxfreeze_setup.py build
 ```
 
-The result lands in `dist/zlog.exe`.
+The app lands in `build\exe.win-amd64-<pyver>\zlog.exe` (with its bundled runtime).
+Or double-click **build.bat**. See the `release-zlog` skill for the full release flow.
 
 ## Where to go next
 
