@@ -158,6 +158,18 @@ def scenario_opened(window: MainWindow) -> None:
     _shot(window, "opened")
 
 
+def scenario_empty(window: MainWindow) -> None:
+    window._update_placeholder()
+    _shot(window, "empty")
+
+
+def scenario_no_match(window: MainWindow) -> None:
+    _seed(window, 4)
+    window.proxy.set_search("zzz-nothing-matches", regex=False)
+    window._update_placeholder()
+    _shot(window, "no-match")
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -173,6 +185,8 @@ SCENARIOS = {
     "regex-search": scenario_regex_search,
     "opened": scenario_opened,
     "dark": scenario_dark,
+    "empty": scenario_empty,
+    "no-match": scenario_no_match,
 }
 
 

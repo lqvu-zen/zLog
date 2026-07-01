@@ -39,6 +39,7 @@ from zlog.core.devices import Device
 from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
+from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
@@ -55,7 +56,7 @@ class MainWindow(QMainWindow):
         self.proxy = LogFilterProxy(self)
         self.proxy.setSourceModel(self.model)
 
-        self.table = QTableView()
+        self.table = LogTableView()
         self.table.setModel(self.proxy)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.verticalHeader().setVisible(False)
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
         for col, width in ((0, 145), (1, 60), (2, 60), (3, 55), (4, 170)):
             header.setSectionResizeMode(col, QHeaderView.Interactive)
             self.table.setColumnWidth(col, width)
+        self.table.setAlternatingRowColors(True)
 
         # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
@@ -96,7 +98,7 @@ class MainWindow(QMainWindow):
         self.package_box.setMinimumWidth(220)
         self.package_box.lineEdit().setPlaceholderText("Package, e.g. com.example.app")
         self.load_pkgs_btn = QPushButton("Load")
-        self.apply_pkg_btn = QPushButton("Filter")
+        self.apply_pkg_btn = QPushButton("Apply")
         self.clear_pkg_btn = QPushButton("Clear pkg")
 
         self.level_box = QComboBox()
@@ -169,12 +171,18 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
+        self.proxy.layoutChanged.connect(self._update_placeholder)
+        self.proxy.modelReset.connect(self._update_placeholder)
+        self.proxy.rowsInserted.connect(self._update_placeholder)
+        self.proxy.rowsRemoved.connect(self._update_placeholder)
 
         # initial device scan
         self.refresh_devices()
 
         # apply the default theme (styles the app + model tints)
         self.apply_theme("Light")
+
+        self._update_placeholder()
 
     # --- devices -----------------------------------------------------------
     def refresh_devices(self) -> None:
@@ -307,6 +315,18 @@ class MainWindow(QMainWindow):
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
+
+    def _update_placeholder(self) -> None:
+        """Contextual empty-state text: nothing captured vs. filtered to nothing."""
+        if self.model.rowCount() == 0:
+            text = (
+                "No logs yet — pick a device and press Start,\nor open a saved log (File → Open)."
+            )
+        elif self.proxy.rowCount() == 0:
+            text = "No lines match the current filters."
+        else:
+            text = ""
+        self.table.set_placeholder(text)
 
     # --- save / load -------------------------------------------------------
     def save_log(self) -> None:

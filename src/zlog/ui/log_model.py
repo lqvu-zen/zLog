@@ -61,6 +61,8 @@ class LogTableModel(QAbstractTableModel):
             )[index.column()]
         if role == Qt.BackgroundRole:
             return self._level_colors.get(entry.level)
+        if role == Qt.TextAlignmentRole and index.column() in (1, 2):
+            return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
