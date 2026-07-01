@@ -87,6 +87,10 @@ class LogTableModel(QAbstractTableModel):
     def entry_at(self, row: int) -> LogEntry:
         return self._rows[row]
 
+    def all_entries(self) -> list[LogEntry]:
+        """A copy of the full master list (used by Save Log)."""
+        return list(self._rows)
+
 
 class LogFilterProxy(QSortFilterProxyModel):
     def __init__(self, parent=None):

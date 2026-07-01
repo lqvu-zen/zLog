@@ -14,6 +14,7 @@ Scenarios:
     devices    device picker populated with fake devices
     package-filter  rows narrowed to a single PID (as the package filter does)
     regex-search    rows matched by a regular expression
+    opened          a log loaded from saved threadtime text
 
 Screenshots are written to ``../screenshots/`` next to this script.
 
@@ -139,6 +140,23 @@ def scenario_regex_search(window: MainWindow) -> None:
     _shot(window, "regex-search")
 
 
+SAMPLE_LOG_TEXT = "\n".join(
+    [
+        "06-30 12:34:56.001 1287 1287 I ActivityManager: Start proc com.example.app",
+        "06-30 12:34:56.110 1287 1287 W Choreographer: Skipped 12 frames!",
+        "06-30 12:34:56.220 1287 1342 E AndroidRuntime: FATAL EXCEPTION: main",
+        "--------- beginning of crash",
+    ]
+)
+
+
+def scenario_opened(window: MainWindow) -> None:
+    from zlog.core.session import text_to_entries
+
+    window.model.append_entries(text_to_entries(SAMPLE_LOG_TEXT))
+    _shot(window, "opened")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
@@ -146,6 +164,7 @@ SCENARIOS = {
     "devices": scenario_devices,
     "package-filter": scenario_package_filter,
     "regex-search": scenario_regex_search,
+    "opened": scenario_opened,
 }
 
 

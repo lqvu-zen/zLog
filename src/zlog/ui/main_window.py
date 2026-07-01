@@ -11,9 +11,13 @@ Data flow:
 
 from __future__ import annotations
 
+from datetime import datetime
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -30,6 +34,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
+from zlog.core.session import entries_to_text, text_to_entries
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
@@ -108,6 +113,15 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
+
+        # File menu: Open / Save log
+        file_menu = self.menuBar().addMenu("&File")
+        open_act = file_menu.addAction("&Open Log…")
+        open_act.setShortcut("Ctrl+O")
+        open_act.triggered.connect(self.open_log)
+        save_act = file_menu.addAction("&Save Log…")
+        save_act.setShortcut("Ctrl+S")
+        save_act.triggered.connect(self.save_log)
 
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
@@ -245,6 +259,44 @@ class MainWindow(QMainWindow):
             # tint would move into ui/theme.py once that exists.)
             self.search.setStyleSheet("QLineEdit { background-color: #ffd7d7; }")
             self.statusBar().showMessage("Invalid regex — showing previous match.")
+
+    # --- save / load -------------------------------------------------------
+    def save_log(self) -> None:
+        default = f"zlog-{datetime.now():%Y%m%d-%H%M%S}.log"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Log", default, "Log files (*.log);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(entries_to_text(self.model.all_entries()))
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not save: {exc}")
+            return
+        self.statusBar().showMessage(f"Saved {self.model.rowCount()} lines to {Path(path).name}.")
+
+    def open_log(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Log", "", "Log files (*.log);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not open: {exc}")
+            return
+        # Opening is an offline view: stop any live stream and drop the
+        # device-specific package (PID) filter, which no longer applies.
+        if self.reader and self.reader.isRunning():
+            self.stop()
+        self.proxy.set_pids(None)
+        entries = text_to_entries(text)
+        self.model.clear()
+        self.model.append_entries(entries)
+        self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
 
     # --- actions -----------------------------------------------------------
     def start(self) -> None:

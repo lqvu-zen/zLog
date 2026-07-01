@@ -9,6 +9,7 @@ from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.packages import parse_packages, parse_pids
 from zlog.core.parser import parse_line
 from zlog.core.search import compile_matcher
+from zlog.core.session import entries_to_text, text_to_entries
 
 __all__ = [
     "LogEntry",
@@ -19,4 +20,6 @@ __all__ = [
     "parse_pids",
     "parse_packages",
     "compile_matcher",
+    "entries_to_text",
+    "text_to_entries",
 ]
