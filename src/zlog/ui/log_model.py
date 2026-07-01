@@ -37,6 +37,7 @@ class LogTableModel(QAbstractTableModel):
         super().__init__(parent)
         self._rows: list[LogEntry] = []
         self._level_colors: dict[str, QColor] = {}
+        self._tag_colors: dict[str, QColor] = {}  # per-tag highlight, overrides level tint
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -60,7 +61,7 @@ class LogTableModel(QAbstractTableModel):
                 entry.message,
             )[index.column()]
         if role == Qt.BackgroundRole:
-            return self._level_colors.get(entry.level)
+            return self._tag_colors.get(entry.tag) or self._level_colors.get(entry.level)
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
@@ -95,6 +96,14 @@ class LogTableModel(QAbstractTableModel):
     def set_level_colors(self, hexmap: dict[str, str]) -> None:
         """Set per-level row tints from a theme's hex values (W/E/F)."""
         self._level_colors = {level: QColor(value) for level, value in hexmap.items()}
+
+    def set_tag_color(self, tag: str, color: str) -> None:
+        """Highlight all rows with this tag using the given color (hex or name)."""
+        if tag:
+            self._tag_colors[tag] = QColor(color)
+
+    def clear_tag_colors(self) -> None:
+        self._tag_colors = {}
 
 
 class LogFilterProxy(QSortFilterProxyModel):

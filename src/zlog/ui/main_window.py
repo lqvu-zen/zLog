@@ -19,6 +19,7 @@ from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QPushButton,
     QStatusBar,
     QTableView,
@@ -71,8 +73,8 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(col, QHeaderView.Interactive)
             self.table.setColumnWidth(col, width)
         self.table.setAlternatingRowColors(True)
-        # Copy (Ctrl+C) and Select All, available via keyboard and right-click menu.
-        self.table.setContextMenuPolicy(Qt.ActionsContextMenu)
+        # Copy (Ctrl+C) and Select All: keyboard shortcuts via addAction, plus a
+        # custom right-click menu that also offers per-tag highlighting.
         self.copy_action = QAction("Copy", self)
         self.copy_action.setShortcut(QKeySequence.Copy)
         self.copy_action.triggered.connect(self.copy_selection)
@@ -80,6 +82,8 @@ class MainWindow(QMainWindow):
         self.select_all_action.triggered.connect(self.table.selectAll)
         self.table.addAction(self.copy_action)
         self.table.addAction(self.select_all_action)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_table_menu)
 
         # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
@@ -357,6 +361,36 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(text)
         n = text.count("\n")
         self.statusBar().showMessage(f"Copied {n} line{'s' if n != 1 else ''}.")
+
+    def _show_table_menu(self, pos) -> None:
+        menu = QMenu(self.table)
+        menu.addAction(self.copy_action)
+        menu.addAction(self.select_all_action)
+        menu.addSeparator()
+        index = self.table.indexAt(pos)
+        tag = ""
+        if index.isValid():
+            tag = self.model.entry_at(self.proxy.mapToSource(index).row()).tag
+        highlight = menu.addAction(f"Highlight tag \u201c{tag}\u201d…" if tag else "Highlight tag…")
+        highlight.setEnabled(bool(tag))
+        highlight.triggered.connect(lambda: self._highlight_tag(tag))
+        clear = menu.addAction("Clear tag highlights")
+        clear.triggered.connect(self._clear_tag_highlights)
+        menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _highlight_tag(self, tag: str) -> None:
+        if not tag:
+            return
+        color = QColorDialog.getColor(parent=self, title=f"Highlight color for {tag}")
+        if color.isValid():
+            self.model.set_tag_color(tag, color.name())
+            self.table.viewport().update()
+            self.statusBar().showMessage(f"Highlighting tag \u201c{tag}\u201d.")
+
+    def _clear_tag_highlights(self) -> None:
+        self.model.clear_tag_colors()
+        self.table.viewport().update()
+        self.statusBar().showMessage("Cleared tag highlights.")
 
     # --- save / load -------------------------------------------------------
     def save_log(self) -> None:

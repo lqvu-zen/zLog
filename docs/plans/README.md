@@ -38,3 +38,4 @@ which is cheaper than reworking a built feature.
 | [ui-column-polish.md](ui-column-polish.md) | Done | Sensible column widths; stop the Time column wrapping |
 | [empty-state-and-polish.md](empty-state-and-polish.md) | Done | Empty-table placeholder + PID/TID align, row banding, button copy |
 | [copy-to-clipboard.md](copy-to-clipboard.md) | Done | Copy selected rows to the clipboard (Ctrl+C, context menu) |
+| [tag-highlight.md](tag-highlight.md) | Done | Assign a background color to a tag so its rows stand out |

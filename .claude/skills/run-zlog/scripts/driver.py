@@ -183,6 +183,13 @@ def _guide_setup(window: MainWindow, dark: bool = False) -> None:
     _seed(window, 20)
 
 
+def scenario_highlight(window: MainWindow) -> None:
+    _seed(window, 8)
+    window.model.set_tag_color("Choreographer", "#b3e5fc")
+    window.table.viewport().update()
+    _shot(window, "highlight")
+
+
 def scenario_copy(window: MainWindow) -> None:
     # Seed rows, filter to W+ so the proxy shows a subset, select all visible rows,
     # and print the copied text to prove proxy->source mapping respects the filter.
@@ -235,6 +242,7 @@ SCENARIOS = {
     "empty": scenario_empty,
     "no-match": scenario_no_match,
     "copy": scenario_copy,
+    "highlight": scenario_highlight,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,
     "guide-level": scenario_guide_level,
