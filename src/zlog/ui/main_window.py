@@ -28,7 +28,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMenu,
+    QPlainTextEdit,
     QPushButton,
+    QSplitter,
     QStatusBar,
     QTableView,
     QVBoxLayout,
@@ -86,6 +88,18 @@ class MainWindow(QMainWindow):
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_table_menu)
 
+        # Detail pane: full, wrapped text of the selected row (read-only).
+        self.detail = QPlainTextEdit()
+        self.detail.setReadOnly(True)
+        self.detail.setPlaceholderText("Select a line to see its full message here.")
+        self.detail.setMaximumBlockCount(0)
+        self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.addWidget(self.table)
+        self._splitter.addWidget(self.detail)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        self._splitter.setSizes([520, 150])
+
         # --- row 1: device + stream controls ---
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(180)
@@ -140,7 +154,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
         layout.addLayout(row1)
         layout.addLayout(row2)
-        layout.addWidget(self.table)
+        layout.addWidget(self._splitter)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -155,8 +169,9 @@ class MainWindow(QMainWindow):
         save_act.setShortcut("Ctrl+S")
         save_act.triggered.connect(self.save_log)
 
-        # View menu: theme picker (Light default)
-        theme_menu = self.menuBar().addMenu("&View").addMenu("&Theme")
+        # View menu: theme picker + details toggle
+        view_menu = self.menuBar().addMenu("&View")
+        theme_menu = view_menu.addMenu("&Theme")
         self._theme_group = QActionGroup(self)
         self._theme_group.setExclusive(True)
         for name in THEMES:
@@ -166,6 +181,11 @@ class MainWindow(QMainWindow):
             self._theme_group.addAction(act)
             act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
         self._search_error_color = "#ffd7d7"
+
+        self.details_action = view_menu.addAction("Show &Details")
+        self.details_action.setCheckable(True)
+        self.details_action.setChecked(True)
+        self.details_action.toggled.connect(self.detail.setVisible)
 
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
@@ -188,6 +208,7 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
+        self.table.selectionModel().currentChanged.connect(self._update_detail)
         self.proxy.layoutChanged.connect(self._update_placeholder)
         self.proxy.modelReset.connect(self._update_placeholder)
         self.proxy.rowsInserted.connect(self._update_placeholder)
@@ -434,6 +455,20 @@ class MainWindow(QMainWindow):
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
 
+    # --- detail pane -------------------------------------------------------
+    def _update_detail(self, current, previous=None) -> None:
+        if current is None or not current.isValid():
+            self.detail.clear()
+            return
+        entry = self.model.entry_at(self.proxy.mapToSource(current).row())
+        dash = "\u2014"
+        header = (
+            f"Time  {entry.time or dash}    "
+            f"PID {entry.pid or dash}  TID {entry.tid or dash}    "
+            f"{entry.level or dash}  {entry.tag or dash}"
+        )
+        self.detail.setPlainText(header + "\n\n" + entry.message)
+
     # --- settings ----------------------------------------------------------
     def _settings_path(self) -> Path:
         base = QStandardPaths.writableLocation(QStandardPaths.AppConfigLocation) or str(
@@ -457,6 +492,8 @@ class MainWindow(QMainWindow):
         if idx >= 0:
             self.level_box.setCurrentIndex(idx)
         self.regex_check.setChecked(bool(data.get("regex", False)))
+        self.details_action.setChecked(bool(data.get("show_details", True)))
+        self.detail.setVisible(self.details_action.isChecked())
         highlights = data.get("tag_highlights") or {}
         if isinstance(highlights, dict):
             for tag, color in highlights.items():
@@ -471,6 +508,7 @@ class MainWindow(QMainWindow):
             "min_level": self.level_box.currentData(),
             "regex": self.regex_check.isChecked(),
             "tag_highlights": self.model.tag_colors(),
+            "show_details": self.details_action.isChecked(),
         }
         try:
             save_settings(str(self._settings_path()), data)

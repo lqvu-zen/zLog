@@ -18,6 +18,7 @@ DEFAULTS: dict = {
     "min_level": "V",
     "regex": False,
     "tag_highlights": {},  # tag -> hex color
+    "show_details": True,
 }
 
 

@@ -183,6 +183,15 @@ def _guide_setup(window: MainWindow, dark: bool = False) -> None:
     _seed(window, 20)
 
 
+def scenario_details(window: MainWindow) -> None:
+    _seed(window, 4)
+    # Select the FATAL EXCEPTION row to show its full message in the detail pane.
+    index = window.proxy.index(3, 0)
+    window.table.setCurrentIndex(index)
+    window._update_detail(index)
+    _shot(window, "details")
+
+
 def scenario_highlight(window: MainWindow) -> None:
     _seed(window, 8)
     window.model.set_tag_color("Choreographer", "#b3e5fc")
@@ -243,6 +252,7 @@ SCENARIOS = {
     "no-match": scenario_no_match,
     "copy": scenario_copy,
     "highlight": scenario_highlight,
+    "details": scenario_details,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,
     "guide-level": scenario_guide_level,
