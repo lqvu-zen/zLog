@@ -12,6 +12,7 @@ Data flow:
 from __future__ import annotations
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -85,6 +86,7 @@ class MainWindow(QMainWindow):
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
+        self.regex_check = QCheckBox("Regex")
 
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Package:"))
@@ -96,6 +98,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(QLabel("Min level:"))
         row2.addWidget(self.level_box)
         row2.addWidget(self.search, stretch=1)
+        row2.addWidget(self.regex_check)
 
         layout = QVBoxLayout()
         layout.addLayout(row1)
@@ -122,7 +125,8 @@ class MainWindow(QMainWindow):
         self.level_box.currentIndexChanged.connect(
             lambda: self.proxy.set_min_level(self.level_box.currentData())
         )
-        self.search.textChanged.connect(self.proxy.set_text)
+        self.search.textChanged.connect(self._apply_search)
+        self.regex_check.toggled.connect(self._apply_search)
 
         # initial device scan
         self.refresh_devices()
@@ -231,6 +235,16 @@ class MainWindow(QMainWindow):
     def clear_package_filter(self) -> None:
         self.proxy.set_pids(None)
         self.statusBar().showMessage("Package filter cleared.")
+
+    def _apply_search(self) -> None:
+        ok = self.proxy.set_search(self.search.text(), self.regex_check.isChecked())
+        if ok:
+            self.search.setStyleSheet("")
+        else:
+            # Invalid regex: keep the previous filter and flag the box. (This
+            # tint would move into ui/theme.py once that exists.)
+            self.search.setStyleSheet("QLineEdit { background-color: #ffd7d7; }")
+            self.statusBar().showMessage("Invalid regex — showing previous match.")
 
     # --- actions -----------------------------------------------------------
     def start(self) -> None:

@@ -4,12 +4,14 @@ LogTableModel holds every entry but is *virtualized*: QTableView only asks for
 the rows currently on screen, so a million lines cost almost nothing to render.
 
 LogFilterProxy sits between model and view and decides which rows show, based on
-a minimum level, a free-text search, and (optionally) a set of PIDs for a chosen
-package. Filtering this way keeps the master list intact, so clearing a filter
-instantly restores everything.
+a minimum level, a search matcher (substring or regex), and (optionally) a set of
+PIDs for a chosen package. Filtering this way keeps the master list intact, so
+clearing a filter instantly restores everything.
 """
 
 from __future__ import annotations
+
+import re
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -20,6 +22,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor
 
 from zlog.core.models import LEVEL_RANK, LogEntry
+from zlog.core.search import compile_matcher
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
@@ -89,16 +92,23 @@ class LogFilterProxy(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._min_level = 0
-        self._text = ""
+        self._matcher = compile_matcher("", regex=False)  # match-all by default
         self._pids: set[str] | None = None  # None = no package filter
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
         self.invalidateFilter()
 
-    def set_text(self, text: str) -> None:
-        self._text = text.lower()
+    def set_search(self, text: str, regex: bool) -> bool:
+        """Set the search matcher. Returns False (keeping the previous matcher) if
+        `regex` is True and `text` is an invalid pattern, so the caller can flag it."""
+        try:
+            matcher = compile_matcher(text, regex)
+        except re.error:
+            return False
+        self._matcher = matcher
         self.invalidateFilter()
+        return True
 
     def set_pids(self, pids) -> None:
         """Restrict to these PID strings, or pass None to clear the package filter."""
@@ -115,9 +125,5 @@ class LogFilterProxy(QSortFilterProxyModel):
         # Level gate (unparsed lines, level "", always pass).
         if entry.level and entry.rank < self._min_level:
             return False
-        # Text gate.
-        if self._text:
-            haystack = f"{entry.tag} {entry.message}".lower()
-            if self._text not in haystack:
-                return False
-        return True
+        # Search gate (matcher is match-all when the box is empty).
+        return self._matcher(f"{entry.tag} {entry.message}")

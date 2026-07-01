@@ -13,6 +13,7 @@ Scenarios:
     filtered   seeded, then min-level set to Warning
     devices    device picker populated with fake devices
     package-filter  rows narrowed to a single PID (as the package filter does)
+    regex-search    rows matched by a regular expression
 
 Screenshots are written to ``../screenshots/`` next to this script.
 
@@ -132,12 +133,19 @@ def scenario_package_filter(window: MainWindow) -> None:
     _shot(window, "package-filter")
 
 
+def scenario_regex_search(window: MainWindow) -> None:
+    _seed(window, 8)
+    window.proxy.set_search("Exception|Skipped", regex=True)
+    _shot(window, "regex-search")
+
+
 SCENARIOS = {
     "smoke": scenario_smoke,
     "populated": scenario_populated,
     "filtered": scenario_filtered,
     "devices": scenario_devices,
     "package-filter": scenario_package_filter,
+    "regex-search": scenario_regex_search,
 }
 
 

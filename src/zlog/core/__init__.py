@@ -8,6 +8,7 @@ from zlog.core.devices import Device, parse_devices
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.packages import parse_packages, parse_pids
 from zlog.core.parser import parse_line
+from zlog.core.search import compile_matcher
 
 __all__ = [
     "LogEntry",
@@ -17,4 +18,5 @@ __all__ = [
     "parse_devices",
     "parse_pids",
     "parse_packages",
+    "compile_matcher",
 ]
