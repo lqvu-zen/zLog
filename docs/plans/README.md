@@ -41,3 +41,4 @@ which is cheaper than reworking a built feature.
 | [tag-highlight.md](tag-highlight.md) | Done | Assign a background color to a tag so its rows stand out |
 | [settings-persistence.md](settings-persistence.md) | Done | Remember theme, window size, filters, and highlights across launches |
 | [detail-pane.md](detail-pane.md) | Done | Panel showing the full wrapped text of the selected log line |
+| [level-counts.md](level-counts.md) | Done | Status-bar tally of total lines and per-level counts |

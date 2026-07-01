@@ -15,6 +15,7 @@ instance via `LogTableModel.set_level_colors` so a theme switch repaints live.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 from PySide6.QtCore import (
     QAbstractTableModel,
@@ -38,6 +39,7 @@ class LogTableModel(QAbstractTableModel):
         self._rows: list[LogEntry] = []
         self._level_colors: dict[str, QColor] = {}
         self._tag_colors: dict[str, QColor] = {}  # per-tag highlight, overrides level tint
+        self._level_counts: Counter = Counter()
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -79,11 +81,14 @@ class LogTableModel(QAbstractTableModel):
         last = first + len(entries) - 1
         self.beginInsertRows(QModelIndex(), first, last)
         self._rows.extend(entries)
+        for entry in entries:
+            self._level_counts[entry.level] += 1
         self.endInsertRows()
 
     def clear(self) -> None:
         self.beginResetModel()
         self._rows.clear()
+        self._level_counts.clear()
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -108,6 +113,10 @@ class LogTableModel(QAbstractTableModel):
     def tag_colors(self) -> dict[str, str]:
         """Current tag highlights as hex strings (for saving)."""
         return {tag: color.name() for tag, color in self._tag_colors.items()}
+
+    def level_counts(self) -> dict[str, int]:
+        """Count of rows per level letter across the master list."""
+        return dict(self._level_counts)
 
 
 class LogFilterProxy(QSortFilterProxyModel):

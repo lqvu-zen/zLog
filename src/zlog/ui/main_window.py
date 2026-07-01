@@ -45,6 +45,7 @@ from zlog.core.models import LogEntry
 from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import load_settings, save_settings
+from zlog.core.summary import format_level_summary
 from zlog.ui.log_model import MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
@@ -159,6 +160,8 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
+        self.count_label = QLabel("0 lines")
+        self.statusBar().addPermanentWidget(self.count_label)
 
         # File menu: Open / Save log
         file_menu = self.menuBar().addMenu("&File")
@@ -209,6 +212,8 @@ class MainWindow(QMainWindow):
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
         self.table.selectionModel().currentChanged.connect(self._update_detail)
+        self.model.rowsInserted.connect(self._update_counts)
+        self.model.modelReset.connect(self._update_counts)
         self.proxy.layoutChanged.connect(self._update_placeholder)
         self.proxy.modelReset.connect(self._update_placeholder)
         self.proxy.rowsInserted.connect(self._update_placeholder)
@@ -455,6 +460,12 @@ class MainWindow(QMainWindow):
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
 
+    # --- status counts -----------------------------------------------------
+    def _update_counts(self, *args) -> None:
+        self.count_label.setText(
+            format_level_summary(self.model.rowCount(), self.model.level_counts())
+        )
+
     # --- detail pane -------------------------------------------------------
     def _update_detail(self, current, previous=None) -> None:
         if current is None or not current.isValid():
@@ -544,7 +555,6 @@ class MainWindow(QMainWindow):
 
     def on_batch(self, entries) -> None:
         self.model.append_entries(entries)
-        self.statusBar().showMessage(f"{self.model.rowCount()} lines")
         if self._filter_package is not None:
             self._track_new_pids(entries)
         if self.follow_check.isChecked():

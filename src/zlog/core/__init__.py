@@ -12,6 +12,7 @@ from zlog.core.proc import parse_proc_start
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
+from zlog.core.summary import format_level_summary
 
 __all__ = [
     "LogEntry",
@@ -28,4 +29,5 @@ __all__ = [
     "DEFAULTS",
     "load_settings",
     "save_settings",
+    "format_level_summary",
 ]
