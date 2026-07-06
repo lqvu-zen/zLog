@@ -171,6 +171,8 @@ class MainWindow(QMainWindow):
         save_act = file_menu.addAction("&Save Log…")
         save_act.setShortcut("Ctrl+S")
         save_act.triggered.connect(self.save_log)
+        save_filtered_act = file_menu.addAction("Save &Filtered Log…")
+        save_filtered_act.triggered.connect(self.save_filtered_log)
 
         # View menu: theme picker + details toggle
         view_menu = self.menuBar().addMenu("&View")
@@ -436,20 +438,34 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Cleared tag highlights.")
 
     # --- save / load -------------------------------------------------------
-    def save_log(self) -> None:
-        default = f"zlog-{datetime.now():%Y%m%d-%H%M%S}.log"
+    def _filtered_entries(self) -> list[LogEntry]:
+        """The entries currently visible through the proxy (in order)."""
+        return [
+            self.model.entry_at(self.proxy.mapToSource(self.proxy.index(row, 0)).row())
+            for row in range(self.proxy.rowCount())
+        ]
+
+    def _write_log(self, entries: list[LogEntry], default_name: str) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Log", default, "Log files (*.log);;All files (*)"
+            self, "Save Log", default_name, "Log files (*.log);;All files (*)"
         )
         if not path:
             return
         try:
             with open(path, "w", encoding="utf-8") as fh:
-                fh.write(entries_to_text(self.model.all_entries()))
+                fh.write(entries_to_text(entries))
         except OSError as exc:
             self.statusBar().showMessage(f"Could not save: {exc}")
             return
-        self.statusBar().showMessage(f"Saved {self.model.rowCount()} lines to {Path(path).name}.")
+        self.statusBar().showMessage(f"Saved {len(entries)} lines to {Path(path).name}.")
+
+    def save_log(self) -> None:
+        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+        self._write_log(self.model.all_entries(), f"zlog-{stamp}.log")
+
+    def save_filtered_log(self) -> None:
+        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+        self._write_log(self._filtered_entries(), f"zlog-{stamp}-filtered.log")
 
     def open_log(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

@@ -44,4 +44,5 @@ which is cheaper than reworking a built feature.
 | [level-counts.md](level-counts.md) | Done | Status-bar tally of total lines and per-level counts |
 | [column-visibility.md](column-visibility.md) | Done | Show/hide table columns from the View menu, persisted |
 | [clear-on-start.md](clear-on-start.md) | Done | Optionally clear the log when starting a new stream |
+| [save-filtered.md](save-filtered.md) | Done | Export only the currently visible (filtered) rows |
 | [release-1.0.0.md](release-1.0.0.md) | Done | Cut the 1.0.0 release (version, CHANGELOG, tag, exe) |
