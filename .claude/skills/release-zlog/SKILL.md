@@ -89,9 +89,15 @@ git push --tags
 
 ### 6. Publish the GitHub release
 
-Create a release for tag `v<X.Y.Z>`, paste the CHANGELOG section as the notes, and
-attach the built artifact (the zipped `exe.win-amd64-*` folder, or `zlog.exe`). With
-the GitHub CLI:
+**Automated (preferred).** Pushing the `v<X.Y.Z>` tag in step 5 triggers
+`.github/workflows/release.yml`: a Windows runner builds the exe with cx_Freeze,
+zips `exe.win-amd64-*`, and creates the GitHub Release with the zip attached. The
+workflow first fails loudly if the tag doesn't match `__version__`. Just watch the
+Actions tab; no manual upload needed.
+
+**Manual fallback** (if you built locally in step 4 and want to publish by hand):
+create a release for tag `v<X.Y.Z>`, paste the CHANGELOG section as the notes, and
+attach the zipped `exe.win-amd64-*` folder. With the GitHub CLI:
 
 ```powershell
 gh release create v<X.Y.Z> build\zlog-<X.Y.Z>-win64.zip --title "zLog <X.Y.Z>" --notes-file CHANGELOG.md

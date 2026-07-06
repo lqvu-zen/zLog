@@ -1,0 +1,51 @@
+name: Release
+
+# Push a version tag (e.g. v1.1.0) to build the Windows executable and publish it
+# as a GitHub Release. Version bumps stay manual (release-only policy); this workflow
+# just reacts to the tag you push.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # required to create the GitHub Release
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install # reads .python-version
+
+      - name: Verify tag matches __version__
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(uv run --extra build python -c "import zlog; print(zlog.__version__)")
+          echo "tag=$tag  __version__=$ver"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::Tag v$tag does not match src/zlog/__init__.py __version__ ($ver)."
+            exit 1
+          fi
+
+      - name: Build the executable (cx_Freeze)
+        run: uv run --extra build python cxfreeze_setup.py build
+
+      - name: Package the build
+        shell: pwsh
+        run: |
+          $dir = Get-ChildItem build -Directory -Filter 'exe.win-amd64-*' | Select-Object -First 1
+          if (-not $dir) { throw "No build/exe.win-amd64-* directory found." }
+          Compress-Archive -Path "$($dir.FullName)\*" -DestinationPath "zlog-$env:GITHUB_REF_NAME-win64.zip"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: zlog-*-win64.zip
+          generate_release_notes: true
