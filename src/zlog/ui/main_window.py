@@ -139,6 +139,8 @@ class MainWindow(QMainWindow):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
         self.regex_check = QCheckBox("Regex")
+        self.clear_filters_btn = QPushButton("Clear filters")
+        self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
 
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Package:"))
@@ -151,6 +153,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(self.level_box)
         row2.addWidget(self.search, stretch=1)
         row2.addWidget(self.regex_check)
+        row2.addWidget(self.clear_filters_btn)
 
         layout = QVBoxLayout()
         layout.addLayout(row1)
@@ -205,11 +208,15 @@ class MainWindow(QMainWindow):
         self.clear_on_start_action.setCheckable(True)
         self.clear_on_start_action.setChecked(False)
 
+        clear_filters_act = view_menu.addAction("Clear F&ilters")
+        clear_filters_act.triggered.connect(self.clear_filters)
+
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
         self._filter_package: str | None = None
         self._filter_pids: set[str] = set()
         self._theme_name = "Light"
+        self._preferred_serial: str | None = None  # last-used device, restored on launch
 
         # connections
         self.refresh_btn.clicked.connect(self.refresh_devices)
@@ -226,6 +233,7 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
+        self.clear_filters_btn.clicked.connect(self.clear_filters)
         self.table.selectionModel().currentChanged.connect(self._update_detail)
         self.model.rowsInserted.connect(self._update_counts)
         self.model.modelReset.connect(self._update_counts)
@@ -270,14 +278,21 @@ class MainWindow(QMainWindow):
             return
         self.device_box.setEnabled(True)
         first_streamable = -1
+        preferred = -1
         for i, dev in enumerate(devices):
             # Only streamable devices carry a serial as item data; others are
             # shown but can't be selected for streaming.
             self.device_box.addItem(dev.label, dev.serial if dev.streamable else None)
-            if first_streamable < 0 and dev.streamable:
-                first_streamable = i
-        if first_streamable >= 0:
-            self.device_box.setCurrentIndex(first_streamable)
+            if dev.streamable:
+                if first_streamable < 0:
+                    first_streamable = i
+                if dev.serial == self._preferred_serial:
+                    preferred = i
+        # Prefer the last-used device; fall back to the first streamable one.
+        chosen = preferred if preferred >= 0 else first_streamable
+        if chosen >= 0:
+            self.device_box.setCurrentIndex(chosen)
+            self._preferred_serial = self.device_box.itemData(chosen)
         self._update_start_enabled()
         self.statusBar().showMessage(f"{len(devices)} device(s) found.")
 
@@ -351,6 +366,14 @@ class MainWindow(QMainWindow):
         self._filter_pids = set()
         self.proxy.set_pids(None)
         self.statusBar().showMessage("Package filter cleared.")
+
+    def clear_filters(self) -> None:
+        """Reset every filter to 'show everything' without touching the log."""
+        self.level_box.setCurrentIndex(0)  # V — fires the min-level update
+        self.regex_check.setChecked(False)
+        self.search.clear()  # fires _apply_search, which clears the error tint
+        self.clear_package_filter()
+        self.statusBar().showMessage("Filters cleared.")
 
     def _apply_search(self) -> None:
         ok = self.proxy.set_search(self.search.text(), self.regex_check.isChecked())
@@ -535,6 +558,13 @@ class MainWindow(QMainWindow):
         self.details_action.setChecked(bool(data.get("show_details", True)))
         self.detail.setVisible(self.details_action.isChecked())
         self.clear_on_start_action.setChecked(bool(data.get("clear_on_start", False)))
+        # Restore the last-used device; reselect it in the already-populated picker
+        # (refresh_devices ran during __init__, before settings loaded).
+        self._preferred_serial = data.get("last_device") or None
+        if self._preferred_serial is not None:
+            idx = self.device_box.findData(self._preferred_serial)
+            if idx >= 0:
+                self.device_box.setCurrentIndex(idx)
         hidden = data.get("hidden_columns") or []
         if isinstance(hidden, list):
             for col, act in enumerate(self._column_actions):
@@ -560,6 +590,9 @@ class MainWindow(QMainWindow):
                 c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
             ],
             "clear_on_start": self.clear_on_start_action.isChecked(),
+            # The live picker selection wins; fall back to the remembered serial
+            # when nothing streamable is selected (e.g. device disconnected).
+            "last_device": self.device_box.currentData() or self._preferred_serial or "",
         }
         try:
             save_settings(str(self._settings_path()), data)

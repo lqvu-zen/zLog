@@ -21,6 +21,7 @@ DEFAULTS: dict = {
     "show_details": True,
     "hidden_columns": [],
     "clear_on_start": False,
+    "last_device": "",  # serial of the last-selected device, reselected on launch
 }
 
 

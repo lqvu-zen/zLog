@@ -46,4 +46,6 @@ which is cheaper than reworking a built feature.
 | [clear-on-start.md](clear-on-start.md) | Done | Optionally clear the log when starting a new stream |
 | [save-filtered.md](save-filtered.md) | Done | Export only the currently visible (filtered) rows |
 | [release-workflow.md](release-workflow.md) | Done | Automated Windows exe build & GitHub Release on v* tags |
+| [clear-filters.md](clear-filters.md) | Done | Reset all filters (level, search, package) in one click |
+| [remember-device.md](remember-device.md) | Done | Reselect the last-used device on relaunch |
 | [release-1.0.0.md](release-1.0.0.md) | Done | Cut the 1.0.0 release (version, CHANGELOG, tag, exe) |
