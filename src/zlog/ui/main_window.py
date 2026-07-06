@@ -199,6 +199,10 @@ class MainWindow(QMainWindow):
             act.toggled.connect(lambda checked, c=col: self.table.setColumnHidden(c, not checked))
             self._column_actions.append(act)
 
+        self.clear_on_start_action = view_menu.addAction("Clear on &Start")
+        self.clear_on_start_action.setCheckable(True)
+        self.clear_on_start_action.setChecked(False)
+
         self.reader: AdbReader | None = None
         self._devices: list[Device] = []
         self._filter_package: str | None = None
@@ -514,6 +518,7 @@ class MainWindow(QMainWindow):
         self.regex_check.setChecked(bool(data.get("regex", False)))
         self.details_action.setChecked(bool(data.get("show_details", True)))
         self.detail.setVisible(self.details_action.isChecked())
+        self.clear_on_start_action.setChecked(bool(data.get("clear_on_start", False)))
         hidden = data.get("hidden_columns") or []
         if isinstance(hidden, list):
             for col, act in enumerate(self._column_actions):
@@ -538,6 +543,7 @@ class MainWindow(QMainWindow):
             "hidden_columns": [
                 c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
             ],
+            "clear_on_start": self.clear_on_start_action.isChecked(),
         }
         try:
             save_settings(str(self._settings_path()), data)
@@ -548,6 +554,8 @@ class MainWindow(QMainWindow):
     def start(self) -> None:
         if self.reader and self.reader.isRunning():
             return
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
         serial = self.device_box.currentData()
         self.reader = AdbReader(serial=serial)
         self.reader.batch_ready.connect(self.on_batch)

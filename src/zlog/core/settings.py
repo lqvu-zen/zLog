@@ -20,6 +20,7 @@ DEFAULTS: dict = {
     "tag_highlights": {},  # tag -> hex color
     "show_details": True,
     "hidden_columns": [],
+    "clear_on_start": False,
 }
 
 
