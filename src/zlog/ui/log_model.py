@@ -130,11 +130,11 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._min_level = LEVEL_RANK.get(level_letter, 0)
         self.invalidateFilter()
 
-    def set_search(self, text: str, regex: bool) -> bool:
+    def set_search(self, text: str, regex: bool, case: bool = False) -> bool:
         """Set the search matcher. Returns False (keeping the previous matcher) if
         `regex` is True and `text` is an invalid pattern, so the caller can flag it."""
         try:
-            matcher = compile_matcher(text, regex)
+            matcher = compile_matcher(text, regex, case)
         except re.error:
             return False
         self._matcher = matcher

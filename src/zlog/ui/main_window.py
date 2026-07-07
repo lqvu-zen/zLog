@@ -44,7 +44,7 @@ from zlog.core.devices import Device
 from zlog.core.models import LogEntry
 from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
-from zlog.core.settings import load_settings, save_settings
+from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary
 from zlog.ui.log_model import COLUMNS, MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
@@ -59,7 +59,29 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("zLog — Android Log Viewer")
         self.resize(1100, 700)
 
-        # model + proxy + view
+        # Runtime state, created before widgets so slots can rely on it existing.
+        self.reader: AdbReader | None = None
+        self._devices: list[Device] = []
+        self._filter_package: str | None = None
+        self._filter_pids: set[str] = set()
+        self._theme_name = "Light"
+        self._preferred_serial: str | None = None  # last-used device, restored on launch
+        self._search_error_color = "#ffd7d7"  # default; apply_theme overrides per theme
+
+        self._build_widgets()
+        self._build_layout()
+        self._build_menus()
+        self._connect_signals()
+
+        # Populate the picker, then restore saved settings over defaults (the
+        # last-used device is reselected in _load_and_apply_settings, after this).
+        self.refresh_devices()
+        self._load_and_apply_settings()
+        self._update_placeholder()
+
+    # --- construction (called once, in order, from __init__) ---------------
+    def _build_widgets(self) -> None:
+        """Create the model/proxy/view and every toolbar widget (no layout yet)."""
         self.model = LogTableModel(self)
         self.proxy = LogFilterProxy(self)
         self.proxy.setSourceModel(self.model)
@@ -94,14 +116,8 @@ class MainWindow(QMainWindow):
         self.detail.setReadOnly(True)
         self.detail.setPlaceholderText("Select a line to see its full message here.")
         self.detail.setMaximumBlockCount(0)
-        self._splitter = QSplitter(Qt.Vertical)
-        self._splitter.addWidget(self.table)
-        self._splitter.addWidget(self.detail)
-        self._splitter.setStretchFactor(0, 1)
-        self._splitter.setStretchFactor(1, 0)
-        self._splitter.setSizes([520, 150])
 
-        # --- row 1: device + stream controls ---
+        # Row 1: device + stream controls.
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(180)
         self.refresh_btn = QPushButton("Refresh")
@@ -112,18 +128,7 @@ class MainWindow(QMainWindow):
         self.follow_check.setChecked(True)
         self.stop_btn.setEnabled(False)
 
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Device:"))
-        row1.addWidget(self.device_box)
-        row1.addWidget(self.refresh_btn)
-        row1.addSpacing(16)
-        row1.addWidget(self.start_btn)
-        row1.addWidget(self.stop_btn)
-        row1.addWidget(self.clear_btn)
-        row1.addWidget(self.follow_check)
-        row1.addStretch(1)
-
-        # --- row 2: filters ---
+        # Row 2: filters.
         self.package_box = QComboBox()
         self.package_box.setEditable(True)
         self.package_box.setMinimumWidth(220)
@@ -139,8 +144,32 @@ class MainWindow(QMainWindow):
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
         self.regex_check = QCheckBox("Regex")
+        self.case_check = QCheckBox("Case")
+        self.case_check.setToolTip("Match the search case-sensitively")
         self.clear_filters_btn = QPushButton("Clear filters")
         self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
+
+        self.count_label = QLabel("0 lines")
+
+    def _build_layout(self) -> None:
+        """Arrange the widgets built in _build_widgets into the window."""
+        self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.addWidget(self.table)
+        self._splitter.addWidget(self.detail)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        self._splitter.setSizes([520, 150])
+
+        row1 = QHBoxLayout()
+        row1.addWidget(QLabel("Device:"))
+        row1.addWidget(self.device_box)
+        row1.addWidget(self.refresh_btn)
+        row1.addSpacing(16)
+        row1.addWidget(self.start_btn)
+        row1.addWidget(self.stop_btn)
+        row1.addWidget(self.clear_btn)
+        row1.addWidget(self.follow_check)
+        row1.addStretch(1)
 
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Package:"))
@@ -153,6 +182,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(self.level_box)
         row2.addWidget(self.search, stretch=1)
         row2.addWidget(self.regex_check)
+        row2.addWidget(self.case_check)
         row2.addWidget(self.clear_filters_btn)
 
         layout = QVBoxLayout()
@@ -163,10 +193,10 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
-        self.count_label = QLabel("0 lines")
         self.statusBar().addPermanentWidget(self.count_label)
 
-        # File menu: Open / Save log
+    def _build_menus(self) -> None:
+        """Build the File and View menus (their actions wire themselves here)."""
         file_menu = self.menuBar().addMenu("&File")
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
@@ -177,7 +207,6 @@ class MainWindow(QMainWindow):
         save_filtered_act = file_menu.addAction("Save &Filtered Log…")
         save_filtered_act.triggered.connect(self.save_filtered_log)
 
-        # View menu: theme picker + details toggle
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("&Theme")
         self._theme_group = QActionGroup(self)
@@ -188,7 +217,6 @@ class MainWindow(QMainWindow):
             act.setChecked(name == "Light")
             self._theme_group.addAction(act)
             act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
-        self._search_error_color = "#ffd7d7"
 
         self.details_action = view_menu.addAction("Show &Details")
         self.details_action.setCheckable(True)
@@ -211,14 +239,9 @@ class MainWindow(QMainWindow):
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
 
-        self.reader: AdbReader | None = None
-        self._devices: list[Device] = []
-        self._filter_package: str | None = None
-        self._filter_pids: set[str] = set()
-        self._theme_name = "Light"
-        self._preferred_serial: str | None = None  # last-used device, restored on launch
-
-        # connections
+    def _connect_signals(self) -> None:
+        """Wire toolbar/model/proxy signals to their slots (menu actions wire
+        themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
         self.start_btn.clicked.connect(self.start)
@@ -233,6 +256,7 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
+        self.case_check.toggled.connect(self._apply_search)
         self.clear_filters_btn.clicked.connect(self.clear_filters)
         self.table.selectionModel().currentChanged.connect(self._update_detail)
         self.model.rowsInserted.connect(self._update_counts)
@@ -241,15 +265,6 @@ class MainWindow(QMainWindow):
         self.proxy.modelReset.connect(self._update_placeholder)
         self.proxy.rowsInserted.connect(self._update_placeholder)
         self.proxy.rowsRemoved.connect(self._update_placeholder)
-
-        # initial device scan
-        self.refresh_devices()
-
-        # restore saved settings (theme, geometry, filters, highlights); falls
-        # back to defaults on first run.
-        self._load_and_apply_settings()
-
-        self._update_placeholder()
 
     # --- devices -----------------------------------------------------------
     def refresh_devices(self) -> None:
@@ -371,12 +386,15 @@ class MainWindow(QMainWindow):
         """Reset every filter to 'show everything' without touching the log."""
         self.level_box.setCurrentIndex(0)  # V — fires the min-level update
         self.regex_check.setChecked(False)
+        self.case_check.setChecked(False)
         self.search.clear()  # fires _apply_search, which clears the error tint
         self.clear_package_filter()
         self.statusBar().showMessage("Filters cleared.")
 
     def _apply_search(self) -> None:
-        ok = self.proxy.set_search(self.search.text(), self.regex_check.isChecked())
+        ok = self.proxy.set_search(
+            self.search.text(), self.regex_check.isChecked(), self.case_check.isChecked()
+        )
         if ok:
             self.search.setStyleSheet("")
         else:
@@ -539,61 +557,111 @@ class MainWindow(QMainWindow):
         )
         return Path(base) / "settings.json"
 
-    def _load_and_apply_settings(self) -> None:
-        data = load_settings(str(self._settings_path()))
-        geometry = data.get("geometry") or ""
-        if geometry:
-            self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
-        theme = data.get("theme", "Light")
-        if theme not in THEMES:
-            theme = "Light"
-        for act in self._theme_group.actions():
-            act.setChecked(act.text() == theme)
-        self.apply_theme(theme)
-        self.follow_check.setChecked(bool(data.get("follow", True)))
-        idx = self.level_box.findData(data.get("min_level", "V"))
-        if idx >= 0:
-            self.level_box.setCurrentIndex(idx)
-        self.regex_check.setChecked(bool(data.get("regex", False)))
-        self.details_action.setChecked(bool(data.get("show_details", True)))
-        self.detail.setVisible(self.details_action.isChecked())
-        self.clear_on_start_action.setChecked(bool(data.get("clear_on_start", False)))
-        # Restore the last-used device; reselect it in the already-populated picker
-        # (refresh_devices ran during __init__, before settings loaded).
-        self._preferred_serial = data.get("last_device") or None
-        if self._preferred_serial is not None:
-            idx = self.device_box.findData(self._preferred_serial)
+    def _settings_specs(self):
+        """One (key, get, set) row per persisted setting — the single source of
+        truth for save *and* restore, so the two can never drift apart. `get`
+        returns the value to store; `set` applies a loaded value to the widgets.
+        """
+
+        def set_geometry(v):
+            if v:
+                self.restoreGeometry(QByteArray.fromBase64(v.encode("ascii")))
+
+        def set_theme(v):
+            name = v if v in THEMES else "Light"
+            for act in self._theme_group.actions():
+                act.setChecked(act.text() == name)
+            self.apply_theme(name)
+
+        def set_min_level(v):
+            idx = self.level_box.findData(v)
             if idx >= 0:
-                self.device_box.setCurrentIndex(idx)
-        hidden = data.get("hidden_columns") or []
-        if isinstance(hidden, list):
+                self.level_box.setCurrentIndex(idx)
+
+        def set_show_details(v):
+            self.details_action.setChecked(bool(v))
+            self.detail.setVisible(self.details_action.isChecked())
+
+        def set_hidden_columns(v):
+            if not isinstance(v, list):
+                return
             for col, act in enumerate(self._column_actions):
-                visible = col not in hidden
+                visible = col not in v
                 act.setChecked(visible)
                 self.table.setColumnHidden(col, not visible)
-        highlights = data.get("tag_highlights") or {}
-        if isinstance(highlights, dict):
-            for tag, color in highlights.items():
-                self.model.set_tag_color(str(tag), str(color))
+
+        def set_tag_highlights(v):
+            if isinstance(v, dict):
+                for tag, color in v.items():
+                    self.model.set_tag_color(str(tag), str(color))
+
+        def set_last_device(v):
+            # Reselect the saved device in the already-populated picker
+            # (refresh_devices ran in __init__, before settings loaded).
+            self._preferred_serial = v or None
+            if self._preferred_serial is not None:
+                idx = self.device_box.findData(self._preferred_serial)
+                if idx >= 0:
+                    self.device_box.setCurrentIndex(idx)
+
+        specs = [
+            (
+                "geometry",
+                lambda: bytes(self.saveGeometry().toBase64()).decode("ascii"),
+                set_geometry,
+            ),
+            ("theme", lambda: self._theme_name, set_theme),
+            (
+                "follow",
+                self.follow_check.isChecked,
+                lambda v: self.follow_check.setChecked(bool(v)),
+            ),
+            ("min_level", self.level_box.currentData, set_min_level),
+            (
+                "regex",
+                self.regex_check.isChecked,
+                lambda v: self.regex_check.setChecked(bool(v)),
+            ),
+            (
+                "case",
+                self.case_check.isChecked,
+                lambda v: self.case_check.setChecked(bool(v)),
+            ),
+            ("tag_highlights", self.model.tag_colors, set_tag_highlights),
+            ("show_details", self.details_action.isChecked, set_show_details),
+            (
+                "hidden_columns",
+                lambda: [
+                    c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
+                ],
+                set_hidden_columns,
+            ),
+            (
+                "clear_on_start",
+                self.clear_on_start_action.isChecked,
+                lambda v: self.clear_on_start_action.setChecked(bool(v)),
+            ),
+            (
+                "last_device",
+                lambda: self.device_box.currentData() or self._preferred_serial or "",
+                set_last_device,
+            ),
+        ]
+        # Guard against a setting being added to DEFAULTS but not here (or vice
+        # versa) — the exact drift that silently breaks save/restore.
+        assert {key for key, _, _ in specs} == set(DEFAULTS), (
+            "settings specs out of sync with DEFAULTS"
+        )
+        return specs
+
+    def _load_and_apply_settings(self) -> None:
+        data = load_settings(str(self._settings_path()))
+        for key, _get, set_value in self._settings_specs():
+            set_value(data.get(key, DEFAULTS[key]))
         self.table.viewport().update()
 
     def _save_settings(self) -> None:
-        data = {
-            "geometry": bytes(self.saveGeometry().toBase64()).decode("ascii"),
-            "theme": self._theme_name,
-            "follow": self.follow_check.isChecked(),
-            "min_level": self.level_box.currentData(),
-            "regex": self.regex_check.isChecked(),
-            "tag_highlights": self.model.tag_colors(),
-            "show_details": self.details_action.isChecked(),
-            "hidden_columns": [
-                c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
-            ],
-            "clear_on_start": self.clear_on_start_action.isChecked(),
-            # The live picker selection wins; fall back to the remembered serial
-            # when nothing streamable is selected (e.g. device disconnected).
-            "last_device": self.device_box.currentData() or self._preferred_serial or "",
-        }
+        data = {key: get_value() for key, get_value, _set in self._settings_specs()}
         try:
             save_settings(str(self._settings_path()), data)
         except OSError:

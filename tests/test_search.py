@@ -34,3 +34,15 @@ def test_regex_is_case_insensitive():
 def test_invalid_regex_raises():
     with pytest.raises(re.error):
         compile_matcher("(unclosed", regex=True)
+
+
+def test_case_sensitive_substring():
+    m = compile_matcher("Exception", regex=False, case=True)
+    assert m("java.lang.NullPointerException")
+    assert not m("caused an exception here")
+
+
+def test_case_sensitive_regex():
+    m = compile_matcher("ANR", regex=True, case=True)
+    assert m("Reason: ANR in com.example")
+    assert not m("minor anr-like text")

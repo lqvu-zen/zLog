@@ -17,6 +17,7 @@ DEFAULTS: dict = {
     "follow": True,
     "min_level": "V",
     "regex": False,
+    "case": False,  # case-sensitive search
     "tag_highlights": {},  # tag -> hex color
     "show_details": True,
     "hidden_columns": [],
