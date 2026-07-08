@@ -22,6 +22,7 @@ class Theme:
     level_colors: dict[str, str]  # W/E/F -> row tint hex
     search_error: str  # invalid-regex box tint hex
     search_highlight: str  # tint for rows matching the search in highlight mode
+    bookmark: str  # bookmark marker color (decoration on the Time column)
 
 
 LIGHT = Theme(
@@ -35,6 +36,7 @@ LIGHT = Theme(
     level_colors={"W": "#fff4c8", "E": "#ffd7d7", "F": "#ffbebe"},
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
+    bookmark="#f4b400",
 )
 
 DARK = Theme(
@@ -48,6 +50,7 @@ DARK = Theme(
     level_colors={"W": "#4d4526", "E": "#5a2b2b", "F": "#742b2b"},
     search_error="#5a2b2b",
     search_highlight="#33506b",
+    bookmark="#e0a800",
 )
 
 THEMES: dict[str, Theme] = {LIGHT.name: LIGHT, DARK.name: DARK}

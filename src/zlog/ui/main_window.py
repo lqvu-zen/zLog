@@ -108,8 +108,12 @@ class MainWindow(QMainWindow):
         self.copy_action.triggered.connect(self.copy_selection)
         self.select_all_action = QAction("Select All", self)
         self.select_all_action.triggered.connect(self.table.selectAll)
+        self.bookmark_action = QAction("Toggle Bookmark", self)
+        self.bookmark_action.setShortcut("Ctrl+B")
+        self.bookmark_action.triggered.connect(self._toggle_bookmark)
         self.table.addAction(self.copy_action)
         self.table.addAction(self.select_all_action)
+        self.table.addAction(self.bookmark_action)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_table_menu)
 
@@ -283,6 +287,16 @@ class MainWindow(QMainWindow):
             self._time_group.addAction(act)
             act.triggered.connect(lambda _c=False, m=mode: self.model.set_time_mode(m))
             self._time_actions[mode] = act
+
+        view_menu.addSeparator()
+        next_bm = view_menu.addAction("Next Bookmark")
+        next_bm.setShortcut("F2")
+        next_bm.triggered.connect(lambda: self._goto_bookmark(1))
+        prev_bm = view_menu.addAction("Previous Bookmark")
+        prev_bm.setShortcut("Shift+F2")
+        prev_bm.triggered.connect(lambda: self._goto_bookmark(-1))
+        clear_bm = view_menu.addAction("Clear Bookmarks")
+        clear_bm.triggered.connect(self._clear_bookmarks)
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -577,6 +591,35 @@ class MainWindow(QMainWindow):
         self.table.scrollTo(index)
         self.match_label.setText(f"{rows.index(target) + 1}/{len(rows)}")
 
+    # --- bookmarks ---------------------------------------------------------
+    def _toggle_bookmark(self) -> None:
+        idx = self.table.currentIndex()
+        if not idx.isValid():
+            return
+        self.model.toggle_bookmark(self.proxy.mapToSource(idx).row())
+
+    def _goto_bookmark(self, step: int) -> None:
+        rows = []
+        for src in self.model.bookmarked_rows():
+            proxy_row = self.proxy.mapFromSource(self.model.index(src, 0)).row()
+            if proxy_row >= 0:  # skip bookmarks hidden by the current filter
+                rows.append(proxy_row)
+        rows.sort()
+        if not rows:
+            return
+        cur = self.table.currentIndex().row()
+        if step > 0:
+            target = next((r for r in rows if r > cur), rows[0])
+        else:
+            target = next((r for r in reversed(rows) if r < cur), rows[-1])
+        index = self.proxy.index(target, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(target)
+        self.table.scrollTo(index)
+
+    def _clear_bookmarks(self) -> None:
+        self.model.clear_bookmarks()
+
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
         self._theme_name = name
@@ -586,6 +629,7 @@ class MainWindow(QMainWindow):
             app.setStyleSheet(build_stylesheet(theme))
         self.model.set_level_colors(theme.level_colors)
         self.model.set_highlight_color(theme.search_highlight)
+        self.model.set_bookmark_color(theme.bookmark)
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
@@ -625,6 +669,7 @@ class MainWindow(QMainWindow):
         menu = QMenu(self.table)
         menu.addAction(self.copy_action)
         menu.addAction(self.select_all_action)
+        menu.addAction(self.bookmark_action)
         menu.addSeparator()
         index = self.table.indexAt(pos)
         tag = ""

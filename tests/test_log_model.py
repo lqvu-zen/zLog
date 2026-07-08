@@ -255,3 +255,37 @@ def test_exclude_combines_with_search(qapp):
     proxy.set_search("error", regex=False)
     proxy.set_exclude("GnssHal")
     assert _messages(model, proxy) == ["error in app"]
+
+
+def test_bookmark_toggle_and_decoration(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.set_bookmark_color("#abcdef")
+    model.append_entries([_entry(message="a"), _entry(message="b")])
+    assert model.is_bookmarked(1) is False
+    model.toggle_bookmark(1)
+    assert model.is_bookmarked(1) is True
+    assert model.bookmarked_rows() == [1]
+    deco = model.data(model.index(1, 0), Qt.DecorationRole)
+    assert deco is not None and deco.name() == "#abcdef"
+    assert model.data(model.index(0, 0), Qt.DecorationRole) is None
+    model.toggle_bookmark(1)
+    assert model.is_bookmarked(1) is False
+
+
+def test_clear_bookmarks(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(), _entry()])
+    model.toggle_bookmark(0)
+    model.toggle_bookmark(1)
+    model.clear_bookmarks()
+    assert model.bookmarked_rows() == []
+
+
+def test_clear_log_clears_bookmarks(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry()])
+    model.toggle_bookmark(0)
+    model.clear()
+    assert model.bookmarked_rows() == []

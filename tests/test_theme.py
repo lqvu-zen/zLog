@@ -29,3 +29,8 @@ def test_stylesheet_contains_theme_colors():
 def test_search_highlight_is_hex():
     for theme in THEMES.values():
         assert theme.search_highlight.startswith("#") and len(theme.search_highlight) == 7
+
+
+def test_bookmark_is_hex():
+    for theme in THEMES.values():
+        assert theme.bookmark.startswith("#") and len(theme.bookmark) == 7

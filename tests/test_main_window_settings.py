@@ -137,3 +137,19 @@ def test_showing_count_when_filtered(window):
     window.search.setText("keep")  # filters to 2 of 3
     window._update_counts()
     assert window.count_label.text().startswith("Showing 2 of 3 lines")
+
+
+def test_bookmark_toggle_and_navigation(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", f"line {i}") for i in range(5)])
+    # toggle via the action on the current selection
+    window.table.setCurrentIndex(window.proxy.index(2, 0))
+    window._toggle_bookmark()
+    assert window.model.is_bookmarked(2) is True
+    # add another and navigate between them
+    window.model.toggle_bookmark(4)
+    window._goto_bookmark(1)
+    assert window.table.currentIndex().row() in (3, 4)  # next bookmark after row 2
+    window._clear_bookmarks()
+    assert window.model.bookmarked_rows() == []

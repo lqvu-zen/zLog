@@ -45,6 +45,8 @@ class LogTableModel(QAbstractTableModel):
         self._highlight_color = QColor(LIGHT.search_highlight)
         self._time_mode = "absolute"  # "absolute" | "since_start" | "delta"
         self._baseline = None  # datetime of the first parseable row (since_start ref)
+        self._bookmarks: set[int] = set()  # bookmarked source-row indices
+        self._bookmark_color = QColor(LIGHT.bookmark)
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -76,6 +78,8 @@ class LogTableModel(QAbstractTableModel):
             if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
                 return self._highlight_color
             return self._level_colors.get(entry.level)
+        if role == Qt.DecorationRole and index.column() == 0:
+            return self._bookmark_color if index.row() in self._bookmarks else None
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
@@ -104,6 +108,7 @@ class LogTableModel(QAbstractTableModel):
         self._rows.clear()
         self._level_counts.clear()
         self._baseline = None
+        self._bookmarks.clear()
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -184,6 +189,37 @@ class LogTableModel(QAbstractTableModel):
         if self._baseline is None:
             return entry.time
         return format_delta(t - self._baseline)
+
+    # --- bookmarks ---------------------------------------------------------
+    def set_bookmark_color(self, color: str) -> None:
+        """Set the bookmark marker color (from the active theme)."""
+        self._bookmark_color = QColor(color)
+        self._repaint_bookmarks()
+
+    def toggle_bookmark(self, source_row: int) -> None:
+        if source_row in self._bookmarks:
+            self._bookmarks.discard(source_row)
+        else:
+            self._bookmarks.add(source_row)
+        top = self.index(source_row, 0)
+        self.dataChanged.emit(top, top, [Qt.DecorationRole])
+
+    def is_bookmarked(self, source_row: int) -> bool:
+        return source_row in self._bookmarks
+
+    def bookmarked_rows(self) -> list[int]:
+        """Bookmarked source rows, in order."""
+        return sorted(self._bookmarks)
+
+    def clear_bookmarks(self) -> None:
+        self._bookmarks.clear()
+        self._repaint_bookmarks()
+
+    def _repaint_bookmarks(self) -> None:
+        if self._rows:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._rows) - 1, 0)
+            self.dataChanged.emit(top, bottom, [Qt.DecorationRole])
 
 
 class LogFilterProxy(QSortFilterProxyModel):

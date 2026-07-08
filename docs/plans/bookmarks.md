@@ -1,6 +1,6 @@
 # Plan: Bookmarks / pinned lines
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** detail-pane, copy-to-clipboard

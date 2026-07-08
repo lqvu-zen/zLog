@@ -60,4 +60,4 @@ which is cheaper than reworking a built feature.
 | [exclude-filter.md](exclude-filter.md) | Done | Hide lines matching an exclude term (negative filter) |
 | [match-navigation.md](match-navigation.md) | Done | Step between search matches (next/prev, F3) |
 | [showing-count.md](showing-count.md) | Done | Status bar shows visible-of-total when filtered |
-| [bookmarks.md](bookmarks.md) | Draft | Pin lines and jump between bookmarks |
+| [bookmarks.md](bookmarks.md) | Done | Pin lines and jump between bookmarks |
