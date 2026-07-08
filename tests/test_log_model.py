@@ -217,3 +217,41 @@ def test_time_mode_unparsed_line_falls_back(qapp):
     model.append_entries([LogEntry("", "", "", "", "", "--- beginning of main")])
     model.set_time_mode("since_start")
     assert model.data(model.index(0, 0), Qt.DisplayRole) == ""  # raw (empty) stamp
+
+
+def test_exclude_hides_matching(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="noise from GnssHal"), _entry(message="real error")])
+    proxy.set_exclude("GnssHal")
+    assert _messages(model, proxy) == ["real error"]
+
+
+def test_exclude_empty_shows_all(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="a"), _entry(message="b")])
+    proxy.set_exclude("a")
+    proxy.set_exclude("")
+    assert len(_messages(model, proxy)) == 2
+
+
+def test_exclude_invalid_regex_keeps_previous(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="keep"), _entry(message="drop this")])
+    assert proxy.set_exclude("drop", regex=True) is True
+    assert _messages(model, proxy) == ["keep"]
+    assert proxy.set_exclude("(bad", regex=True) is False
+    assert _messages(model, proxy) == ["keep"]  # previous exclude retained
+
+
+def test_exclude_combines_with_search(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [
+            _entry(message="error in GnssHal"),
+            _entry(message="error in app"),
+            _entry(message="info in app"),
+        ]
+    )
+    proxy.set_search("error", regex=False)
+    proxy.set_exclude("GnssHal")
+    assert _messages(model, proxy) == ["error in app"]

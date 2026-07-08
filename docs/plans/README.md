@@ -57,3 +57,7 @@ which is cheaper than reworking a built feature.
 | [relative-time-column.md](relative-time-column.md) | Done | Toggle Time column: absolute / since-start / delta |
 | [highlight-matches.md](highlight-matches.md) | Done | Highlight search matches instead of filtering (find mode) |
 | [filter-presets.md](filter-presets.md) | Done | Save/re-apply named filter combos, persisted |
+| [exclude-filter.md](exclude-filter.md) | Done | Hide lines matching an exclude term (negative filter) |
+| [match-navigation.md](match-navigation.md) | Draft | Step between search matches (next/prev, F3) |
+| [showing-count.md](showing-count.md) | Draft | Status bar shows visible-of-total when filtered |
+| [bookmarks.md](bookmarks.md) | Draft | Pin lines and jump between bookmarks |

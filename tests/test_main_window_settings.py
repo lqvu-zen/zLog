@@ -85,3 +85,16 @@ def test_highlight_mode_shows_all_rows(window):
     # ...Highlight mode shows everything while still matching.
     window.search_mode_box.setCurrentIndex(1)  # Highlight
     assert window.proxy.rowCount() == 2
+
+
+def test_exclude_hides_lines(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "keep me"),
+            LogEntry("t", "1", "1", "I", "T", "spammy noise"),
+        ]
+    )
+    window.exclude.setText("spammy")
+    assert window.proxy.rowCount() == 1

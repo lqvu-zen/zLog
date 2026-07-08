@@ -191,6 +191,7 @@ class LogFilterProxy(QSortFilterProxyModel):
         super().__init__(parent)
         self._min_level = 0
         self._matcher = compile_matcher("", regex=False)  # match-all by default
+        self._exclude = None  # optional predicate; matching rows are hidden
         self._pids: set[str] | None = None  # None = no package filter
 
     def set_min_level(self, level_letter: str) -> None:
@@ -205,6 +206,20 @@ class LogFilterProxy(QSortFilterProxyModel):
         except re.error:
             return False
         self._matcher = matcher
+        self.invalidate()
+        return True
+
+    def set_exclude(self, text: str, regex: bool = False, case: bool = False) -> bool:
+        """Set the exclude matcher — rows it matches are hidden. Empty text clears
+        it. Returns False on an invalid regex, keeping the previous matcher."""
+        if not text:
+            self._exclude = None
+            self.invalidate()
+            return True
+        try:
+            self._exclude = compile_matcher(text, regex, case)
+        except re.error:
+            return False
         self.invalidate()
         return True
 
@@ -223,5 +238,9 @@ class LogFilterProxy(QSortFilterProxyModel):
         # Level gate (unparsed lines, level "", always pass).
         if entry.level and entry.rank < self._min_level:
             return False
+        haystack = f"{entry.tag} {entry.message}"
+        # Exclude gate: hide rows matching the exclude term (if any).
+        if self._exclude is not None and self._exclude(haystack):
+            return False
         # Search gate (matcher is match-all when the box is empty).
-        return self._matcher(f"{entry.tag} {entry.message}")
+        return self._matcher(haystack)

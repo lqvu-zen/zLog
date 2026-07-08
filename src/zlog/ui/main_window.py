@@ -147,6 +147,10 @@ class MainWindow(QMainWindow):
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
+        self.exclude = QLineEdit()
+        self.exclude.setPlaceholderText("Exclude…")
+        self.exclude.setToolTip("Hide lines matching this term (uses the Regex/Case toggles)")
+        self.exclude.setMinimumWidth(150)
         self.regex_check = QCheckBox("Regex")
         self.case_check = QCheckBox("Case")
         self.case_check.setToolTip("Match the search case-sensitively")
@@ -191,6 +195,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(QLabel("Min level:"))
         row2.addWidget(self.level_box)
         row2.addWidget(self.search, stretch=1)
+        row2.addWidget(self.exclude)
         row2.addWidget(self.regex_check)
         row2.addWidget(self.case_check)
         row2.addWidget(self.search_mode_box)
@@ -284,6 +289,7 @@ class MainWindow(QMainWindow):
             lambda: self.proxy.set_min_level(self.level_box.currentData())
         )
         self.search.textChanged.connect(self._apply_search)
+        self.exclude.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
         self.search_mode_box.currentIndexChanged.connect(self._apply_search)
@@ -417,6 +423,7 @@ class MainWindow(QMainWindow):
         self.regex_check.setChecked(False)
         self.case_check.setChecked(False)
         self.search.clear()  # fires _apply_search, which clears the error tint
+        self.exclude.clear()
         self.clear_package_filter()
         self.statusBar().showMessage("Filters cleared.")
 
@@ -499,6 +506,14 @@ class MainWindow(QMainWindow):
                 f"QLineEdit {{ background-color: {self._search_error_color}; }}"
             )
             self.statusBar().showMessage("Invalid regex — showing previous match.")
+        exclude_ok = self.proxy.set_exclude(self.exclude.text(), regex, case)
+        if exclude_ok:
+            self.exclude.setStyleSheet("")
+        else:
+            self.exclude.setStyleSheet(
+                f"QLineEdit {{ background-color: {self._search_error_color}; }}"
+            )
+            self.statusBar().showMessage("Invalid exclude regex — keeping the previous one.")
 
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
