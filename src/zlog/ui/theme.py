@@ -23,6 +23,8 @@ class Theme:
     search_error: str  # invalid-regex box tint hex
     search_highlight: str  # tint for rows matching the search in highlight mode
     bookmark: str  # bookmark marker color (decoration on the Time column)
+    button_hover: str  # QPushButton background when hovered
+    button_pressed: str  # QPushButton background when pressed
 
 
 LIGHT = Theme(
@@ -37,6 +39,8 @@ LIGHT = Theme(
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
     bookmark="#1a73e8",
+    button_hover="#dcdcdc",
+    button_pressed="#cfcfcf",
 )
 
 DARK = Theme(
@@ -51,6 +55,8 @@ DARK = Theme(
     search_error="#5a2b2b",
     search_highlight="#33506b",
     bookmark="#4da3ff",
+    button_hover="#3d3d3d",
+    button_pressed="#474747",
 )
 
 THEMES: dict[str, Theme] = {LIGHT.name: LIGHT, DARK.name: DARK}
@@ -67,8 +73,15 @@ def build_stylesheet(theme: Theme) -> str:
         f"    border: 0px; padding: 2px 6px; }}\n"
         f"QLineEdit, QComboBox {{ background-color: {theme.base}; color: {theme.text}; }}\n"
         f"QComboBox QAbstractItemView {{ background-color: {theme.base}; color: {theme.text}; }}\n"
+        # A stylesheet background-color disables Qt's automatic hover/pressed
+        # variation, so both states need an explicit rule or clicking a button
+        # gives no visual feedback at all. The border also gets its own color
+        # (rather than matching the fill) so buttons read as bordered controls
+        # at rest, not flat rectangles.
         f"QPushButton {{ background-color: {theme.header}; color: {theme.text};\n"
-        f"    border: 1px solid {theme.header}; padding: 3px 10px; }}\n"
+        f"    border: 1px solid {theme.muted}; padding: 3px 10px; }}\n"
+        f"QPushButton:hover {{ background-color: {theme.button_hover}; }}\n"
+        f"QPushButton:pressed {{ background-color: {theme.button_pressed}; }}\n"
         f"QPushButton:disabled {{ color: {theme.muted}; }}\n"
         f"QMenuBar, QMenu {{ background-color: {theme.window}; color: {theme.text}; }}\n"
         f"QStatusBar {{ color: {theme.text}; }}\n"
