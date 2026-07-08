@@ -123,6 +123,10 @@ class MainWindow(QMainWindow):
         self.clear_btn = QPushButton("Clear")
         self.follow_check = QCheckBox("Follow")
         self.follow_check.setChecked(True)
+        self.to_top_btn = QPushButton("Top")
+        self.to_top_btn.setToolTip("Scroll to the oldest line")
+        self.to_latest_btn = QPushButton("Latest")
+        self.to_latest_btn.setToolTip("Scroll to the newest line")
         self.stop_btn.setEnabled(False)
 
         # Row 2: filters.
@@ -166,6 +170,8 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.stop_btn)
         row1.addWidget(self.clear_btn)
         row1.addWidget(self.follow_check)
+        row1.addWidget(self.to_top_btn)
+        row1.addWidget(self.to_latest_btn)
         row1.addStretch(1)
 
         row2 = QHBoxLayout()
@@ -240,6 +246,8 @@ class MainWindow(QMainWindow):
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
+        self.to_top_btn.clicked.connect(self.table.scrollToTop)
+        self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
