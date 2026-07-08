@@ -42,8 +42,10 @@ from pathlib import Path
 if sys.platform.startswith("win"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
-elif sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get(
-    "WAYLAND_DISPLAY"
+elif (
+    sys.platform.startswith("linux")
+    and not os.environ.get("DISPLAY")
+    and not os.environ.get("WAYLAND_DISPLAY")
 ):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 

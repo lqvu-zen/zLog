@@ -85,8 +85,16 @@ class LogTableModel(QAbstractTableModel):
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            return COLUMNS[section]
+        if orientation == Qt.Horizontal:
+            if role == Qt.DisplayRole:
+                return COLUMNS[section]
+            if role == Qt.TextAlignmentRole:
+                # Mirror each column's cell alignment so the header sits over its
+                # data instead of Qt's default center (most visible on the wide,
+                # left-aligned, stretched Message column).
+                if section in (1, 2):
+                    return int(Qt.AlignRight | Qt.AlignVCenter)
+                return int(Qt.AlignLeft | Qt.AlignVCenter)
         return None
 
     # --- helpers -----------------------------------------------------------

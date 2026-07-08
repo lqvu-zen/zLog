@@ -1,6 +1,6 @@
 # Plan: UI review polish (Message header alignment, bookmark/checkbox contrast)
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-08
 - **Related:** [toolbar-tidy.md](toolbar-tidy.md), [theming-dark-mode.md](theming-dark-mode.md)
@@ -104,7 +104,7 @@ no-match, copy/select-all, streaming status guide.
 
 | File | Layer | Change |
 |---|---|---|
-| `src/zlog/ui/main_window.py` | ui | In `_build_widgets`, after the existing per-column `setSectionResizeMode`/`setColumnWidth` loop, set the header's default alignment to left so Message (and every column) aligns with its left-aligned cell data: `header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)`. |
+| `src/zlog/ui/log_model.py` | ui | In `LogTableModel.headerData`, add a `Qt.TextAlignmentRole` branch that mirrors each column's cell alignment (right for PID/TID, left for the rest) instead of a blanket `header.setDefaultAlignment(Qt.AlignLeft)` in `main_window.py` — the blanket version was tried first and rejected (see Risks: it left-aligned the PID/TID headers while their numeric cell data stayed right-aligned, trading one mismatch for another). |
 | `src/zlog/ui/theme.py` | ui | Change `bookmark` on both `LIGHT` and `DARK` `Theme` instances to a hue outside the level-tint (amber/red) family — e.g. a blue/teal such as `#1a73e8` (Light) / `#4da3ff` (Dark) — chosen to stay clearly readable against `base`/`alt_base` and distinct from `level_colors["W"]`. |
 | `src/zlog/ui/theme.py` | ui | In `build_stylesheet`, add a `QCheckBox::indicator { border: 1px solid <value>; }` rule per theme, using a border color with more separation from `theme.window` than the native default (e.g. `theme.muted` or a slightly lighter/darker variant), so the unchecked box is visible in Dark. |
 
@@ -119,9 +119,12 @@ no-match, copy/select-all, streaming status guide.
 
 ## Risks & regressions to check
 
-- Changing `header.setDefaultAlignment` applies to *all* columns, not just
-  Message — confirm Time/PID/TID/Level/Tag still read fine left-aligned (they're
-  narrow enough that this should be a non-issue, but verify in a screenshot).
+- ~~Changing `header.setDefaultAlignment` applies to *all* columns, not just
+  Message~~ — confirmed in a screenshot: it does regress PID/TID (their headers
+  went left-aligned while the numeric cell data stays right-aligned per
+  `data()`'s existing `Qt.TextAlignmentRole` branch). Fixed by moving the
+  alignment into `headerData`'s own `Qt.TextAlignmentRole` branch so it mirrors
+  `data()`'s per-column choice instead of applying one alignment to every header.
 - The new `bookmark` color must stay legible tinted over every row background it
   can appear on: default (white/`alt_base`), and all three level tints (W/E/F), in
   both Light and Dark — check all six combinations don't wash out.
@@ -133,13 +136,17 @@ no-match, copy/select-all, streaming status guide.
 
 ## Verification
 
-- [ ] `uv run pytest`
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Re-run `run-zlog` scenarios `populated`, `bookmarks`, `dark`, and a new
-      Dark+bookmarks combination; confirm in the screenshots that:
-      - Message header text starts at the same x-position as message cell text.
-      - The bookmark swatch is visibly distinct from the W/E/F row tints.
-      - Regex/Case checkbox outlines are visible, unchecked, in Dark.
+- [x] `uv run pytest` — 109 passed
+- [x] `uv run ruff check .` and `uv run ruff format --check .` — clean
+- [x] Re-ran `run-zlog` scenarios `populated`, `bookmarks`, `dark`, `filtered`,
+      `highlight`, `columns`, `details`, `smoke`; confirmed in the screenshots:
+      - Message header text starts at the same x-position as message cell text,
+        and Time/Level/Tag stay left- while PID/TID stay right-aligned, matching
+        their existing cell alignment (including with PID/TID hidden via the
+        Columns menu — `columns.png`).
+      - The bookmark swatch (now blue, `#1a73e8`/`#4da3ff`) is clearly distinct
+        from the W/E/F row tints, including on a selected bookmarked row.
+      - Regex/Case checkbox outlines are visible, unchecked, in Dark (`dark.png`).
 
 ## Open questions
 

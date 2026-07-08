@@ -36,7 +36,7 @@ LIGHT = Theme(
     level_colors={"W": "#fff4c8", "E": "#ffd7d7", "F": "#ffbebe"},
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
-    bookmark="#f4b400",
+    bookmark="#1a73e8",
 )
 
 DARK = Theme(
@@ -50,7 +50,7 @@ DARK = Theme(
     level_colors={"W": "#4d4526", "E": "#5a2b2b", "F": "#742b2b"},
     search_error="#5a2b2b",
     search_highlight="#33506b",
-    bookmark="#e0a800",
+    bookmark="#4da3ff",
 )
 
 THEMES: dict[str, Theme] = {LIGHT.name: LIGHT, DARK.name: DARK}
@@ -72,4 +72,7 @@ def build_stylesheet(theme: Theme) -> str:
         f"QPushButton:disabled {{ color: {theme.muted}; }}\n"
         f"QMenuBar, QMenu {{ background-color: {theme.window}; color: {theme.text}; }}\n"
         f"QStatusBar {{ color: {theme.text}; }}\n"
+        # The native unchecked-indicator border is too faint against a dark
+        # chrome background to scan at a glance; give it explicit contrast.
+        f"QCheckBox::indicator {{ border: 1px solid {theme.muted}; }}\n"
     )
