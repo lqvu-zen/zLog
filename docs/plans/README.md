@@ -62,3 +62,7 @@ which is cheaper than reworking a built feature.
 | [showing-count.md](showing-count.md) | Done | Status bar shows visible-of-total when filtered |
 | [bookmarks.md](bookmarks.md) | Done | Pin lines and jump between bookmarks |
 | [toolbar-tidy.md](toolbar-tidy.md) | Done | Split the crowded filter row into scope + search rows |
+| [font-zoom.md](font-zoom.md) | Done | Zoom log/detail text in/out (Ctrl+=/-/0), persisted |
+| [mute-tag.md](mute-tag.md) | Draft | Right-click to mute a tag/PID via the exclude filter |
+| [search-history.md](search-history.md) | Draft | Remember recent search terms in a dropdown |
+| [level-multiselect.md](level-multiselect.md) | Draft | Show only specific levels, not just a min-level floor |

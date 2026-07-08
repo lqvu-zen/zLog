@@ -26,6 +26,7 @@ DEFAULTS: dict = {
     "filter_presets": [],  # named filter combos (see core/presets.py)
     "search_mode": "filter",  # "filter" hides non-matches; "highlight" tints matches
     "time_mode": "absolute",  # Time column: "absolute" | "since_start" | "delta"
+    "font_delta": 0,  # point-size offset applied to the table + detail pane
 }
 
 

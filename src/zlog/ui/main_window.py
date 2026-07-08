@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         self.devctl = DeviceController(self)  # device picker + package/PID filter state
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
+        self._font_delta = 0  # point-size offset for the table + detail pane
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -315,6 +316,17 @@ class MainWindow(QMainWindow):
         prev_bm.triggered.connect(lambda: self._goto_bookmark(-1))
         clear_bm = view_menu.addAction("Clear Bookmarks")
         clear_bm.triggered.connect(self._clear_bookmarks)
+
+        view_menu.addSeparator()
+        zoom_in = view_menu.addAction("Zoom In")
+        zoom_in.setShortcut("Ctrl+=")
+        zoom_in.triggered.connect(lambda: self._zoom(1))
+        zoom_out = view_menu.addAction("Zoom Out")
+        zoom_out.setShortcut("Ctrl+-")
+        zoom_out.triggered.connect(lambda: self._zoom(-1))
+        zoom_reset = view_menu.addAction("Reset Zoom")
+        zoom_reset.setShortcut("Ctrl+0")
+        zoom_reset.triggered.connect(self._reset_zoom)
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -638,6 +650,25 @@ class MainWindow(QMainWindow):
     def _clear_bookmarks(self) -> None:
         self.model.clear_bookmarks()
 
+    # --- font zoom ---------------------------------------------------------
+    def _apply_font(self) -> None:
+        base = QApplication.font().pointSize()
+        if base <= 0:
+            base = 10
+        size = max(6, min(28, base + self._font_delta))
+        for widget in (self.table, self.detail):
+            font = widget.font()
+            font.setPointSize(size)
+            widget.setFont(font)
+
+    def _zoom(self, step: int) -> None:
+        self._font_delta = max(-4, min(12, self._font_delta + step))
+        self._apply_font()
+
+    def _reset_zoom(self) -> None:
+        self._font_delta = 0
+        self._apply_font()
+
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
         self._theme_name = name
@@ -833,6 +864,11 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_font_delta(v):
+            delta = v if isinstance(v, int) else 0
+            self._font_delta = max(-4, min(12, delta))
+            self._apply_font()
+
         def set_time_mode(v):
             mode = v if v in self._time_actions else "absolute"
             self._time_actions[mode].setChecked(True)
@@ -907,6 +943,7 @@ class MainWindow(QMainWindow):
                 ),
                 set_time_mode,
             ),
+            ("font_delta", lambda: self._font_delta, set_font_delta),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.

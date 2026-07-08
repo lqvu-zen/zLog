@@ -153,3 +153,20 @@ def test_bookmark_toggle_and_navigation(window):
     assert window.table.currentIndex().row() in (3, 4)  # next bookmark after row 2
     window._clear_bookmarks()
     assert window.model.bookmarked_rows() == []
+
+
+def test_font_zoom(window):
+    base = window.table.font().pointSize()
+    window._zoom(2)
+    assert window.table.font().pointSize() == base + 2
+    assert window.detail.font().pointSize() == base + 2
+    window._reset_zoom()
+    assert window.table.font().pointSize() == base
+    # persists through the settings spec
+    window._zoom(3)
+    window._save_settings()
+    from zlog.ui.main_window import MainWindow
+
+    w2 = MainWindow()
+    w2._load_and_apply_settings()
+    assert w2._font_delta == 3
