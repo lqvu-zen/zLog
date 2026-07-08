@@ -54,6 +54,6 @@ which is cheaper than reworking a built feature.
 | [tech-debt-refactor.md](tech-debt-refactor.md) | Done | Phased cleanup: UI test coverage, CI/Qt gap, duplicated adb error handling, controller extraction |
 | [docs-and-deprecation-cleanup.md](docs-and-deprecation-cleanup.md) | Done | Doc sync + invalidateFilter deprecation fix |
 | [jump-to-latest.md](jump-to-latest.md) | Done | Toolbar Top/Latest jump buttons, independent of Follow |
-| [relative-time-column.md](relative-time-column.md) | Draft | Toggle Time column: absolute / since-start / delta |
+| [relative-time-column.md](relative-time-column.md) | Done | Toggle Time column: absolute / since-start / delta |
 | [highlight-matches.md](highlight-matches.md) | Done | Highlight search matches instead of filtering (find mode) |
 | [filter-presets.md](filter-presets.md) | Done | Save/re-apply named filter combos, persisted |

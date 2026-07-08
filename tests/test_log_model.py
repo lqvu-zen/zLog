@@ -168,3 +168,52 @@ def test_tag_color_beats_highlight(qapp):
     model.set_highlight("boom")
     bg = model.data(model.index(0, 0), Qt.BackgroundRole)
     assert bg.name() == "#abcdef"
+
+
+def test_time_mode_since_start(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries(
+        [
+            LogEntry("06-30 12:00:00.000", "1", "1", "I", "T", "a"),
+            LogEntry("06-30 12:00:01.500", "1", "1", "I", "T", "b"),
+        ]
+    )
+    model.set_time_mode("since_start")
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == "+0.000"
+    assert model.data(model.index(1, 0), Qt.DisplayRole) == "+1.500"
+
+
+def test_time_mode_delta(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries(
+        [
+            LogEntry("06-30 12:00:00.000", "1", "1", "I", "T", "a"),
+            LogEntry("06-30 12:00:00.250", "1", "1", "I", "T", "b"),
+            LogEntry("06-30 12:00:02.250", "1", "1", "I", "T", "c"),
+        ]
+    )
+    model.set_time_mode("delta")
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == "+0.000"
+    assert model.data(model.index(1, 0), Qt.DisplayRole) == "+0.250"
+    assert model.data(model.index(2, 0), Qt.DisplayRole) == "+2.000"
+
+
+def test_time_mode_absolute_is_raw(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("06-30 12:00:00.000", "1", "1", "I", "T", "a")])
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == "06-30 12:00:00.000"
+
+
+def test_time_mode_unparsed_line_falls_back(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("", "", "", "", "", "--- beginning of main")])
+    model.set_time_mode("since_start")
+    assert model.data(model.index(0, 0), Qt.DisplayRole) == ""  # raw (empty) stamp

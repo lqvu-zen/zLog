@@ -1,6 +1,6 @@
 # Plan: Relative-time display
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** column-visibility, ui-column-polish

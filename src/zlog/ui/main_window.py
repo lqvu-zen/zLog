@@ -253,6 +253,19 @@ class MainWindow(QMainWindow):
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
 
+        time_menu = view_menu.addMenu("&Time display")
+        self._time_group = QActionGroup(self)
+        self._time_group.setExclusive(True)
+        self._time_actions = {}
+        time_modes = (("absolute", "Absolute"), ("since_start", "Since start"), ("delta", "Delta"))
+        for mode, label in time_modes:
+            act = time_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(mode == "absolute")
+            self._time_group.addAction(act)
+            act.triggered.connect(lambda _c=False, m=mode: self.model.set_time_mode(m))
+            self._time_actions[mode] = act
+
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
@@ -678,6 +691,11 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_time_mode(v):
+            mode = v if v in self._time_actions else "absolute"
+            self._time_actions[mode].setChecked(True)
+            self.model.set_time_mode(mode)
+
         def set_search_mode(v):
             idx = self.search_mode_box.findData(v if v in ("filter", "highlight") else "filter")
             if idx >= 0:
@@ -740,6 +758,13 @@ class MainWindow(QMainWindow):
             ),
             ("filter_presets", lambda: self._presets, set_filter_presets),
             ("search_mode", self.search_mode_box.currentData, set_search_mode),
+            (
+                "time_mode",
+                lambda: next(
+                    (m for m, a in self._time_actions.items() if a.isChecked()), "absolute"
+                ),
+                set_time_mode,
+            ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.

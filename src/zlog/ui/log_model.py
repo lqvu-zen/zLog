@@ -27,6 +27,7 @@ from PySide6.QtGui import QColor
 
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.search import compile_matcher
+from zlog.core.timefmt import format_delta, parse_logcat_time
 from zlog.ui.theme import LIGHT
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
@@ -42,6 +43,8 @@ class LogTableModel(QAbstractTableModel):
         self._level_counts: Counter = Counter()
         self._highlight = None  # optional match predicate for highlight mode
         self._highlight_color = QColor(LIGHT.search_highlight)
+        self._time_mode = "absolute"  # "absolute" | "since_start" | "delta"
+        self._baseline = None  # datetime of the first parseable row (since_start ref)
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -56,6 +59,8 @@ class LogTableModel(QAbstractTableModel):
             return None
         entry = self._rows[index.row()]
         if role == Qt.DisplayRole:
+            if index.column() == 0 and self._time_mode != "absolute":
+                return self._relative_time(index.row())
             return (
                 entry.time,
                 entry.pid,
@@ -90,12 +95,15 @@ class LogTableModel(QAbstractTableModel):
         self._rows.extend(entries)
         for entry in entries:
             self._level_counts[entry.level] += 1
+            if self._baseline is None:
+                self._baseline = parse_logcat_time(entry.time)
         self.endInsertRows()
 
     def clear(self) -> None:
         self.beginResetModel()
         self._rows.clear()
         self._level_counts.clear()
+        self._baseline = None
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -150,6 +158,32 @@ class LogTableModel(QAbstractTableModel):
     def level_counts(self) -> dict[str, int]:
         """Count of rows per level letter across the master list."""
         return dict(self._level_counts)
+
+    def set_time_mode(self, mode: str) -> None:
+        """Choose how the Time column reads: absolute stamp, elapsed since the
+        first line, or delta from the previous captured line."""
+        self._time_mode = mode if mode in ("absolute", "since_start", "delta") else "absolute"
+        if self._rows:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._rows) - 1, 0)
+            self.dataChanged.emit(top, bottom, [Qt.DisplayRole])
+
+    def _relative_time(self, row: int) -> str:
+        """Time cell for the non-absolute modes; falls back to the raw stamp for
+        unparseable (banner) lines."""
+        entry = self._rows[row]
+        t = parse_logcat_time(entry.time)
+        if t is None:
+            return entry.time
+        if self._time_mode == "delta":
+            if row == 0:
+                return format_delta(t - t)
+            prev = parse_logcat_time(self._rows[row - 1].time)
+            return format_delta(t - prev) if prev is not None else entry.time
+        # since_start
+        if self._baseline is None:
+            return entry.time
+        return format_delta(t - self._baseline)
 
 
 class LogFilterProxy(QSortFilterProxyModel):

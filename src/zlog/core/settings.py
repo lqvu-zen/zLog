@@ -25,6 +25,7 @@ DEFAULTS: dict = {
     "last_device": "",  # serial of the last-selected device, reselected on launch
     "filter_presets": [],  # named filter combos (see core/presets.py)
     "search_mode": "filter",  # "filter" hides non-matches; "highlight" tints matches
+    "time_mode": "absolute",  # Time column: "absolute" | "since_start" | "delta"
 }
 
 
