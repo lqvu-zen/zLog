@@ -65,6 +65,10 @@ the model is **virtualized** (Qt only asks for visible rows); and filtering is a
 
 See **[docs/GUIDE.md](docs/GUIDE.md)** for a walkthrough with screenshots.
 
+## Roadmap
+
+See **[docs/ROADMAP.md](docs/ROADMAP.md)** for the prioritized long-term plan.
+
 ## Run
 
 ```bash

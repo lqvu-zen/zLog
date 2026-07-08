@@ -206,6 +206,27 @@ def scenario_highlight(window: MainWindow) -> None:
     _shot(window, "highlight")
 
 
+def scenario_bookmarks(window: MainWindow) -> None:
+    # Seed rows, bookmark a couple, and select one so the marker is visible
+    # against both a selected and unselected row.
+    _seed(window, 6)
+    window.model.toggle_bookmark(2)
+    window.model.toggle_bookmark(9)
+    index = window.proxy.index(9, 0)
+    window.table.setCurrentIndex(index)
+    window.table.selectRow(9)
+    _shot(window, "bookmarks")
+
+
+def scenario_match_nav(window: MainWindow) -> None:
+    # Seed rows, search for a term that matches several, and step to one match
+    # so the match label ("n/total") and row selection are both visible.
+    _seed(window, 6)
+    window.search.setText("Exception")
+    window._goto_match(1)
+    _shot(window, "match-nav")
+
+
 def scenario_copy(window: MainWindow) -> None:
     # Seed rows, filter to W+ so the proxy shows a subset, select all visible rows,
     # and print the copied text to prove proxy->source mapping respects the filter.
@@ -258,6 +279,8 @@ SCENARIOS = {
     "empty": scenario_empty,
     "no-match": scenario_no_match,
     "copy": scenario_copy,
+    "bookmarks": scenario_bookmarks,
+    "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,
     "details": scenario_details,
     "columns": scenario_columns,

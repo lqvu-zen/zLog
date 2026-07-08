@@ -24,6 +24,9 @@ which is cheaper than reworking a built feature.
   (or `Abandoned`, with a one-line reason).
 - **Keep this index updated** — add a row when you create a plan.
 
+For the prioritized, cross-release picture these plans execute against, see the
+[project roadmap](../ROADMAP.md).
+
 ## Index
 
 | Plan | Status | Summary |
