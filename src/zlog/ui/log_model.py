@@ -128,7 +128,7 @@ class LogFilterProxy(QSortFilterProxyModel):
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
-        self.invalidateFilter()
+        self.invalidate()
 
     def set_search(self, text: str, regex: bool, case: bool = False) -> bool:
         """Set the search matcher. Returns False (keeping the previous matcher) if
@@ -138,13 +138,13 @@ class LogFilterProxy(QSortFilterProxyModel):
         except re.error:
             return False
         self._matcher = matcher
-        self.invalidateFilter()
+        self.invalidate()
         return True
 
     def set_pids(self, pids) -> None:
         """Restrict to these PID strings, or pass None to clear the package filter."""
         self._pids = set(pids) if pids is not None else None
-        self.invalidateFilter()
+        self.invalidate()
 
     def filterAcceptsRow(self, source_row, source_parent) -> bool:
         model: LogTableModel = self.sourceModel()

@@ -83,8 +83,14 @@ logs:
   view concern, the master list is never mutated — clearing a filter instantly
   reveals everything again, and no data is lost.
 
-- **`MainWindow`** is the wiring layer. It owns the reader, model, proxy, and
-  widgets, and connects signals to slots. It contains as little logic as possible;
+- **`DeviceController`** (`ui/device_controller.py`) holds the device list, the
+  remembered serial, and the package/PID filter state — but no widgets. Selection
+  preference, filter apply/clear, and live PID tracking live here, so they're
+  unit-testable without a `MainWindow`. The window drives its widgets and the proxy
+  from the controller's state.
+
+- **`MainWindow`** is the wiring layer. It owns the reader, model, proxy, controller,
+  and widgets, and connects signals to slots. It contains as little logic as possible;
   anything substantial should live in a lower layer it calls into.
 
 ## End-to-end data flow

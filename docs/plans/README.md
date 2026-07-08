@@ -52,3 +52,4 @@ which is cheaper than reworking a built feature.
 | [phase1-cleanup.md](phase1-cleanup.md) | Done | Pin ruff; centralize the regex-error tint |
 | [refactor-main-window.md](refactor-main-window.md) | Done | Slim `main_window.py`'s `__init__` + declarative settings table |
 | [tech-debt-refactor.md](tech-debt-refactor.md) | Done | Phased cleanup: UI test coverage, CI/Qt gap, duplicated adb error handling, controller extraction |
+| [docs-and-deprecation-cleanup.md](docs-and-deprecation-cleanup.md) | Done | Doc sync + invalidateFilter deprecation fix |
