@@ -56,4 +56,4 @@ which is cheaper than reworking a built feature.
 | [jump-to-latest.md](jump-to-latest.md) | Done | Toolbar Top/Latest jump buttons, independent of Follow |
 | [relative-time-column.md](relative-time-column.md) | Draft | Toggle Time column: absolute / since-start / delta |
 | [highlight-matches.md](highlight-matches.md) | Draft | Highlight search matches instead of filtering (find mode) |
-| [filter-presets.md](filter-presets.md) | Draft | Save/re-apply named filter combos, persisted |
+| [filter-presets.md](filter-presets.md) | Done | Save/re-apply named filter combos, persisted |

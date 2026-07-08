@@ -23,6 +23,7 @@ DEFAULTS: dict = {
     "hidden_columns": [],
     "clear_on_start": False,
     "last_device": "",  # serial of the last-selected device, reselected on launch
+    "filter_presets": [],  # named filter combos (see core/presets.py)
 }
 
 

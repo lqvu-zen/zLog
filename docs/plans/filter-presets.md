@@ -1,6 +1,6 @@
 # Plan: Saved filter presets
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** settings-persistence, clear-filters, package-filter, regex-search

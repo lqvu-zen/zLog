@@ -1,0 +1,63 @@
+"""Filter presets through the window: save, apply, delete, and persist."""
+
+from __future__ import annotations
+
+import pytest
+
+
+@pytest.fixture
+def window(qapp, tmp_path, monkeypatch):
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    return MainWindow()
+
+
+def _prompt(monkeypatch, name, ok=True):
+    from PySide6.QtWidgets import QInputDialog
+
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: (name, ok))
+
+
+def test_save_and_apply_preset(window, monkeypatch):
+    window.level_box.setCurrentIndex(4)  # E
+    window.regex_check.setChecked(True)
+    window.search.setText("FATAL|ANR")
+    _prompt(monkeypatch, "Crashes")
+    window.save_current_preset()
+
+    assert [p["name"] for p in window._presets] == ["Crashes"]
+    saved = window._presets[0]
+    assert saved["min_level"] == "E" and saved["regex"] is True and saved["search"] == "FATAL|ANR"
+
+    # change filters, then re-apply the preset
+    window.level_box.setCurrentIndex(0)
+    window.regex_check.setChecked(False)
+    window.search.setText("")
+    window._apply_preset(saved)
+    assert window.level_box.currentData() == "E"
+    assert window.regex_check.isChecked() is True
+    assert window.search.text() == "FATAL|ANR"
+
+
+def test_delete_preset(window, monkeypatch):
+    _prompt(monkeypatch, "Temp")
+    window.save_current_preset()
+    assert window._presets
+    window._delete_preset("Temp")
+    assert window._presets == []
+
+
+def test_presets_round_trip(qapp, tmp_path, monkeypatch):
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    w1 = MainWindow()
+    w1.search.setText("timeout")
+    _prompt(monkeypatch, "Net")
+    w1.save_current_preset()
+
+    w2 = MainWindow()
+    w2._load_and_apply_settings()
+    assert [p["name"] for p in w2._presets] == ["Net"]
+    assert w2._presets[0]["search"] == "timeout"

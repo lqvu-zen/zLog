@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -42,6 +43,7 @@ from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.models import LogEntry
+from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary
@@ -63,6 +65,7 @@ class MainWindow(QMainWindow):
         self.reader: AdbReader | None = None
         self.devctl = DeviceController(self)  # device picker + package/PID filter state
         self._theme_name = "Light"
+        self._presets: list[dict] = []  # saved filter presets
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -242,6 +245,9 @@ class MainWindow(QMainWindow):
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
 
+        self.presets_menu = view_menu.addMenu("Filter &Presets")
+        self._rebuild_presets_menu()
+
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
@@ -394,6 +400,64 @@ class MainWindow(QMainWindow):
         self.search.clear()  # fires _apply_search, which clears the error tint
         self.clear_package_filter()
         self.statusBar().showMessage("Filters cleared.")
+
+    # --- filter presets ----------------------------------------------------
+    def _rebuild_presets_menu(self) -> None:
+        """Repopulate the Presets submenu from self._presets (called on load and
+        after every save/delete)."""
+        self.presets_menu.clear()
+        save_act = self.presets_menu.addAction("Save current filter as…")
+        save_act.triggered.connect(self.save_current_preset)
+        if self._presets:
+            self.presets_menu.addSeparator()
+            for preset in self._presets:
+                act = self.presets_menu.addAction(preset["name"])
+                act.triggered.connect(lambda _checked=False, p=preset: self._apply_preset(p))
+            delete_menu = self.presets_menu.addMenu("Delete")
+            for preset in self._presets:
+                act = delete_menu.addAction(preset["name"])
+                act.triggered.connect(
+                    lambda _checked=False, n=preset["name"]: self._delete_preset(n)
+                )
+
+    def save_current_preset(self) -> None:
+        name, ok = QInputDialog.getText(self, "Save Filter Preset", "Preset name:")
+        name = name.strip()
+        if not ok or not name:
+            return
+        preset = make_preset(
+            name,
+            min_level=self.level_box.currentData(),
+            search=self.search.text(),
+            regex=self.regex_check.isChecked(),
+            case=self.case_check.isChecked(),
+            package=self.package_box.currentText().strip(),
+        )
+        self._presets = upsert_preset(self._presets, preset)
+        self._rebuild_presets_menu()
+        self._save_settings()
+        self.statusBar().showMessage(f"Saved preset {name!r}.")
+
+    def _apply_preset(self, preset: dict) -> None:
+        idx = self.level_box.findData(preset.get("min_level", "V"))
+        if idx >= 0:
+            self.level_box.setCurrentIndex(idx)
+        self.regex_check.setChecked(bool(preset.get("regex")))
+        self.case_check.setChecked(bool(preset.get("case")))
+        self.search.setText(preset.get("search", ""))
+        package = preset.get("package", "")
+        self.package_box.setEditText(package)
+        if package:
+            self.apply_package_filter()  # resolves PIDs when a device is available
+        else:
+            self.clear_package_filter()
+        self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
+
+    def _delete_preset(self, name: str) -> None:
+        self._presets = remove_preset(self._presets, name)
+        self._rebuild_presets_menu()
+        self._save_settings()
+        self.statusBar().showMessage(f"Deleted preset {name!r}.")
 
     def _apply_search(self) -> None:
         ok = self.proxy.set_search(
@@ -599,6 +663,10 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_filter_presets(v):
+            self._presets = normalize_presets(v)
+            self._rebuild_presets_menu()
+
         def set_last_device(v):
             # Reselect the saved device in the already-populated picker
             # (refresh_devices ran in __init__, before settings loaded).
@@ -650,6 +718,7 @@ class MainWindow(QMainWindow):
                 lambda: self.device_box.currentData() or self.devctl.preferred_serial or "",
                 set_last_device,
             ),
+            ("filter_presets", lambda: self._presets, set_filter_presets),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
