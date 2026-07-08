@@ -1,6 +1,6 @@
 # Plan: Match navigation (next / previous)
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** highlight-matches (flagged this as its follow-up), regex-search

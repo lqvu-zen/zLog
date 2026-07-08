@@ -98,3 +98,25 @@ def test_exclude_hides_lines(window):
     )
     window.exclude.setText("spammy")
     assert window.proxy.rowCount() == 1
+
+
+def test_match_navigation(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "alpha"),
+            LogEntry("t", "1", "1", "I", "T", "target one"),
+            LogEntry("t", "1", "1", "I", "T", "beta"),
+            LogEntry("t", "1", "1", "I", "T", "target two"),
+        ]
+    )
+    window.search_mode_box.setCurrentIndex(1)  # highlight → all rows visible
+    window.search.setText("target")
+    assert window.match_label.text() == "2 matches"
+    window._goto_match(1)
+    assert window.table.currentIndex().row() == 1  # first match
+    window._goto_match(1)
+    assert window.table.currentIndex().row() == 3  # second match
+    window._goto_match(1)
+    assert window.table.currentIndex().row() == 1  # wraps to first

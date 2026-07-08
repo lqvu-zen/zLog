@@ -11,11 +11,12 @@ Data flow:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QStandardPaths, Qt
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -44,6 +45,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
+from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary
@@ -151,6 +153,14 @@ class MainWindow(QMainWindow):
         self.exclude.setPlaceholderText("Exclude…")
         self.exclude.setToolTip("Hide lines matching this term (uses the Regex/Case toggles)")
         self.exclude.setMinimumWidth(150)
+        self.match_prev_btn = QPushButton("<")
+        self.match_prev_btn.setMaximumWidth(28)
+        self.match_prev_btn.setToolTip("Previous match (Shift+F3)")
+        self.match_next_btn = QPushButton(">")
+        self.match_next_btn.setMaximumWidth(28)
+        self.match_next_btn.setToolTip("Next match (F3)")
+        self.match_label = QLabel("")
+        self.match_label.setMinimumWidth(64)
         self.regex_check = QCheckBox("Regex")
         self.case_check = QCheckBox("Case")
         self.case_check.setToolTip("Match the search case-sensitively")
@@ -195,6 +205,9 @@ class MainWindow(QMainWindow):
         row2.addWidget(QLabel("Min level:"))
         row2.addWidget(self.level_box)
         row2.addWidget(self.search, stretch=1)
+        row2.addWidget(self.match_prev_btn)
+        row2.addWidget(self.match_label)
+        row2.addWidget(self.match_next_btn)
         row2.addWidget(self.exclude)
         row2.addWidget(self.regex_check)
         row2.addWidget(self.case_check)
@@ -290,6 +303,10 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.exclude.textChanged.connect(self._apply_search)
+        self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
+        self.match_prev_btn.clicked.connect(lambda: self._goto_match(-1))
+        QShortcut(QKeySequence("F3"), self, activated=lambda: self._goto_match(1))
+        QShortcut(QKeySequence("Shift+F3"), self, activated=lambda: self._goto_match(-1))
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
         self.search_mode_box.currentIndexChanged.connect(self._apply_search)
@@ -514,6 +531,49 @@ class MainWindow(QMainWindow):
                 f"QLineEdit {{ background-color: {self._search_error_color}; }}"
             )
             self.statusBar().showMessage("Invalid exclude regex — keeping the previous one.")
+        self._update_match_label()
+
+    # --- match navigation --------------------------------------------------
+    def _match_rows(self) -> list[int]:
+        """Visible proxy rows whose tag+message match the current search term."""
+        text = self.search.text()
+        if not text:
+            return []
+        try:
+            matcher = compile_matcher(
+                text, self.regex_check.isChecked(), self.case_check.isChecked()
+            )
+        except re.error:
+            return []
+        rows = []
+        for r in range(self.proxy.rowCount()):
+            src = self.proxy.mapToSource(self.proxy.index(r, 0)).row()
+            entry = self.model.entry_at(src)
+            if matcher(f"{entry.tag} {entry.message}"):
+                rows.append(r)
+        return rows
+
+    def _update_match_label(self) -> None:
+        if not self.search.text():
+            self.match_label.setText("")
+            return
+        n = len(self._match_rows())
+        self.match_label.setText(f"{n} match" if n == 1 else f"{n} matches")
+
+    def _goto_match(self, step: int) -> None:
+        rows = self._match_rows()
+        if not rows:
+            return
+        cur = self.table.currentIndex().row()
+        if step > 0:
+            target = next((r for r in rows if r > cur), rows[0])
+        else:
+            target = next((r for r in reversed(rows) if r < cur), rows[-1])
+        index = self.proxy.index(target, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(target)
+        self.table.scrollTo(index)
+        self.match_label.setText(f"{rows.index(target) + 1}/{len(rows)}")
 
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
