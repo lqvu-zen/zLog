@@ -48,7 +48,12 @@ class AdbReader(QThread):
                 self._command(),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
+                # Logcat output is UTF-8 and can contain non-ASCII app messages;
+                # pin the codec instead of inheriting the platform's default text
+                # encoding (cp1252 on Windows), and replace anything undecodable
+                # rather than raising, so a stray byte can't kill the thread.
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,  # line-buffered
             )
         except FileNotFoundError:
@@ -60,13 +65,19 @@ class AdbReader(QThread):
 
         assert self._proc.stdout is not None
         batch: list[LogEntry] = []
-        for raw in self._proc.stdout:
-            if not self._running:
-                break
-            batch.append(parse_line(raw.rstrip("\n")))
-            if len(batch) >= _BATCH_SIZE:
+        try:
+            for raw in self._proc.stdout:
+                if not self._running:
+                    break
+                batch.append(parse_line(raw.rstrip("\n")))
+                if len(batch) >= _BATCH_SIZE:
+                    self.batch_ready.emit(batch)
+                    batch = []
+        except Exception as exc:  # a dead reader thread fails silently otherwise
+            if batch:
                 self.batch_ready.emit(batch)
-                batch = []
+            self.error.emit(f"Log reading stopped: {exc}")
+            return
         if batch:
             self.batch_ready.emit(batch)
 

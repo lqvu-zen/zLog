@@ -1,6 +1,6 @@
 # Plan: Fix AdbReader crash on non-cp1252 logcat bytes
 
-- **Status:** In progress
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-08
 - **Related:** none
@@ -89,10 +89,12 @@ project's plan-first convention for any fix.
 
 ## Verification
 
-- [ ] `uv run pytest`
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Add a regression test that feeds `AdbReader` a raw byte sequence outside
-      cp1252 (reproducing the reported crash) and confirms it's decoded via
-      `errors="replace"` instead of raising.
-- [ ] Confirm the normal Stop path (EOF from `terminate()`) still ends cleanly
-      with no spurious error message from the new exception handler.
+- [x] `uv run pytest` — 112 passed (109 pre-existing + 3 new in `test_reader.py`)
+- [x] `uv run ruff check .` and `uv run ruff format --check .` — clean
+- [x] Added `tests/test_reader.py`: asserts `Popen` is called with
+      `encoding="utf-8", errors="replace"`; a mid-stream decode failure reaches
+      `error` (with the prior batch still flushed) instead of raising out of
+      `run()`; a normal EOF (the real Stop path) emits no error.
+- [x] Confirmed the normal Stop path (EOF from `terminate()`) is a plain
+      iterator exhaustion, not an exception, so it can't trip the new handler —
+      covered by `test_run_ends_cleanly_on_normal_eof_no_spurious_error`.

@@ -71,3 +71,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [level-multiselect.md](level-multiselect.md) | Draft | Show only specific levels, not just a min-level floor |
 | [ui-review-polish.md](ui-review-polish.md) | Done | Fix findings from the 2026-07-08 UI review: Message header alignment, bookmark/checkbox contrast |
 | [ui-button-feedback.md](ui-button-feedback.md) | Done | Buttons show no visual change on hover/press — add QSS hover/pressed states |
+| [logcat-decode-crash-fix.md](logcat-decode-crash-fix.md) | Done | Fix AdbReader crash on non-cp1252 logcat bytes (UnicodeDecodeError) |
