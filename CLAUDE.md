@@ -20,6 +20,12 @@ its status line current (Draft → Approved → In progress → Done), and only 
 once it's approved. The `add-zlog-feature` and `review-zlog-ui` skills enforce this.
 See `docs/plans/README.md`.
 
+**Before starting any new work, check `docs/plans/` for pending plans first.** Scan
+`docs/plans/README.md` (or `grep -n 'Status' docs/plans/*.md`) for anything still in
+**Draft**, **Approved**, or **In progress** and surface it. If an open plan matches
+the request, resume it instead of creating a new one; only start a new plan once
+nothing pending blocks the work.
+
 ## Commands
 
 ```bash
