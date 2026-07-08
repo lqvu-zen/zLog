@@ -1,117 +1,90 @@
-# Plan: Tech debt remediation (Q3 2026)
+# Plan: Tech-debt refactor (Phases 2–3)
 
-- **Status:** Draft
+- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Vũ
 - **Created:** 2026-07-07
-- **Related:** refactor-main-window.md (prior pass this one follows up on)
+- **Related:** phase1-cleanup.md (done, Phase 1), refactor-main-window.md (done)
 
 ## Goal
 
-Pay down the debt that's accumulated since the last refactor — mainly that `ui/`
-has zero automated test coverage and `main_window.py` has grown back past its
-pre-refactor size — without slowing down feature work, by doing it in three
-small, independently-approvable phases.
-
-## Findings (scored)
-
-Priority = (Impact + Risk) × (6 − Effort); all 1–5, Effort inverted (1 = easy).
-
-| # | Item | Impact | Risk | Effort | Priority |
-|---|---|---|---|---|---|
-| 1 | `ui/` has no automated tests — `main_window.py` (730 lines, 48 methods) is only checked by manual smoke screenshots | 5 | 5 | 3 | 30 |
-| 2 | CI never imports/exercises `zlog.ui` (offscreen Qt) or runs on Windows — only `core/` is covered by `pytest` | 3 | 4 | 2 | 28 |
-| 3 | Duplicated adb-call error handling — the same try/except (`FileNotFoundError` → "adb not found", generic `Exception` → message) appears 3× in `refresh_devices`, `load_packages`, `apply_package_filter` | 2 | 2 | 1 | 20 |
-| 4 | No dependency-update automation (no Dependabot/Renovate for `uv.lock` or Actions versions) | 2 | 3 | 1 | 25 |
-| 5 | `main_window.py` is a growing God object — already 48% of app code; a controller extraction was explicitly deferred in `refactor-main-window.md` and the file has since regrown from 662 → 730 lines | 4 | 3 | 4 | 14 |
-| 6 | `self._search_error_color = "#ffd7d7"` is a hard-coded fallback literal duplicating `LIGHT.search_error`, a narrow exception to the "colors live in `ui/theme.py`" rule | 1 | 1 | 1 | 10 |
-
-### Why each matters
-
-- **#1/#2 (test + CI gap):** every UI regression today is caught only by eyes on
-  a screenshot. This is not hypothetical — `refactor-main-window.md` records a
-  real incident ("silent truncation of `main_window.py` during edits, happened
-  during remember-device"). The fix is cheaper than it looks:
-  `.claude/skills/run-zlog/scripts/driver.py` already proves `MainWindow` runs
-  fine under `QT_QPA_PLATFORM=offscreen`; that same technique just needs to move
-  into `tests/` and CI instead of living only in a manual skill.
-- **#3:** pure duplication — three copies of the same error-mapping means a
-  fourth adb call is likely to paste-and-diverge instead of reusing it.
-- **#4:** a single pinned dependency (`PySide6>=6.6`) is low risk today, but
-  nothing currently notices when it or `uv`/Actions versions go stale.
-- **#5:** the team already flagged this as a deferred, not a rejected, idea
-  ("Not extracting a `DeviceController`/`FilterController` — bigger, riskier —
-  a separate later plan if we want it"). Growth since then is the signal to
-  revisit it, not new information to discover.
-- **#6:** cosmetic — the value is always overwritten by `apply_theme` before
-  paint, so this is a rule nit, not a bug.
+Close the highest-value gaps from the tech-debt register: give the `ui/` and `adb/`
+layers a real test safety net that actually runs in CI, de-duplicate the adb
+error handling, and extract a device/filter controller — so the bugs that keep
+appearing in `main_window`/`log_model` get caught automatically instead of by hand.
 
 ## Scope
 
-- **In:** the three phases below.
-- **Out (non-goals):** no new user-facing feature; no version bump
-  (release-only policy); Phase 3's actual extraction is *out* of this plan —
-  this plan only decides it's worth doing and hands it to its own
-  `docs/plans/<slug>.md` before any code changes, per the plan-first rule.
+- **In:**
+  1. **UI/adb test coverage** — headless tests for the proxy filter
+     gates and the settings round-trip, plus `adb/` parsing/threading seams.
+  2. **CI runs Qt tests** — a CI job that installs the offscreen Qt
+     deps and runs the new tests so they gate merges.
+  3. **De-duplicate adb error handling** — `refresh_devices`, `load_packages`, and
+     `apply_package_filter` each repeat the same `FileNotFoundError` / generic
+     `Exception` → status-bar-message shape; fold into one helper.
+  4. **Controller extraction** — move device listing/selection + package/PID
+     filtering + PID tracking out of `MainWindow` into a `DeviceController`
+     (deferred from refactor-main-window.md), making that logic unit-testable
+     without a full window.
+  5. **Python floor / lockfile docs** and settings-parity in CI
+     (the settings-spec parity check, which falls out of item 2's CI job).
+- **Out (non-goals):** new user-facing features; changing the on-disk settings
+  format; rewriting the reader's batching/threading model.
 
-## Phased remediation
+## Design
 
-**Phase 1 — quick wins (do alongside any other work, no separate approval needed beyond this plan):**
-- Extract a shared `_run_adb_call(fn, *, not_found_msg)` (or similar) helper in
-  `main_window.py` and point `refresh_devices` / `load_packages` /
-  `apply_package_filter` at it. Behavior-preserving.
-- Drop the redundant `"#ffd7d7"` literal — initialize `_search_error_color` from
-  `LIGHT.search_error` (still overwritten by `apply_theme` right after).
-- Add `.github/dependabot.yml` covering the `uv`/pip ecosystem and
-  `github-actions`.
+Do it in the register's phase order; each phase is independently shippable.
 
-**Phase 2 — close the UI test gap:**
-- Add an offscreen Qt smoke test (`QT_QPA_PLATFORM=offscreen`, same trick as
-  `run-zlog`'s driver) that constructs `MainWindow` and exercises, headlessly:
-  the settings round-trip (`_settings_specs()` assert already guards key drift,
-  but nothing calls it in CI today), `_track_new_pids`, and
-  `_selected_entries`/`_filtered_entries` proxy-mapping logic.
-- Add a CI step running this alongside the existing `core/` suite. (A full
-  Windows test runner is a nice-to-have, not required — offscreen Qt runs fine
-  on `ubuntu-latest`, same as the release build's Windows-only step is separate.)
+### Phase 2 — safety net (test coverage, then CI)
 
-**Phase 3 — revisit the deferred controller extraction:**
-- Once Phase 2 gives a safety net, write a fresh `docs/plans/<slug>.md` (e.g.
-  `device-filter-controllers.md`) scoping a `DeviceController`/`FilterController`
-  extraction from `main_window.py`, following the same behavior-preserving
-  approach as `refactor-main-window.md`. Get it approved before touching code.
+| File | Layer | Change |
+|---|---|---|
+| `tests/test_log_model.py` | test | Headless (`QT_QPA_PLATFORM=offscreen`) tests for `LogFilterProxy`: level gate, text/regex/case search gate, package-PID gate, and their combination; `LogTableModel.append_entries` virtualized-append + counts. |
+| `tests/test_main_window_settings.py` | test | Round-trip: set non-default widget state → `_save_settings` → fresh window → `_load_and_apply_settings` → assert every widget matches; assert `_settings_specs()` keys == `DEFAULTS`. |
+| `.github/workflows/ci.yml` | infra | Add a step installing `libegl1 libxkbcommon0 libgl1 libglx0` and running pytest under `QT_QPA_PLATFORM=offscreen`, so ui/adb tests gate merges. |
+
+### Phase 3 — dedupe + controller (items 3 and 4)
+
+| File | Layer | Change |
+|---|---|---|
+| `src/zlog/ui/main_window.py` | ui | Extract an `_adb_guard(action, *, on_missing, on_error)` helper (or a small context manager) that maps `FileNotFoundError` → "adb not found" and generic failures → a message; use it in `refresh_devices`, `load_packages`, `apply_package_filter`. |
+| `src/zlog/ui/device_controller.py` (new) | ui | `DeviceController(QObject)` owning the device list, `_preferred_serial`, package/PID filter state, and `_track_new_pids`; exposes signals/methods the window binds to. `MainWindow` shrinks to wiring. |
+| `tests/test_device_controller.py` | test | Unit-test selection preference, package filter set/clear, and live PID tracking without constructing a `MainWindow`. |
 
 ## Architecture touch points
 
-- **Threading:** none in Phases 1–2. Phase 3 must preserve "workers reach the UI
-  only via signals" if any state moves into a controller object.
-- **Dependency direction:** unchanged (`ui → adb → core`); Phase 1's helper and
-  Phase 3's controllers stay inside `ui/`.
-- **Colors rule:** Phase 1 item 2 brings `main_window.py` fully into compliance.
+- **Threading:** unchanged — reader stays a `QThread` emitting batched signals; the
+  controller touches widgets only via signals/slots on the main thread.
+- **Dependency direction:** `ui → adb → core` preserved. The controller lives in
+  `ui/` (it needs `QObject`); any Qt-free logic it needs (e.g. serial preference)
+  can move to `core/`. `core/` stays Qt-free and CI-testable without a display.
+- **Model/proxy invariant:** tests assert the master list stays complete and filtering
+  happens through the proxy.
+- **Versioning:** no bump (release-only).
 
 ## Risks & regressions to check
 
-- Phase 1: re-run the 3 refactored flows manually (no device, adb missing, adb
-  timeout) to confirm identical status-bar messages.
-- Phase 2: offscreen tests must not depend on a real device or `adb` binary —
-  fake data only, matching how `_populate_devices` already supports the
-  run-zlog driver's fake devices.
-- Phase 3: same risks called out in `refactor-main-window.md` (silent
-  truncation, settings round-trip, restore ordering) — Phase 2's tests are what
-  make this safe to attempt.
+- Offscreen Qt in CI: pin the apt packages; the run-zlog driver already proves the
+  offscreen path works, so reuse its setup.
+- Controller extraction must not change behavior: the Phase-2 tests are the guardrail
+  — land them *first*, then refactor under green.
+- adb-guard helper must preserve today's exact status-bar messages (assert them).
+- **Dev-mount corruption** (observed this session): commit before starting, verify
+  each write with parse + null-byte + md5-stable checks, prefer building in a stable
+  scratch dir and copying back.
 
 ## Verification
 
-- [ ] `uv run pytest` (Phase 2 adds the offscreen suite here)
+- [ ] `uv run pytest` (new ui/adb/controller tests green)
 - [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual re-check of the three adb-call flows after Phase 1's extraction
-- [ ] CI green with the new job/step from Phase 2
-- [ ] Phase 3 gated on its own approved plan before any code changes
+- [ ] CI: the new offscreen-Qt job passes on a PR
+- [ ] Behavior parity: device pick, package filter apply/clear, PID re-track on
+      restart, and every settings key still round-trips after the controller extraction
+- [ ] `run-zlog` smoke screenshot unchanged
 
 ## Open questions
 
-- Phase 2: `pytest-qt` (adds a dev dependency) vs. a hand-rolled
-  `QApplication` fixture (zero new deps, more boilerplate) — leaning hand-rolled
-  since the app has exactly one window class today.
-- Phase 3: scope as one `DeviceController` + one `FilterController`, or fold
-  device/package/search into a single `FilterController`? Decide in that plan,
-  not this one.
+- Controller as a single `DeviceController`, or split device-picking from
+  package/PID filtering into two? Leaning one to start; split if it grows.
+- Is Python `>=3.14` a hard requirement, or can the floor drop to 3.12 to widen
+  contributor/CI support?

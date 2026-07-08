@@ -66,7 +66,7 @@ class MainWindow(QMainWindow):
         self._filter_pids: set[str] = set()
         self._theme_name = "Light"
         self._preferred_serial: str | None = None  # last-used device, restored on launch
-        self._search_error_color = "#ffd7d7"  # default; apply_theme overrides per theme
+        self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
         self._build_layout()
@@ -398,8 +398,8 @@ class MainWindow(QMainWindow):
         if ok:
             self.search.setStyleSheet("")
         else:
-            # Invalid regex: keep the previous filter and flag the box. (This
-            # tint would move into ui/theme.py once that exists.)
+            # Invalid regex: keep the previous filter and flag the box with the
+            # active theme's error tint.
             self.search.setStyleSheet(
                 f"QLineEdit {{ background-color: {self._search_error_color}; }}"
             )

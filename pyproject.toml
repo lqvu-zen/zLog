@@ -16,7 +16,9 @@ zlog = "zlog.app:main"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.5",
+    # Capped: some releases' formatter mangles tuple `except` clauses (see
+    # core/settings.py). Pin the upper bound so an upgrade can't rewrite valid code.
+    "ruff>=0.5,<0.16",
 ]
 build = [
     "cx_Freeze>=7.2",
