@@ -120,3 +120,20 @@ def test_match_navigation(window):
     assert window.table.currentIndex().row() == 3  # second match
     window._goto_match(1)
     assert window.table.currentIndex().row() == 1  # wraps to first
+
+
+def test_showing_count_when_filtered(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "keep"),
+            LogEntry("t", "1", "1", "I", "T", "drop"),
+            LogEntry("t", "1", "1", "I", "T", "keep too"),
+        ]
+    )
+    window._update_counts()
+    assert window.count_label.text().startswith("3 lines")
+    window.search.setText("keep")  # filters to 2 of 3
+    window._update_counts()
+    assert window.count_label.text().startswith("Showing 2 of 3 lines")

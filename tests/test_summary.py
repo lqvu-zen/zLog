@@ -19,3 +19,15 @@ def test_thousands_separator():
 def test_only_total_when_no_known_levels():
     # unparsed lines have level "" and don't appear under any letter
     assert format_level_summary(5, {"": 5}) == "5 lines"
+
+
+def test_summary_shows_visible_of_total():
+    assert format_level_summary(100, {}, visible=20) == "Showing 20 of 100 lines"
+
+
+def test_summary_no_prefix_when_visible_equals_total():
+    assert format_level_summary(100, {}, visible=100) == "100 lines"
+
+
+def test_summary_visible_none_is_plain_total():
+    assert format_level_summary(1204, {"E": 12}, visible=None) == "1,204 lines  E:12"

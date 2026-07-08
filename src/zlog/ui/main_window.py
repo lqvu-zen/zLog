@@ -318,6 +318,8 @@ class MainWindow(QMainWindow):
         self.proxy.modelReset.connect(self._update_placeholder)
         self.proxy.rowsInserted.connect(self._update_placeholder)
         self.proxy.rowsRemoved.connect(self._update_placeholder)
+        self.proxy.layoutChanged.connect(self._update_counts)
+        self.proxy.rowsRemoved.connect(self._update_counts)
 
     # --- devices -----------------------------------------------------------
     def _run_adb(self, fn, *, missing_msg, error_prefix, report):
@@ -704,7 +706,9 @@ class MainWindow(QMainWindow):
     # --- status counts -----------------------------------------------------
     def _update_counts(self, *args) -> None:
         self.count_label.setText(
-            format_level_summary(self.model.rowCount(), self.model.level_counts())
+            format_level_summary(
+                self.model.rowCount(), self.model.level_counts(), self.proxy.rowCount()
+            )
         )
 
     # --- detail pane -------------------------------------------------------
