@@ -39,3 +39,13 @@ def test_ignores_daemon_noise_lines():
         "ABC\tdevice\n"
     )
     assert parse_devices(out) == [Device("ABC", "device")]
+
+
+def test_choose_device_index():
+    from zlog.core.devices import choose_device_index
+
+    devs = [Device("AAA", "device"), Device("BBB", "device"), Device("CCC", "offline")]
+    assert choose_device_index(devs, None) == 0  # first streamable
+    assert choose_device_index(devs, "BBB") == 1  # remembered
+    assert choose_device_index(devs, "ZZZ") == 0  # absent -> first streamable
+    assert choose_device_index([Device("CCC", "offline")], None) == -1

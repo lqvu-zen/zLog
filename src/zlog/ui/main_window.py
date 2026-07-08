@@ -42,10 +42,10 @@ from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.models import LogEntry
-from zlog.core.proc import parse_proc_start
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary
+from zlog.ui.device_controller import DeviceController
 from zlog.ui.log_model import COLUMNS, MESSAGE_COL, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
@@ -61,11 +61,8 @@ class MainWindow(QMainWindow):
 
         # Runtime state, created before widgets so slots can rely on it existing.
         self.reader: AdbReader | None = None
-        self._devices: list[Device] = []
-        self._filter_package: str | None = None
-        self._filter_pids: set[str] = set()
+        self.devctl = DeviceController(self)  # device picker + package/PID filter state
         self._theme_name = "Light"
-        self._preferred_serial: str | None = None  # last-used device, restored on launch
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -292,7 +289,7 @@ class MainWindow(QMainWindow):
     def _populate_devices(self, devices: list[Device]) -> None:
         """Fill the picker from a device list (also called by the run-zlog driver
         with fake devices, so it stays free of subprocess calls)."""
-        self._devices = list(devices)
+        self.devctl.set_devices(devices)
         self.device_box.clear()
         if not devices:
             self.device_box.addItem("No devices", None)
@@ -301,27 +298,19 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Connect a device and press Refresh (USB debugging on).")
             return
         self.device_box.setEnabled(True)
-        first_streamable = -1
-        preferred = -1
-        for i, dev in enumerate(devices):
+        for dev in devices:
             # Only streamable devices carry a serial as item data; others are
             # shown but can't be selected for streaming.
             self.device_box.addItem(dev.label, dev.serial if dev.streamable else None)
-            if dev.streamable:
-                if first_streamable < 0:
-                    first_streamable = i
-                if dev.serial == self._preferred_serial:
-                    preferred = i
-        # Prefer the last-used device; fall back to the first streamable one.
-        chosen = preferred if preferred >= 0 else first_streamable
+        chosen = self.devctl.choose_index()  # prefers the last-used device
         if chosen >= 0:
             self.device_box.setCurrentIndex(chosen)
-            self._preferred_serial = self.device_box.itemData(chosen)
+            self.devctl.remember(self.device_box.itemData(chosen))
         self._update_start_enabled()
         self.statusBar().showMessage(f"{len(devices)} device(s) found.")
 
     def _show_device_error(self, msg: str) -> None:
-        self._devices = []
+        self.devctl.set_devices([])
         self.device_box.clear()
         self.device_box.addItem("No devices", None)
         self.device_box.setEnabled(False)
@@ -336,7 +325,7 @@ class MainWindow(QMainWindow):
 
     def _update_start_enabled(self) -> None:
         streaming = self.reader is not None and self.reader.isRunning()
-        streamable = bool(self._devices) and self.device_box.currentData() is not None
+        streamable = bool(self.devctl.devices) and self.device_box.currentData() is not None
         self.start_btn.setEnabled(streamable and not streaming)
         self._update_package_enabled()
 
@@ -380,14 +369,12 @@ class MainWindow(QMainWindow):
         if not pids:
             self.statusBar().showMessage(f"{package} isn't running — start it and apply again.")
             return
-        self._filter_package = package
-        self._filter_pids = set(pids)
-        self.proxy.set_pids(self._filter_pids)
+        self.devctl.apply_filter(package, pids)
+        self.proxy.set_pids(self.devctl.filter_pids)
         self.statusBar().showMessage(f"Showing {package} (pid {', '.join(pids)}).")
 
     def clear_package_filter(self) -> None:
-        self._filter_package = None
-        self._filter_pids = set()
+        self.devctl.clear_filter()
         self.proxy.set_pids(None)
         self.statusBar().showMessage("Package filter cleared.")
 
@@ -607,9 +594,9 @@ class MainWindow(QMainWindow):
         def set_last_device(v):
             # Reselect the saved device in the already-populated picker
             # (refresh_devices ran in __init__, before settings loaded).
-            self._preferred_serial = v or None
-            if self._preferred_serial is not None:
-                idx = self.device_box.findData(self._preferred_serial)
+            self.devctl.preferred_serial = v or None
+            if self.devctl.preferred_serial is not None:
+                idx = self.device_box.findData(self.devctl.preferred_serial)
                 if idx >= 0:
                     self.device_box.setCurrentIndex(idx)
 
@@ -652,7 +639,7 @@ class MainWindow(QMainWindow):
             ),
             (
                 "last_device",
-                lambda: self.device_box.currentData() or self._preferred_serial or "",
+                lambda: self.device_box.currentData() or self.devctl.preferred_serial or "",
                 set_last_device,
             ),
         ]
@@ -700,14 +687,14 @@ class MainWindow(QMainWindow):
             self.reader.stop()
             self.reader = None
         self.refresh_btn.setEnabled(True)
-        self.device_box.setEnabled(bool(self._devices))
+        self.device_box.setEnabled(bool(self.devctl.devices))
         self.stop_btn.setEnabled(False)
         self._update_start_enabled()
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
         self.model.append_entries(entries)
-        if self._filter_package is not None:
+        if self.devctl.filtering:
             self._track_new_pids(entries)
         if self.follow_check.isChecked():
             self.table.scrollToBottom()
@@ -715,19 +702,12 @@ class MainWindow(QMainWindow):
     def _track_new_pids(self, entries) -> None:
         """Keep an active package filter live: add PIDs of newly started
         processes of the filtered package (so a restart keeps showing)."""
-        added = False
-        for entry in entries:
-            result = parse_proc_start(entry.message)
-            if result is None:
-                continue
-            pid, package = result
-            if package == self._filter_package and pid not in self._filter_pids:
-                self._filter_pids.add(pid)
-                added = True
-        if added:
-            self.proxy.set_pids(self._filter_pids)
-            pids = ", ".join(sorted(self._filter_pids))
-            self.statusBar().showMessage(f"{self._filter_package} restarted → tracking pid {pids}.")
+        if self.devctl.track(entries):
+            self.proxy.set_pids(self.devctl.filter_pids)
+            pids = ", ".join(sorted(self.devctl.filter_pids))
+            self.statusBar().showMessage(
+                f"{self.devctl.filter_package} restarted → tracking pid {pids}."
+            )
 
     def on_error(self, msg: str) -> None:
         self.statusBar().showMessage(msg)

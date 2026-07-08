@@ -44,3 +44,16 @@ def parse_devices(output: str) -> list[Device]:
             continue
         devices.append(Device(serial=parts[0], state=parts[1]))
     return devices
+
+
+def choose_device_index(devices: list[Device], preferred_serial: str | None) -> int:
+    """Index of the device to preselect: the remembered serial if it's present and
+    streamable, else the first streamable device, else -1 (nothing selectable)."""
+    first = -1
+    for i, dev in enumerate(devices):
+        if dev.streamable:
+            if first < 0:
+                first = i
+            if dev.serial == preferred_serial:
+                return i
+    return first
