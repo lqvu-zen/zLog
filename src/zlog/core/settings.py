@@ -24,6 +24,7 @@ DEFAULTS: dict = {
     "clear_on_start": False,
     "last_device": "",  # serial of the last-selected device, reselected on launch
     "filter_presets": [],  # named filter combos (see core/presets.py)
+    "search_mode": "filter",  # "filter" hides non-matches; "highlight" tints matches
 }
 
 

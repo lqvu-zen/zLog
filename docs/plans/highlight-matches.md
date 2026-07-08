@@ -1,6 +1,6 @@
 # Plan: Highlight matches (find mode)
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** regex-search, tag-highlight, theming

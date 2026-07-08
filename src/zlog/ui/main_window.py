@@ -150,6 +150,10 @@ class MainWindow(QMainWindow):
         self.regex_check = QCheckBox("Regex")
         self.case_check = QCheckBox("Case")
         self.case_check.setToolTip("Match the search case-sensitively")
+        self.search_mode_box = QComboBox()
+        self.search_mode_box.addItem("Filter", "filter")
+        self.search_mode_box.addItem("Highlight", "highlight")
+        self.search_mode_box.setToolTip("Filter hides non-matches; Highlight tints matches")
         self.clear_filters_btn = QPushButton("Clear filters")
         self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
 
@@ -189,6 +193,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(self.search, stretch=1)
         row2.addWidget(self.regex_check)
         row2.addWidget(self.case_check)
+        row2.addWidget(self.search_mode_box)
         row2.addWidget(self.clear_filters_btn)
 
         layout = QVBoxLayout()
@@ -268,6 +273,7 @@ class MainWindow(QMainWindow):
         self.search.textChanged.connect(self._apply_search)
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
+        self.search_mode_box.currentIndexChanged.connect(self._apply_search)
         self.clear_filters_btn.clicked.connect(self.clear_filters)
         self.table.selectionModel().currentChanged.connect(self._update_detail)
         self.model.rowsInserted.connect(self._update_counts)
@@ -460,9 +466,17 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Deleted preset {name!r}.")
 
     def _apply_search(self) -> None:
-        ok = self.proxy.set_search(
-            self.search.text(), self.regex_check.isChecked(), self.case_check.isChecked()
-        )
+        text = self.search.text()
+        regex = self.regex_check.isChecked()
+        case = self.case_check.isChecked()
+        if self.search_mode_box.currentData() == "highlight":
+            # Highlight mode: show every row, tint the matches in the model.
+            self.proxy.set_search("", regex, case)
+            ok = self.model.set_highlight(text, regex, case)
+        else:
+            # Filter mode: hide non-matches, clear any highlight.
+            self.model.set_highlight("", regex, case)
+            ok = self.proxy.set_search(text, regex, case)
         if ok:
             self.search.setStyleSheet("")
         else:
@@ -481,6 +495,7 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.setStyleSheet(build_stylesheet(theme))
         self.model.set_level_colors(theme.level_colors)
+        self.model.set_highlight_color(theme.search_highlight)
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
@@ -663,6 +678,11 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_search_mode(v):
+            idx = self.search_mode_box.findData(v if v in ("filter", "highlight") else "filter")
+            if idx >= 0:
+                self.search_mode_box.setCurrentIndex(idx)
+
         def set_filter_presets(v):
             self._presets = normalize_presets(v)
             self._rebuild_presets_menu()
@@ -719,6 +739,7 @@ class MainWindow(QMainWindow):
                 set_last_device,
             ),
             ("filter_presets", lambda: self._presets, set_filter_presets),
+            ("search_mode", self.search_mode_box.currentData, set_search_mode),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.

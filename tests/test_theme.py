@@ -24,3 +24,8 @@ def test_stylesheet_contains_theme_colors():
     assert DARK.window in qss
     assert DARK.base in qss
     assert "QTableView" in qss
+
+
+def test_search_highlight_is_hex():
+    for theme in THEMES.values():
+        assert theme.search_highlight.startswith("#") and len(theme.search_highlight) == 7

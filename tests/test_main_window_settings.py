@@ -71,3 +71,17 @@ def test_missing_file_falls_back_to_defaults(window):
     window._load_and_apply_settings()
     assert window._theme_name in ("Light", "Dark")
     assert window.follow_check.isChecked() == DEFAULTS["follow"]
+
+
+def test_highlight_mode_shows_all_rows(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [LogEntry("t", "1", "1", "I", "T", "boom"), LogEntry("t", "1", "1", "I", "T", "quiet")]
+    )
+    # Filter mode hides non-matches...
+    window.search.setText("boom")
+    assert window.proxy.rowCount() == 1
+    # ...Highlight mode shows everything while still matching.
+    window.search_mode_box.setCurrentIndex(1)  # Highlight
+    assert window.proxy.rowCount() == 2

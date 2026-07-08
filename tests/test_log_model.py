@@ -126,3 +126,45 @@ def test_combined_gates(qapp):
     proxy.set_min_level("E")
     proxy.set_search("boom", regex=False)
     assert _messages(model, proxy) == ["boom"]
+
+
+def test_highlight_does_not_filter(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="boom"), _entry(message="quiet")])
+    model.set_highlight("boom")
+    assert proxy.rowCount() == 2  # highlight never hides rows
+
+
+def test_highlight_tints_matching_row(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.set_highlight_color("#123456")
+    model.append_entries([_entry(message="boom"), _entry(message="quiet")])
+    model.set_highlight("boom")
+    bg0 = model.data(model.index(0, 0), Qt.BackgroundRole)
+    bg1 = model.data(model.index(1, 0), Qt.BackgroundRole)
+    assert bg0 is not None and bg0.name() == "#123456"
+    assert bg1 is None  # non-match, level "I" has no tint
+
+
+def test_highlight_cleared_by_empty(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="boom")])
+    model.set_highlight("boom")
+    model.set_highlight("")
+    assert model.data(model.index(0, 0), Qt.BackgroundRole) is None
+
+
+def test_tag_color_beats_highlight(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.set_highlight_color("#111111")
+    model.set_tag_color("Tag", "#abcdef")
+    model.append_entries([_entry(tag="Tag", message="boom")])
+    model.set_highlight("boom")
+    bg = model.data(model.index(0, 0), Qt.BackgroundRole)
+    assert bg.name() == "#abcdef"

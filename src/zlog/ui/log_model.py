@@ -40,6 +40,8 @@ class LogTableModel(QAbstractTableModel):
         self._level_colors: dict[str, QColor] = {}
         self._tag_colors: dict[str, QColor] = {}  # per-tag highlight, overrides level tint
         self._level_counts: Counter = Counter()
+        self._highlight = None  # optional match predicate for highlight mode
+        self._highlight_color = QColor(LIGHT.search_highlight)
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -63,7 +65,12 @@ class LogTableModel(QAbstractTableModel):
                 entry.message,
             )[index.column()]
         if role == Qt.BackgroundRole:
-            return self._tag_colors.get(entry.tag) or self._level_colors.get(entry.level)
+            tag = self._tag_colors.get(entry.tag)
+            if tag is not None:
+                return tag
+            if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
+                return self._highlight_color
+            return self._level_colors.get(entry.level)
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
             return int(Qt.AlignRight | Qt.AlignVCenter)
         return None
@@ -101,6 +108,32 @@ class LogTableModel(QAbstractTableModel):
     def set_level_colors(self, hexmap: dict[str, str]) -> None:
         """Set per-level row tints from a theme's hex values (W/E/F)."""
         self._level_colors = {level: QColor(value) for level, value in hexmap.items()}
+
+    def set_highlight(self, text: str, regex: bool = False, case: bool = False) -> bool:
+        """Set the highlight predicate (highlight mode). Empty text clears it.
+        Returns False on an invalid regex, keeping the previous predicate."""
+        if not text:
+            self._highlight = None
+            self._repaint_backgrounds()
+            return True
+        try:
+            self._highlight = compile_matcher(text, regex, case)
+        except re.error:
+            return False
+        self._repaint_backgrounds()
+        return True
+
+    def set_highlight_color(self, color: str) -> None:
+        """Set the highlight tint (from the active theme's `search_highlight`)."""
+        self._highlight_color = QColor(color)
+        self._repaint_backgrounds()
+
+    def _repaint_backgrounds(self) -> None:
+        """Ask the view to re-query BackgroundRole for the current rows."""
+        if self._rows:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._rows) - 1, len(COLUMNS) - 1)
+            self.dataChanged.emit(top, bottom, [Qt.BackgroundRole])
 
     def set_tag_color(self, tag: str, color: str) -> None:
         """Highlight all rows with this tag using the given color (hex or name)."""
