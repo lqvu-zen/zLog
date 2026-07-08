@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
@@ -199,34 +200,51 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.to_latest_btn)
         row1.addStretch(1)
 
+        # Row 2 — scope: which lines to consider (package + minimum level).
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Package:"))
         row2.addWidget(self.package_box)
         row2.addWidget(self.load_pkgs_btn)
         row2.addWidget(self.apply_pkg_btn)
         row2.addWidget(self.clear_pkg_btn)
-        row2.addSpacing(16)
+        row2.addWidget(self._vsep())
         row2.addWidget(QLabel("Min level:"))
         row2.addWidget(self.level_box)
-        row2.addWidget(self.search, stretch=1)
-        row2.addWidget(self.match_prev_btn)
-        row2.addWidget(self.match_label)
-        row2.addWidget(self.match_next_btn)
-        row2.addWidget(self.exclude)
-        row2.addWidget(self.regex_check)
-        row2.addWidget(self.case_check)
-        row2.addWidget(self.search_mode_box)
-        row2.addWidget(self.clear_filters_btn)
+        row2.addStretch(1)
+
+        # Row 3 — search: find/highlight, match nav, exclude, and reset.
+        row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Search:"))
+        row3.addWidget(self.search, stretch=1)
+        row3.addWidget(self.match_prev_btn)
+        row3.addWidget(self.match_label)
+        row3.addWidget(self.match_next_btn)
+        row3.addWidget(self.regex_check)
+        row3.addWidget(self.case_check)
+        row3.addWidget(self.search_mode_box)
+        row3.addWidget(self._vsep())
+        row3.addWidget(QLabel("Exclude:"))
+        row3.addWidget(self.exclude)
+        row3.addWidget(self._vsep())
+        row3.addWidget(self.clear_filters_btn)
 
         layout = QVBoxLayout()
         layout.addLayout(row1)
         layout.addLayout(row2)
+        layout.addLayout(row3)
         layout.addWidget(self._splitter)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
         self.statusBar().addPermanentWidget(self.count_label)
+
+    def _vsep(self) -> QFrame:
+        """A thin vertical separator that visually groups related toolbar controls."""
+        line = QFrame()
+        line.setFrameShape(QFrame.VLine)
+        line.setFrameShadow(QFrame.Sunken)
+        return line
 
     def _build_menus(self) -> None:
         """Build the File and View menus (their actions wire themselves here)."""

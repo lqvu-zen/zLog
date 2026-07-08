@@ -61,3 +61,4 @@ which is cheaper than reworking a built feature.
 | [match-navigation.md](match-navigation.md) | Done | Step between search matches (next/prev, F3) |
 | [showing-count.md](showing-count.md) | Done | Status bar shows visible-of-total when filtered |
 | [bookmarks.md](bookmarks.md) | Done | Pin lines and jump between bookmarks |
+| [toolbar-tidy.md](toolbar-tidy.md) | Done | Split the crowded filter row into scope + search rows |
