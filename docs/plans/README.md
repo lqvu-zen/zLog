@@ -72,3 +72,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [ui-review-polish.md](ui-review-polish.md) | Done | Fix findings from the 2026-07-08 UI review: Message header alignment, bookmark/checkbox contrast |
 | [ui-button-feedback.md](ui-button-feedback.md) | Done | Buttons show no visual change on hover/press — add QSS hover/pressed states |
 | [logcat-decode-crash-fix.md](logcat-decode-crash-fix.md) | Done | Fix AdbReader crash on non-cp1252 logcat bytes (UnicodeDecodeError) |
+| [ui-combo-selection-contrast.md](ui-combo-selection-contrast.md) | Draft | Combo dropdown items (Device, Package, Min level, Filter mode) unreadable when hovered/selected |
+| [ui-log-selection-contrast.md](ui-log-selection-contrast.md) | Done | Log row text nearly invisible when selected or hovered (user-confirmed, both themes) |

@@ -34,3 +34,24 @@ def test_search_highlight_is_hex():
 def test_bookmark_is_hex():
     for theme in THEMES.values():
         assert theme.bookmark.startswith("#") and len(theme.bookmark) == 7
+
+
+def test_selection_colors_are_hex_and_styled():
+    for theme in THEMES.values():
+        assert theme.selection_bg.startswith("#") and len(theme.selection_bg) == 7
+        assert theme.selection_text.startswith("#") and len(theme.selection_text) == 7
+    qss = build_stylesheet(DARK)
+    assert "QTableView::item:selected" in qss
+    assert DARK.selection_bg in qss
+    assert DARK.selection_text in qss
+
+
+def test_row_hover_is_hex_and_styled_before_selected():
+    for theme in THEMES.values():
+        assert theme.row_hover_bg.startswith("#") and len(theme.row_hover_bg) == 7
+    qss = build_stylesheet(DARK)
+    assert "QTableView::item:hover" in qss
+    assert DARK.row_hover_bg in qss
+    # Hover must come first so :selected wins (source order) when a row is
+    # both hovered and selected.
+    assert qss.index("::item:hover") < qss.index("::item:selected")

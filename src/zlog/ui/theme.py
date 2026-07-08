@@ -25,6 +25,9 @@ class Theme:
     bookmark: str  # bookmark marker color (decoration on the Time column)
     button_hover: str  # QPushButton background when hovered
     button_pressed: str  # QPushButton background when pressed
+    selection_bg: str  # selected log row background
+    selection_text: str  # selected log row text
+    row_hover_bg: str  # hovered (not selected) log row background
 
 
 LIGHT = Theme(
@@ -41,6 +44,9 @@ LIGHT = Theme(
     bookmark="#1a73e8",
     button_hover="#dcdcdc",
     button_pressed="#cfcfcf",
+    selection_bg="#2b6cdb",
+    selection_text="#ffffff",
+    row_hover_bg="#dbe9fb",
 )
 
 DARK = Theme(
@@ -57,6 +63,9 @@ DARK = Theme(
     bookmark="#4da3ff",
     button_hover="#3d3d3d",
     button_pressed="#474747",
+    selection_bg="#2f6fbf",
+    selection_text="#ffffff",
+    row_hover_bg="#37475c",
 )
 
 THEMES: dict[str, Theme] = {LIGHT.name: LIGHT, DARK.name: DARK}
@@ -69,6 +78,15 @@ def build_stylesheet(theme: Theme) -> str:
         f"QTableView {{ background-color: {theme.base}; color: {theme.text};\n"
         f"    alternate-background-color: {theme.alt_base};\n"
         f"    gridline-color: {theme.header}; }}\n"
+        # The unconditional `color` above only applies to unselected, unhovered
+        # cells — without explicit hover/selected rules, the background those
+        # states get isn't guaranteed to pair legibly with that text color.
+        # Hover is listed first so :selected wins (source order) when a row is
+        # both hovered and selected at once.
+        f"QTableView::item:hover {{ background-color: {theme.row_hover_bg};\n"
+        f"    color: {theme.text}; }}\n"
+        f"QTableView::item:selected {{ background-color: {theme.selection_bg};\n"
+        f"    color: {theme.selection_text}; }}\n"
         f"QHeaderView::section {{ background-color: {theme.header}; color: {theme.text};\n"
         f"    border: 0px; padding: 2px 6px; }}\n"
         f"QLineEdit, QComboBox {{ background-color: {theme.base}; color: {theme.text}; }}\n"
