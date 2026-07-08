@@ -62,6 +62,8 @@ tag; the workflow builds/publishes the exe).
 Ship the in-flight search/filter polish, then cut the release.
 - Build the three ready Drafts: **mute-tag**, **level multi-select**, **search history**.
 - Optional quick win: **monospace toggle** (pairs with font zoom).
+- Quick win: **UI review polish** — Message header alignment, bookmark/checkbox
+  contrast (see [ui-review-polish.md](plans/ui-review-polish.md)).
 - **Cut 1.1** (version bump, CHANGELOG, `v1.1.0` tag → auto-built exe).
 
 ### v1.2 — Capture & scale *(next)* — **P0**

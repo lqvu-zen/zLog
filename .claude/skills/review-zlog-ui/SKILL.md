@@ -1,6 +1,6 @@
 ---
 name: review-zlog-ui
-description: Review and improve the zLog desktop app's UI and UX. Use this whenever the user wants a design/usability review of zLog, mentions the app "looks off," wants feedback on layout, spacing, colors, contrast, visual hierarchy, affordances, empty states, or accessibility — or asks to polish, clean up, modernize, or improve the look and feel of any zLog screen (the log table, toolbar, level/search controls, status bar, future dialogs). Trigger even when the user doesn't say the words "UI" or "UX" but is clearly asking whether a screen is good, what to fix, or to make it nicer. Produces a prioritized findings report, then an approved plan in docs/plans/, then concrete edits to src/zlog/ui/*. Do NOT use it for adding features (use add-zlog-feature) or just launching the app (use run-zlog).
+description: Review and improve the zLog desktop app's UI and UX. Use this whenever the user wants a design/usability review of zLog, mentions the app "looks off," wants feedback on layout, spacing, colors, contrast, visual hierarchy, affordances, empty states, or accessibility — or asks to polish, clean up, modernize, or improve the look and feel of any zLog screen (the log table, toolbar, level/search controls, status bar, future dialogs). Trigger even when the user doesn't say the words "UI" or "UX" but is clearly asking whether a screen is good, what to fix, or to make it nicer. Every review produces one artifact: an approved plan in docs/plans/ whose Findings section *is* the review and whose Design section is the fix — there is no separate report file. Then concrete edits to src/zlog/ui/*. Do NOT use it for adding features (use add-zlog-feature) or just launching the app (use run-zlog).
 ---
 
 # Reviewing & improving zLog UI/UX
@@ -12,9 +12,13 @@ gives you: **what the app actually looks like when running** (screenshots) and
 below, then propose fixes that respect the app's existing design language instead
 of importing generic web-design advice that doesn't fit a native desktop tool.
 
-zLog is **plan-first**: a review may end in code changes, and those changes — like
-any change — need an approved plan in `docs/plans/` before they're written (see
-phase 5 and `docs/plans/README.md`).
+zLog is **plan-first**, and this skill has no separate deliverable outside that
+system: every review — even one the user frames as "just take a look" — is
+written up as a plan in `docs/plans/`, never as a standalone report file. The
+plan's **Findings** section is the review (what you looked at, what's wrong,
+why); its **Design/Risks/Verification** sections are the fix. That plan needs to
+be **Approved** before any `src/zlog/ui/*` edit gets made (see phase 4 and
+`docs/plans/README.md`).
 
 ## Where the UI lives
 
@@ -76,39 +80,40 @@ heuristics are tuned to zLog — a single-window, keyboard-and-mouse, local desk
 log viewer — not a mobile app or a website. Don't apply web conventions that don't
 belong here.
 
-### 4. Write the findings report
+### 4. Write it up as a plan — in `docs/plans/` — and get it approved
 
-Use the template in `assets/report-template.md`. The core of a useful report is
-**prioritized, located, justified** findings:
-
-- **Severity** — `High` (hurts usability or looks broken), `Medium` (noticeable
-  friction or inconsistency), `Low` (polish).
-- **Location** — the screen and the exact `file:line` (or token name) responsible.
-- **What & why** — what's wrong and *why it matters to the user*, not just "this
-  violates a rule."
-- **Recommendation** — a concrete, zLog-appropriate fix.
-
-Order findings by severity. Lead with a 2–3 sentence summary so the user gets the
-gist before the details. Reference screenshots by filename. Save the report to the
-outputs folder (or the project root if the user prefers) as a markdown file. A pure
-review that the user only wants as feedback can stop here.
-
-### 5. Turn the accepted fixes into a plan — in `docs/plans/` — and get it approved
-
-If the user wants the fixes applied, **don't edit code yet.** Capture the High/Medium
-fixes you'll make as a plan first (the same plan-first gate the `add-zlog-feature`
-skill uses):
+**Don't edit code yet, and don't write a separate report file.** Every review,
+whether the user wants fixes applied now or is just asking for feedback, gets
+turned into one artifact: a plan.
 
 - Copy `docs/plans/TEMPLATE.md` to `docs/plans/ui-<scope>.md` (e.g. `ui-table-polish.md`).
-- Fill in **Scope** (which findings are in, which are deferred), **Design** (the
-  `src/zlog/ui/*` files and lines, color tokens added to `ui/theme.py` or a new
-  `theme.py`), **Risks** (must not break threading, virtualization, proxy filtering,
-  or autoscroll-at-bottom), and **Verification** (which `run-zlog` scenarios you'll
-  re-shoot). Split a big redesign into several plan files by area.
+- Right after **Goal**, paste in a **Findings** section using
+  `assets/findings-template.md` as the shape: **prioritized, located, justified**
+  findings, most important first.
+  - **Severity** — `High` (hurts usability or looks broken), `Medium` (noticeable
+    friction or inconsistency), `Low` (polish).
+  - **Location** — the screen and the exact `file:line` (or token name) responsible.
+  - **What & why** — what's wrong and *why it matters to the user*, not just "this
+    violates a rule."
+  - **Recommendation** — a concrete, zLog-appropriate fix (this is what **Design**
+    below turns into an actual code change).
+  - Reference screenshots by filename. Note what already works well, so nothing
+    good gets disturbed while fixing what's broken.
+  - Any finding you're not fixing here (out of scope, needs its own design pass)
+    goes under **Deferred** with a reason — carry it to `docs/ROADMAP.md` or a new
+    Draft plan rather than silently dropping it.
+- Fill in the rest of the template from those findings: **Scope** (which findings
+  are in this plan vs. deferred), **Design** (the `src/zlog/ui/*` files and lines,
+  color tokens added to `ui/theme.py`), **Risks** (must not break threading,
+  virtualization, proxy filtering, or autoscroll-at-bottom), and **Verification**
+  (which `run-zlog` scenarios you'll re-shoot). Split a big redesign into several
+  plan files by area rather than one giant one.
 - Add a row in `docs/plans/README.md`, set **Status: Draft**, show it to the user,
-  and set **Status: Approved** once they're on board.
+  and set **Status: Approved** once they're on board. A review the user only
+  wanted as feedback can stop here, with the plan left **Draft** as the record —
+  don't force it to Approved/implemented if they didn't ask for that.
 
-### 6. Propose and make the edits
+### 5. Propose and make the edits
 
 Set the plan **Status: In progress**. Prefer **small, surgical diffs** that respect
 existing patterns:

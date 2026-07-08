@@ -30,13 +30,20 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from pathlib import Path
 
 # Fall back to the offscreen platform when there's no display (e.g. CI, agents).
-if (
-    sys.platform.startswith("linux")
-    and not os.environ.get("DISPLAY")
-    and not os.environ.get("WAYLAND_DISPLAY")
+# On Windows there's no DISPLAY/WAYLAND_DISPLAY to check, but the native "windows"
+# platform doesn't reliably flush a fresh selection repaint to an invisible/
+# off-screen window before grab() — it can bake a stale, illegible row into the
+# pixmap no matter how long we wait. offscreen's backing store grabs correctly,
+# but needs QT_QPA_FONTDIR pointed at a real font directory or it renders no text.
+if sys.platform.startswith("win"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    os.environ.setdefault("QT_QPA_FONTDIR", r"C:\Windows\Fonts")
+elif sys.platform.startswith("linux") and not os.environ.get("DISPLAY") and not os.environ.get(
+    "WAYLAND_DISPLAY"
 ):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -96,7 +103,14 @@ FAKE_DEVICES = [
 
 
 def _shot(window: MainWindow, name: str) -> None:
-    QApplication.processEvents()  # let layout/geometry settle before grabbing
+    # Let repaints fully settle before grabbing. Under the offscreen QPA platform,
+    # the backing store's update-compression uses a real timer, so a tight
+    # processEvents() loop with no elapsed wall-clock time can still grab a
+    # mid-repaint (visually broken) frame after a selectRow()/scrollTo(). A short
+    # sleep between spins gives that timer a chance to actually fire.
+    for _ in range(10):
+        QApplication.processEvents()
+        time.sleep(0.02)
     SHOTS.mkdir(parents=True, exist_ok=True)
     path = SHOTS / f"{name}.png"
     window.grab().save(str(path))

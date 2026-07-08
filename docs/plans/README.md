@@ -69,3 +69,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [mute-tag.md](mute-tag.md) | Draft | Right-click to mute a tag/PID via the exclude filter |
 | [search-history.md](search-history.md) | Draft | Remember recent search terms in a dropdown |
 | [level-multiselect.md](level-multiselect.md) | Draft | Show only specific levels, not just a min-level floor |
+| [ui-review-polish.md](ui-review-polish.md) | Draft | Fix findings from the 2026-07-08 UI review: Message header alignment, bookmark/checkbox contrast |
