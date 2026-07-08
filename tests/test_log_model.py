@@ -1,0 +1,128 @@
+"""Headless tests for the Qt table model and filter proxy.
+
+These run under the `offscreen` Qt platform (see conftest.py), so no display is
+needed. They cover the filter *gates* — the logic that has historically hidden
+bugs — without going through the full MainWindow.
+"""
+
+from __future__ import annotations
+
+from zlog.core.models import LogEntry
+from zlog.ui.log_model import LogFilterProxy, LogTableModel
+
+
+def _entry(level="I", tag="Tag", message="msg", pid="100"):
+    return LogEntry("12:00:00.000", pid, "200", level, tag, message)
+
+
+def _wire(qapp):
+    model = LogTableModel()
+    proxy = LogFilterProxy()
+    proxy.setSourceModel(model)
+    return model, proxy
+
+
+def _messages(model, proxy):
+    return [
+        model.entry_at(proxy.mapToSource(proxy.index(r, 0)).row()).message
+        for r in range(proxy.rowCount())
+    ]
+
+
+def test_append_and_count(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(), _entry()])
+    assert model.rowCount() == 2
+    assert proxy.rowCount() == 2  # no filters => everything visible
+
+
+def test_clear_empties_master_list(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(), _entry()])
+    model.clear()
+    assert model.rowCount() == 0 and proxy.rowCount() == 0
+
+
+def test_level_counts(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(level="E"), _entry(level="E"), _entry(level="W")])
+    counts = model.level_counts()
+    assert counts.get("E") == 2 and counts.get("W") == 1
+
+
+def test_level_gate(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [
+            _entry(level="V", message="v"),
+            _entry(level="E", message="e"),
+            _entry(level="I", message="i"),
+        ]
+    )
+    proxy.set_min_level("E")
+    assert _messages(model, proxy) == ["e"]
+
+
+def test_unparsed_lines_pass_level_gate(qapp):
+    # Banner/unparsed lines carry an empty level and must never be filtered out.
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(level="", message="--- beginning of main")])
+    proxy.set_min_level("E")
+    assert _messages(model, proxy) == ["--- beginning of main"]
+
+
+def test_text_gate_case_insensitive_by_default(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="Boom Exception"), _entry(message="all good")])
+    assert proxy.set_search("exception", regex=False) is True
+    assert _messages(model, proxy) == ["Boom Exception"]
+
+
+def test_text_gate_case_sensitive(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="Exception"), _entry(message="exception")])
+    proxy.set_search("Exception", regex=False, case=True)
+    assert _messages(model, proxy) == ["Exception"]
+
+
+def test_regex_gate_and_invalid_pattern(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="Skipped 42 frames"), _entry(message="ok")])
+    assert proxy.set_search(r"Skipped \d+ frames", regex=True) is True
+    assert _messages(model, proxy) == ["Skipped 42 frames"]
+    # Invalid regex keeps the previous matcher and returns False.
+    assert proxy.set_search("(unclosed", regex=True) is False
+    assert _messages(model, proxy) == ["Skipped 42 frames"]
+
+
+def test_search_matches_tag_and_message(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [_entry(tag="ActivityManager", message="x"), _entry(tag="Other", message="y")]
+    )
+    proxy.set_search("ActivityManager", regex=False)
+    assert _messages(model, proxy) == ["x"]
+
+
+def test_pid_gate(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(pid="111", message="mine"), _entry(pid="222", message="theirs")])
+    proxy.set_pids({"111"})
+    assert _messages(model, proxy) == ["mine"]
+    proxy.set_pids(None)  # cleared => all visible again
+    assert len(_messages(model, proxy)) == 2
+
+
+def test_combined_gates(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [
+            _entry(pid="111", level="E", message="boom"),
+            _entry(pid="111", level="I", message="info"),
+            _entry(pid="222", level="E", message="other boom"),
+        ]
+    )
+    proxy.set_pids({"111"})
+    proxy.set_min_level("E")
+    proxy.set_search("boom", regex=False)
+    assert _messages(model, proxy) == ["boom"]

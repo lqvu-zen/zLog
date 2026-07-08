@@ -51,4 +51,4 @@ which is cheaper than reworking a built feature.
 | [case-sensitive-search.md](case-sensitive-search.md) | Done | Case-sensitive search toggle |
 | [phase1-cleanup.md](phase1-cleanup.md) | Done | Pin ruff; centralize the regex-error tint |
 | [refactor-main-window.md](refactor-main-window.md) | Done | Slim `main_window.py`'s `__init__` + declarative settings table |
-| [tech-debt-refactor.md](tech-debt-refactor.md) | Draft | Phased cleanup: UI test coverage, CI/Qt gap, duplicated adb error handling, controller extraction |
+| [tech-debt-refactor.md](tech-debt-refactor.md) | In progress | Phased cleanup: UI test coverage, CI/Qt gap, duplicated adb error handling, controller extraction |

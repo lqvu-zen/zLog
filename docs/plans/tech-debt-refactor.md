@@ -1,6 +1,6 @@
 # Plan: Tech-debt refactor (Phases 2–3)
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** In progress
 - **Owner:** Vũ
 - **Created:** 2026-07-07
 - **Related:** phase1-cleanup.md (done, Phase 1), refactor-main-window.md (done)

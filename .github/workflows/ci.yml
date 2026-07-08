@@ -26,5 +26,12 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
+      # The ui/ tests construct a QApplication; install Qt's runtime libs so the
+      # offscreen platform plugin can load without a display.
+      - name: Install Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libglx0 libxkbcommon0
+
       - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: uv run pytest -q
