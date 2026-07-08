@@ -267,16 +267,25 @@ class MainWindow(QMainWindow):
         self.proxy.rowsRemoved.connect(self._update_placeholder)
 
     # --- devices -----------------------------------------------------------
-    def refresh_devices(self) -> None:
+    def _run_adb(self, fn, *, missing_msg, error_prefix, report):
+        """Run an adb-backed call, routing a missing `adb` and any other failure
+        through `report`. Returns the call's result, or None on failure."""
         try:
-            devices = list_devices()
+            return fn()
         except FileNotFoundError:
-            self._show_device_error(
-                "adb not found — install Android platform-tools and add it to PATH."
-            )
-            return
+            report(missing_msg)
         except Exception as exc:  # timeout or other adb failure
-            self._show_device_error(f"Could not list devices: {exc}")
+            report(f"{error_prefix}: {exc}")
+        return None
+
+    def refresh_devices(self) -> None:
+        devices = self._run_adb(
+            list_devices,
+            missing_msg="adb not found — install Android platform-tools and add it to PATH.",
+            error_prefix="Could not list devices",
+            report=self._show_device_error,
+        )
+        if devices is None:
             return
         self._populate_devices(devices)
 
@@ -341,13 +350,13 @@ class MainWindow(QMainWindow):
         serial = self._current_serial()
         if serial is None:
             return
-        try:
-            pkgs = list_packages(serial)
-        except FileNotFoundError:
-            self.statusBar().showMessage("adb not found.")
-            return
-        except Exception as exc:
-            self.statusBar().showMessage(f"Could not list packages: {exc}")
+        pkgs = self._run_adb(
+            lambda: list_packages(serial),
+            missing_msg="adb not found.",
+            error_prefix="Could not list packages",
+            report=self.statusBar().showMessage,
+        )
+        if pkgs is None:
             return
         current = self.package_box.currentText()
         self.package_box.clear()
@@ -360,13 +369,13 @@ class MainWindow(QMainWindow):
         package = self.package_box.currentText().strip()
         if serial is None or not package:
             return
-        try:
-            pids = resolve_pids(serial, package)
-        except FileNotFoundError:
-            self.statusBar().showMessage("adb not found.")
-            return
-        except Exception as exc:
-            self.statusBar().showMessage(f"Could not resolve PIDs: {exc}")
+        pids = self._run_adb(
+            lambda: resolve_pids(serial, package),
+            missing_msg="adb not found.",
+            error_prefix="Could not resolve PIDs",
+            report=self.statusBar().showMessage,
+        )
+        if pids is None:
             return
         if not pids:
             self.statusBar().showMessage(f"{package} isn't running — start it and apply again.")
