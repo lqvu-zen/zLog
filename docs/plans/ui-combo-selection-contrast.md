@@ -1,6 +1,6 @@
 # Plan: Fix hover/selected text contrast in combo box dropdowns
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-09
 - **Related:** [ui-button-feedback.md](ui-button-feedback.md) (same root-cause
@@ -81,6 +81,8 @@ rather than overstating confidence.
 |---|---|---|
 | `src/zlog/ui/theme.py` | ui | In `build_stylesheet`, add `QComboBox QAbstractItemView::item:hover {{ background-color: {theme.search_highlight}; color: {theme.text}; }}` and the same rule for `::item:selected`, right after the existing `QComboBox QAbstractItemView` line. No new `Theme` fields — reuses `search_highlight`. |
 
+> **Implementation note (shipped):** used the log table's own `row_hover_bg`/`text` (hover) and `selection_bg`/`selection_text` (selected) tokens instead of the drafted `search_highlight`+`text`. Those tokens postdate this draft, are already verified legible in both themes, and make combo-dropdown selection match the table's selection exactly. Verified: 140 tests pass, ruff clean, both themes emit the new `::item:hover`/`::item:selected` rules, app renders. Real Windows-style visual confirmation remains for the user to close (offscreen can't reproduce the native accent highlight).
+
 ## Architecture touch points
 
 - **Threading:** none — pure QSS change.
@@ -103,8 +105,8 @@ rather than overstating confidence.
 
 ## Verification
 
-- [ ] `uv run pytest`
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] `uv run pytest` (140 passed)
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
 - [ ] Screenshot the Device dropdown with an item hovered/selected, Light and
       Dark, and confirm text stays legible against the new explicit background.
 - [ ] Spot-check the Min level and Filter/Highlight-mode dropdowns too, since

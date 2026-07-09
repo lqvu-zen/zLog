@@ -108,6 +108,15 @@ def build_stylesheet(theme: Theme) -> str:
         f"    border: 0px; padding: 2px 6px; }}\n"
         f"QLineEdit, QComboBox {{ background-color: {theme.base}; color: {theme.text}; }}\n"
         f"QComboBox QAbstractItemView {{ background-color: {theme.base}; color: {theme.text}; }}\n"
+        # Same fixed-color caveat as the table: once the item view has an explicit
+        # `color`, Qt stops swapping it for the highlighted row, so the OS-painted
+        # highlight background can clash with it. Pin both states to the same
+        # tokens the log table uses (hover first so :selected wins on source order),
+        # so a dropdown item stays legible regardless of the OS accent color.
+        f"QComboBox QAbstractItemView::item:hover {{ background-color: {theme.row_hover_bg};\n"
+        f"    color: {theme.text}; }}\n"
+        f"QComboBox QAbstractItemView::item:selected {{ background-color: {theme.selection_bg};\n"
+        f"    color: {theme.selection_text}; }}\n"
         # A stylesheet background-color disables Qt's automatic hover/pressed
         # variation, so both states need an explicit rule or clicking a button
         # gives no visual feedback at all. The border also gets its own color
