@@ -15,13 +15,14 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QStandardPaths, Qt
+from PySide6.QtCore import QByteArray, QStandardPaths, QStringListModel, Qt
 from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QCompleter,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -45,6 +46,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
+from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
 from zlog.core.query import parse_query
@@ -74,6 +76,7 @@ class MainWindow(QMainWindow):
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._query_package = ""  # last package resolved from the query bar
+        self._history: list[str] = []  # recent query-bar entries
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -194,6 +197,11 @@ class MainWindow(QMainWindow):
             "Filter — e.g. level:E tag:Activity package:com.x -noise text"
         )
         self.query.setClearButtonEnabled(True)
+        self._history_model = QStringListModel(self)
+        completer = QCompleter(self._history_model, self)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        self.query.setCompleter(completer)
         self.overflow_btn = QToolButton()
         self.overflow_btn.setText("\u22ee")
         self.overflow_btn.setToolTip("Menu")
@@ -363,6 +371,7 @@ class MainWindow(QMainWindow):
         )
         self.search.textChanged.connect(self._apply_search)
         self.query.textChanged.connect(self._apply_query)
+        self.query.returnPressed.connect(self._commit_query_history)
         self.exclude.textChanged.connect(self._apply_search)
         self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
         self.match_prev_btn.clicked.connect(lambda: self._goto_match(-1))
@@ -612,6 +621,15 @@ class MainWindow(QMainWindow):
                 self.apply_package_filter()
             else:
                 self.clear_package_filter()
+
+    def _commit_query_history(self) -> None:
+        """Remember the current query (on Enter) for the completer; persist it."""
+        text = self.query.text().strip()
+        if not text:
+            return
+        self._history = push_history(self._history, text)
+        self._history_model.setStringList(self._history)
+        self._save_settings()
 
     def _on_case_toggled(self, checked: bool) -> None:
         self.case_check.setChecked(checked)
@@ -926,6 +944,10 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_search_history(v):
+            self._history = normalize_history(v)
+            self._history_model.setStringList(self._history)
+
         def set_font_delta(v):
             delta = v if isinstance(v, int) else 0
             self._font_delta = max(-4, min(12, delta))
@@ -1000,6 +1022,7 @@ class MainWindow(QMainWindow):
                 set_time_mode,
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
+            ("search_history", lambda: self._history, set_search_history),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.

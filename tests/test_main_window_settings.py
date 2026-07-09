@@ -203,3 +203,12 @@ def test_mute_tag(window):
     assert window.proxy.rowCount() == 1  # the GnssHal line is hidden
     window._mute_tag("GnssHal")  # idempotent
     assert window.query.text().count("-GnssHal") == 1
+
+
+def test_query_history(window):
+    window.query.setText("level:E boom")
+    window._commit_query_history()
+    window.query.setText("tag:Activity")
+    window._commit_query_history()
+    assert window._history[:2] == ["tag:Activity", "level:E boom"]
+    assert window._history_model.stringList()[0] == "tag:Activity"

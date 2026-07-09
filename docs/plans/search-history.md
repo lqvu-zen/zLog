@@ -1,6 +1,6 @@
 # Plan: Search history
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** regex-search, filter-presets

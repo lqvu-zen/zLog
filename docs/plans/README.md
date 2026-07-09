@@ -67,7 +67,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [toolbar-tidy.md](toolbar-tidy.md) | Done | Split the crowded filter row into scope + search rows |
 | [font-zoom.md](font-zoom.md) | Done | Zoom log/detail text in/out (Ctrl+=/-/0), persisted |
 | [mute-tag.md](mute-tag.md) | Done | Right-click to mute a tag/PID via the exclude filter |
-| [search-history.md](search-history.md) | Draft | Remember recent search terms in a dropdown |
+| [search-history.md](search-history.md) | Done | Remember recent search terms in a dropdown |
 | [level-multiselect.md](level-multiselect.md) | Draft | Show only specific levels, not just a min-level floor |
 | [logcat-style-ui.md](logcat-style-ui.md) | Done | Android-Studio-style dense log view: query bar + icon rail + overflow |
 | [docs-sync-redesign.md](docs-sync-redesign.md) | Done | Sync GUIDE/README/CLAUDE/ARCHITECTURE + screenshots to the redesign |
