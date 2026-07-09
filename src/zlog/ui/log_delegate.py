@@ -23,6 +23,7 @@ class LogItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._muted = QColor("#888888")
+        self._meta = QColor("#5f6368")  # time/pid/tag columns (readable metadata)
         self._level_text: dict[str, QColor] = {}
         self._chip_fg = QColor("#ffffff")
         self._sel_bg = QColor("#2b6cdb")
@@ -33,6 +34,7 @@ class LogItemDelegate(QStyledItemDelegate):
     def set_theme(
         self,
         muted: str,
+        meta: str,
         level_text: dict[str, str],
         chip_fg: str,
         selection_bg: str,
@@ -40,6 +42,7 @@ class LogItemDelegate(QStyledItemDelegate):
         row_hover_bg: str,
     ) -> None:
         self._muted = QColor(muted)
+        self._meta = QColor(meta)
         self._level_text = {k: QColor(v) for k, v in level_text.items()}
         self._chip_fg = QColor(chip_fg)
         self._sel_bg = QColor(selection_bg)
@@ -72,7 +75,7 @@ class LogItemDelegate(QStyledItemDelegate):
         if isinstance(deco, QColor):
             painter.fillRect(QRect(option.rect.left(), top + 2, 3, height - 4), deco)
 
-        base_fg = self._sel_fg if selected else self._muted
+        base_fg = self._sel_fg if selected else self._meta
         time_str = index.data(Qt.DisplayRole) or ""  # honors the Time display mode
         entry = index.data(Qt.UserRole)
 
@@ -104,7 +107,9 @@ class LogItemDelegate(QStyledItemDelegate):
         seg(entry.tag, _TAG_W, base_fg, elide=True)
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
-        painter.fillRect(chip, base_fg if selected else lvl_color)
+        # Always the level color — filling it with the (white) selection fg on a
+        # selected row would put the white chip letter on white and hide it.
+        painter.fillRect(chip, lvl_color)
         painter.setPen(self._chip_fg)
         painter.drawText(chip, int(Qt.AlignCenter), level)
         x += 3 * cw

@@ -78,3 +78,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [logcat-style-ui.md](logcat-style-ui.md) | Done | Android-Studio-style dense log view: query bar + icon rail + overflow |
 | [docs-sync-redesign.md](docs-sync-redesign.md) | Done | Sync GUIDE/README/CLAUDE/ARCHITECTURE + screenshots to the redesign |
 | [ui-combo-selection-contrast.md](ui-combo-selection-contrast.md) | Done | Legible hover/selected text in combo-box dropdowns (both themes) |
+| [log-text-contrast.md](log-text-contrast.md) | Done | Darker metadata columns + always-visible level chip on selected rows |

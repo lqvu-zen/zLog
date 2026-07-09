@@ -19,6 +19,7 @@ class Theme:
     alt_base: str  # alternating row background
     header: str  # header + button background, gridlines
     muted: str  # disabled/secondary text
+    meta_text: str  # time/pid/tag columns in the log (readable, not as loud as text)
     level_colors: dict[str, str]  # W/E/F -> row tint hex
     search_error: str  # invalid-regex box tint hex
     search_highlight: str  # tint for rows matching the search in highlight mode
@@ -39,6 +40,7 @@ LIGHT = Theme(
     alt_base="#f7f7f7",
     header="#e8e8e8",
     muted="#9aa0a6",
+    meta_text="#5f6368",
     level_colors={"W": "#fff4c8", "E": "#ffd7d7", "F": "#ffbebe"},
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
@@ -66,6 +68,7 @@ DARK = Theme(
     alt_base="#2d2d2e",
     header="#333333",
     muted="#8a8a8a",
+    meta_text="#b7bcc2",
     level_colors={"W": "#4d4526", "E": "#5a2b2b", "F": "#742b2b"},
     search_error="#5a2b2b",
     search_highlight="#33506b",

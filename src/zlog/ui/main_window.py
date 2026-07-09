@@ -789,6 +789,7 @@ class MainWindow(QMainWindow):
         self.model.set_bookmark_color(theme.bookmark)
         self.log_delegate.set_theme(
             theme.muted,
+            theme.meta_text,
             theme.level_text,
             theme.base,
             theme.selection_bg,
@@ -1164,4 +1165,3 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         self._save_settings()
         self.stop()
-        super().closeEvent(event)
