@@ -248,6 +248,7 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._exclude = None  # optional predicate; matching rows are hidden
         self._pids: set[str] | None = None  # None = no package filter
         self._tag = ""  # tag-contains gate ("" = off)
+        self._levels: set[str] | None = None  # exact level set (None = use min-level floor)
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -278,6 +279,12 @@ class LogFilterProxy(QSortFilterProxyModel):
         self.invalidate()
         return True
 
+    def set_levels(self, levels) -> None:
+        """Restrict to an exact set of level letters, or None to use the min-level
+        floor instead."""
+        self._levels = set(levels) if levels else None
+        self.invalidate()
+
     def set_tag(self, text: str) -> None:
         """Restrict to rows whose tag contains this text (case-insensitive); "" = off."""
         self._tag = text.lower()
@@ -295,9 +302,14 @@ class LogFilterProxy(QSortFilterProxyModel):
         # unparsed/banner lines, whose pid is "").
         if self._pids is not None and entry.pid not in self._pids:
             return False
-        # Level gate (unparsed lines, level "", always pass).
-        if entry.level and entry.rank < self._min_level:
-            return False
+        # Level gate: an exact set if one is active, else the min-level floor
+        # (unparsed lines, level "", always pass either way).
+        if entry.level:
+            if self._levels is not None:
+                if entry.level not in self._levels:
+                    return False
+            elif entry.rank < self._min_level:
+                return False
         haystack = f"{entry.tag} {entry.message}"
         # Tag gate: when set, the entry's tag must contain it.
         if self._tag and self._tag not in entry.tag.lower():

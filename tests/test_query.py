@@ -37,3 +37,13 @@ def test_bad_level_ignored():
 def test_empty():
     q = parse_query("")
     assert q.search == "" and q.level is None and q.excludes == ()
+
+
+def test_level_set():
+    q = parse_query("level:W,E boom")
+    assert q.levels == ("W", "E") and q.level is None and q.search == "boom"
+
+
+def test_level_single_is_floor():
+    q = parse_query("level:E")
+    assert q.level == "E" and q.levels == ()

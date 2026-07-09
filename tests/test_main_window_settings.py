@@ -212,3 +212,20 @@ def test_query_history(window):
     window._commit_query_history()
     assert window._history[:2] == ["tag:Activity", "level:E boom"]
     assert window._history_model.stringList()[0] == "tag:Activity"
+
+
+def test_level_multiselect(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "V", "T", "v"),
+            LogEntry("t", "1", "1", "W", "T", "w"),
+            LogEntry("t", "1", "1", "E", "T", "e"),
+            LogEntry("t", "1", "1", "I", "T", "i"),
+        ]
+    )
+    window.query.setText("level:W,E")
+    assert window.proxy.rowCount() == 2  # only W and E
+    window.query.setText("level:E")  # floor -> E and above (just E here)
+    assert window.proxy.rowCount() == 1

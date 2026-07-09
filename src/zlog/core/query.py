@@ -28,6 +28,7 @@ class QuerySpec:
     search: str = ""
     regex: bool = False
     excludes: tuple[str, ...] = field(default_factory=tuple)
+    levels: tuple[str, ...] = field(default_factory=tuple)  # exact set (level:W,E)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -39,6 +40,7 @@ def _tokenize(text: str) -> list[str]:
 
 def parse_query(text: str) -> QuerySpec:
     level: str | None = None
+    levels: list[str] = []
     tag = ""
     package = ""
     regex = False
@@ -59,9 +61,14 @@ def parse_query(text: str) -> QuerySpec:
         if ":" in tok:
             key, _, val = tok.partition(":")
             key = key.lower()
-            if key == "level" and val and val[0].upper() in _LEVELS:
-                level = val[0].upper()
-                continue
+            if key == "level" and val:
+                letters = [c for c in (ch.upper() for ch in val if ch != ",") if c in _LEVELS]
+                if letters:
+                    if "," in val or len(letters) > 1:
+                        levels = list(dict.fromkeys(letters))  # exact set
+                    else:
+                        level = letters[0]  # minimum-level floor
+                    continue
             if key == "tag" and val:
                 tag = val
                 continue
@@ -78,4 +85,5 @@ def parse_query(text: str) -> QuerySpec:
         search=search,
         regex=regex,
         excludes=tuple(excludes),
+        levels=tuple(levels),
     )

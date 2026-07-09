@@ -585,9 +585,13 @@ class MainWindow(QMainWindow):
         proxy gates. This is the one place filtering is applied in the new UI."""
         spec = parse_query(self.query.text())
         case = self.case_check.isChecked()
-        idx = self.level_box.findData(spec.level or "V")
-        if idx >= 0:
-            self.level_box.setCurrentIndex(idx)  # -> proxy.set_min_level
+        if spec.levels:
+            self.proxy.set_levels(set(spec.levels))  # exact level set
+        else:
+            self.proxy.set_levels(None)
+            idx = self.level_box.findData(spec.level or "V")
+            if idx >= 0:
+                self.level_box.setCurrentIndex(idx)  # -> proxy.set_min_level
         self.proxy.set_tag(spec.tag)
         ex_pat = "|".join(re.escape(t) for t in spec.excludes)
         ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)

@@ -1,6 +1,6 @@
 # Plan: Level multi-select
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** level-counts, package-filter
