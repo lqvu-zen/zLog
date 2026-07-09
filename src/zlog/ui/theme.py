@@ -23,6 +23,7 @@ class Theme:
     search_error: str  # invalid-regex box tint hex
     search_highlight: str  # tint for rows matching the search in highlight mode
     bookmark: str  # bookmark marker color (decoration on the Time column)
+    level_text: dict[str, str]  # per-level message text color (V/D/I/W/E/F)
     button_hover: str  # QPushButton background when hovered
     button_pressed: str  # QPushButton background when pressed
     selection_bg: str  # selected log row background
@@ -42,6 +43,14 @@ LIGHT = Theme(
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
     bookmark="#1a73e8",
+    level_text={
+        "V": "#6a6a6a",
+        "D": "#3b6ea5",
+        "I": "#2e7d32",
+        "W": "#8a6d00",
+        "E": "#c62828",
+        "F": "#b71c1c",
+    },
     button_hover="#dcdcdc",
     button_pressed="#cfcfcf",
     selection_bg="#2b6cdb",
@@ -61,6 +70,14 @@ DARK = Theme(
     search_error="#5a2b2b",
     search_highlight="#33506b",
     bookmark="#4da3ff",
+    level_text={
+        "V": "#9aa0a6",
+        "D": "#7fa8d0",
+        "I": "#7ec699",
+        "W": "#d7c04d",
+        "E": "#f28b82",
+        "F": "#ff6b6b",
+    },
     button_hover="#3d3d3d",
     button_pressed="#474747",
     selection_bg="#2f6fbf",

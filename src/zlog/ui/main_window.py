@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QStandardPaths, Qt
-from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -51,7 +51,8 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary
 from zlog.ui.device_controller import DeviceController
-from zlog.ui.log_model import COLUMNS, MESSAGE_COL, LogFilterProxy, LogTableModel
+from zlog.ui.log_delegate import LogItemDelegate
+from zlog.ui.log_model import COLUMNS, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
@@ -94,15 +95,20 @@ class MainWindow(QMainWindow):
         self.table.setModel(self.proxy)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.verticalHeader().setVisible(False)
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(MESSAGE_COL, QHeaderView.Stretch)
-        # Fixed-ish initial widths for the narrow columns so Time fits on one line;
-        # left Interactive (draggable) rather than ResizeToContents (which would
-        # measure every row and hurt large logs). Message keeps stretching.
-        for col, width in ((0, 145), (1, 60), (2, 60), (3, 55), (4, 170)):
-            header.setSectionResizeMode(col, QHeaderView.Interactive)
-            self.table.setColumnWidth(col, width)
-        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setVisible(False)
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(False)
+        # Android-Studio-style dense view: one line per entry. Show only column 0
+        # stretched full-width and paint the whole entry with a delegate (the model
+        # stays virtualized — the delegate runs only for visible rows).
+        mono = QFont("monospace")
+        mono.setStyleHint(QFont.Monospace)
+        self.table.setFont(mono)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        for col in range(1, len(COLUMNS)):
+            self.table.setColumnHidden(col, True)
+        self.log_delegate = LogItemDelegate(self)
+        self.table.setItemDelegateForColumn(0, self.log_delegate)
         # Copy (Ctrl+C) and Select All: keyboard shortcuts via addAction, plus a
         # custom right-click menu that also offers per-tag highlighting.
         self.copy_action = QAction("Copy", self)
@@ -274,15 +280,6 @@ class MainWindow(QMainWindow):
         self.details_action.setCheckable(True)
         self.details_action.setChecked(True)
         self.details_action.toggled.connect(self.detail.setVisible)
-
-        columns_menu = view_menu.addMenu("&Columns")
-        self._column_actions = []
-        for col, name in enumerate(COLUMNS):
-            act = columns_menu.addAction(name)
-            act.setCheckable(True)
-            act.setChecked(True)
-            act.toggled.connect(lambda checked, c=col: self.table.setColumnHidden(c, not checked))
-            self._column_actions.append(act)
 
         self.clear_on_start_action = view_menu.addAction("Clear on &Start")
         self.clear_on_start_action.setCheckable(True)
@@ -660,6 +657,8 @@ class MainWindow(QMainWindow):
             font = widget.font()
             font.setPointSize(size)
             widget.setFont(font)
+        fm = QFontMetrics(self.table.font())
+        self.table.verticalHeader().setDefaultSectionSize(fm.height() + 4)
 
     def _zoom(self, step: int) -> None:
         self._font_delta = max(-4, min(12, self._font_delta + step))
@@ -679,6 +678,14 @@ class MainWindow(QMainWindow):
         self.model.set_level_colors(theme.level_colors)
         self.model.set_highlight_color(theme.search_highlight)
         self.model.set_bookmark_color(theme.bookmark)
+        self.log_delegate.set_theme(
+            theme.muted,
+            theme.level_text,
+            theme.base,
+            theme.selection_bg,
+            theme.selection_text,
+            theme.row_hover_bg,
+        )
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
@@ -852,12 +859,9 @@ class MainWindow(QMainWindow):
             self.detail.setVisible(self.details_action.isChecked())
 
         def set_hidden_columns(v):
-            if not isinstance(v, list):
-                return
-            for col, act in enumerate(self._column_actions):
-                visible = col not in v
-                act.setChecked(visible)
-                self.table.setColumnHidden(col, not visible)
+            # Columns are superseded by the single-line log delegate; the key is
+            # accepted for back-compat but ignored.
+            return
 
         def set_tag_highlights(v):
             if isinstance(v, dict):
@@ -917,13 +921,7 @@ class MainWindow(QMainWindow):
             ),
             ("tag_highlights", self.model.tag_colors, set_tag_highlights),
             ("show_details", self.details_action.isChecked, set_show_details),
-            (
-                "hidden_columns",
-                lambda: [
-                    c for c in range(len(self._column_actions)) if self.table.isColumnHidden(c)
-                ],
-                set_hidden_columns,
-            ),
+            ("hidden_columns", lambda: [], set_hidden_columns),
             (
                 "clear_on_start",
                 self.clear_on_start_action.isChecked,

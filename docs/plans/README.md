@@ -69,4 +69,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [mute-tag.md](mute-tag.md) | Draft | Right-click to mute a tag/PID via the exclude filter |
 | [search-history.md](search-history.md) | Draft | Remember recent search terms in a dropdown |
 | [level-multiselect.md](level-multiselect.md) | Draft | Show only specific levels, not just a min-level floor |
-| [logcat-style-ui.md](logcat-style-ui.md) | Draft | Android-Studio-style dense log view: query bar + icon rail + overflow |
+| [logcat-style-ui.md](logcat-style-ui.md) | In progress | Android-Studio-style dense log view: query bar + icon rail + overflow |

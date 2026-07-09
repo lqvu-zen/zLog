@@ -55,3 +55,10 @@ def test_row_hover_is_hex_and_styled_before_selected():
     # Hover must come first so :selected wins (source order) when a row is
     # both hovered and selected.
     assert qss.index("::item:hover") < qss.index("::item:selected")
+
+
+def test_level_text_colors():
+    for theme in THEMES.values():
+        for level in ("V", "D", "I", "W", "E", "F"):
+            c = theme.level_text[level]
+            assert c.startswith("#") and len(c) == 7

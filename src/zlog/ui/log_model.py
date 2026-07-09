@@ -32,6 +32,7 @@ from zlog.ui.theme import LIGHT
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
+HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
 
 
 class LogTableModel(QAbstractTableModel):
@@ -78,6 +79,15 @@ class LogTableModel(QAbstractTableModel):
             if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
                 return self._highlight_color
             return self._level_colors.get(entry.level)
+        if role == Qt.UserRole:
+            return entry
+        if role == HIGHLIGHT_ROLE:
+            tag = self._tag_colors.get(entry.tag)
+            if tag is not None:
+                return tag
+            if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
+                return self._highlight_color
+            return None
         if role == Qt.DecorationRole and index.column() == 0:
             return self._bookmark_color if index.row() in self._bookmarks else None
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
