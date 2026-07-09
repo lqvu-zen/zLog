@@ -1,6 +1,6 @@
 # Plan: Android-Studio-style log UI (dense, query-driven)
 
-- **Status:** In progress
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-09
 - **Related:** supersedes much of ui-column-polish, column-visibility, toolbar-tidy,

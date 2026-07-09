@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -46,6 +47,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
+from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
@@ -71,6 +73,7 @@ class MainWindow(QMainWindow):
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
+        self._query_package = ""  # last package resolved from the query bar
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -185,6 +188,16 @@ class MainWindow(QMainWindow):
 
         self.count_label = QLabel("0 lines")
 
+        # Single query bar (parsed into the filters) + overflow menu button.
+        self.query = QLineEdit()
+        self.query.setPlaceholderText(
+            "Filter — e.g. level:E tag:Activity package:com.x -noise text"
+        )
+        self.query.setClearButtonEnabled(True)
+        self.overflow_btn = QToolButton()
+        self.overflow_btn.setText("\u22ee")
+        self.overflow_btn.setToolTip("Menu")
+
     def _build_layout(self) -> None:
         """Arrange the widgets built in _build_widgets into the window."""
         self._splitter = QSplitter(Qt.Vertical)
@@ -194,54 +207,49 @@ class MainWindow(QMainWindow):
         self._splitter.setStretchFactor(1, 0)
         self._splitter.setSizes([520, 150])
 
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("Device:"))
-        row1.addWidget(self.device_box)
-        row1.addWidget(self.refresh_btn)
-        row1.addSpacing(16)
-        row1.addWidget(self.start_btn)
-        row1.addWidget(self.stop_btn)
-        row1.addWidget(self.clear_btn)
-        row1.addWidget(self.follow_check)
-        row1.addWidget(self.to_top_btn)
-        row1.addWidget(self.to_latest_btn)
-        row1.addStretch(1)
+        # Thin vertical icon rail of the essential stream actions (like Android
+        # Studio). Filter/scope controls live in the query bar and the overflow menu.
+        for btn, glyph, tip in (
+            (self.refresh_btn, "\u21bb", "Refresh devices"),
+            (self.start_btn, "\u25b6", "Start streaming"),
+            (self.stop_btn, "\u25a0", "Stop streaming"),
+            (self.clear_btn, "\u2715", "Clear the log"),
+            (self.to_top_btn, "\u2912", "Scroll to the oldest line"),
+            (self.to_latest_btn, "\u2913", "Scroll to the newest line"),
+        ):
+            btn.setText(glyph)
+            btn.setToolTip(tip)
+            btn.setFixedWidth(34)
+        rail = QVBoxLayout()
+        rail.setSpacing(4)
+        for w in (
+            self.refresh_btn,
+            self.start_btn,
+            self.stop_btn,
+            self.clear_btn,
+            self.to_top_btn,
+            self.to_latest_btn,
+        ):
+            rail.addWidget(w)
+        rail.addSpacing(8)
+        rail.addWidget(self.follow_check)
+        rail.addStretch(1)
 
-        # Row 2 — scope: which lines to consider (package + minimum level).
-        row2 = QHBoxLayout()
-        row2.addWidget(QLabel("Package:"))
-        row2.addWidget(self.package_box)
-        row2.addWidget(self.load_pkgs_btn)
-        row2.addWidget(self.apply_pkg_btn)
-        row2.addWidget(self.clear_pkg_btn)
-        row2.addWidget(self._vsep())
-        row2.addWidget(QLabel("Min level:"))
-        row2.addWidget(self.level_box)
-        row2.addStretch(1)
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Device:"))
+        top.addWidget(self.device_box)
+        top.addWidget(self.query, stretch=1)
+        top.addWidget(self.overflow_btn)
 
-        # Row 3 — search: find/highlight, match nav, exclude, and reset.
-        row3 = QHBoxLayout()
-        row3.addWidget(QLabel("Search:"))
-        row3.addWidget(self.search, stretch=1)
-        row3.addWidget(self.match_prev_btn)
-        row3.addWidget(self.match_label)
-        row3.addWidget(self.match_next_btn)
-        row3.addWidget(self.regex_check)
-        row3.addWidget(self.case_check)
-        row3.addWidget(self.search_mode_box)
-        row3.addWidget(self._vsep())
-        row3.addWidget(QLabel("Exclude:"))
-        row3.addWidget(self.exclude)
-        row3.addWidget(self._vsep())
-        row3.addWidget(self.clear_filters_btn)
+        right = QVBoxLayout()
+        right.addLayout(top)
+        right.addWidget(self._splitter)
 
-        layout = QVBoxLayout()
-        layout.addLayout(row1)
-        layout.addLayout(row2)
-        layout.addLayout(row3)
-        layout.addWidget(self._splitter)
+        main = QHBoxLayout()
+        main.addLayout(rail)
+        main.addLayout(right, stretch=1)
         container = QWidget()
-        container.setLayout(layout)
+        container.setLayout(main)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
         self.statusBar().addPermanentWidget(self.count_label)
@@ -255,7 +263,10 @@ class MainWindow(QMainWindow):
 
     def _build_menus(self) -> None:
         """Build the File and View menus (their actions wire themselves here)."""
-        file_menu = self.menuBar().addMenu("&File")
+        self._overflow_menu = QMenu(self)
+        self.overflow_btn.setMenu(self._overflow_menu)
+        self.overflow_btn.setPopupMode(QToolButton.InstantPopup)
+        file_menu = self._overflow_menu.addMenu("&File")
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
         open_act.triggered.connect(self.open_log)
@@ -265,7 +276,7 @@ class MainWindow(QMainWindow):
         save_filtered_act = file_menu.addAction("Save &Filtered Log…")
         save_filtered_act.triggered.connect(self.save_filtered_log)
 
-        view_menu = self.menuBar().addMenu("&View")
+        view_menu = self._overflow_menu.addMenu("&View")
         theme_menu = view_menu.addMenu("&Theme")
         self._theme_group = QActionGroup(self)
         self._theme_group.setExclusive(True)
@@ -287,6 +298,14 @@ class MainWindow(QMainWindow):
 
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
+
+        search_menu = view_menu.addMenu("&Search options")
+        self.case_action = search_menu.addAction("Case sensitive")
+        self.case_action.setCheckable(True)
+        self.case_action.toggled.connect(self._on_case_toggled)
+        self.highlight_action = search_menu.addAction("Highlight matches (don't hide)")
+        self.highlight_action.setCheckable(True)
+        self.highlight_action.toggled.connect(self._on_highlight_toggled)
 
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
@@ -343,6 +362,7 @@ class MainWindow(QMainWindow):
             lambda: self.proxy.set_min_level(self.level_box.currentData())
         )
         self.search.textChanged.connect(self._apply_search)
+        self.query.textChanged.connect(self._apply_query)
         self.exclude.textChanged.connect(self._apply_search)
         self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
         self.match_prev_btn.clicked.connect(lambda: self._goto_match(-1))
@@ -479,12 +499,7 @@ class MainWindow(QMainWindow):
 
     def clear_filters(self) -> None:
         """Reset every filter to 'show everything' without touching the log."""
-        self.level_box.setCurrentIndex(0)  # V — fires the min-level update
-        self.regex_check.setChecked(False)
-        self.case_check.setChecked(False)
-        self.search.clear()  # fires _apply_search, which clears the error tint
-        self.exclude.clear()
-        self.clear_package_filter()
+        self.query.clear()  # fires _apply_query -> resets level/tag/search/exclude/pkg
         self.statusBar().showMessage("Filters cleared.")
 
     # --- filter presets ----------------------------------------------------
@@ -525,18 +540,18 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Saved preset {name!r}.")
 
     def _apply_preset(self, preset: dict) -> None:
-        idx = self.level_box.findData(preset.get("min_level", "V"))
-        if idx >= 0:
-            self.level_box.setCurrentIndex(idx)
-        self.regex_check.setChecked(bool(preset.get("regex")))
         self.case_check.setChecked(bool(preset.get("case")))
-        self.search.setText(preset.get("search", ""))
+        parts = []
+        level = preset.get("min_level", "V")
+        if level and level != "V":
+            parts.append(f"level:{level}")
         package = preset.get("package", "")
-        self.package_box.setEditText(package)
         if package:
-            self.apply_package_filter()  # resolves PIDs when a device is available
-        else:
-            self.clear_package_filter()
+            parts.append(f"package:{package}")
+        search = preset.get("search", "")
+        if search:
+            parts.append(f"/{search}/" if preset.get("regex") else search)
+        self.query.setText(" ".join(parts))  # -> _apply_query
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
     def _delete_preset(self, name: str) -> None:
@@ -566,15 +581,45 @@ class MainWindow(QMainWindow):
                 f"QLineEdit {{ background-color: {self._search_error_color}; }}"
             )
             self.statusBar().showMessage("Invalid regex — showing previous match.")
-        exclude_ok = self.proxy.set_exclude(self.exclude.text(), regex, case)
-        if exclude_ok:
-            self.exclude.setStyleSheet("")
-        else:
-            self.exclude.setStyleSheet(
-                f"QLineEdit {{ background-color: {self._search_error_color}; }}"
-            )
-            self.statusBar().showMessage("Invalid exclude regex — keeping the previous one.")
         self._update_match_label()
+
+    def _apply_query(self) -> None:
+        """Parse the single query bar and drive the (hidden) filter widgets +
+        proxy gates. This is the one place filtering is applied in the new UI."""
+        spec = parse_query(self.query.text())
+        case = self.case_check.isChecked()
+        idx = self.level_box.findData(spec.level or "V")
+        if idx >= 0:
+            self.level_box.setCurrentIndex(idx)  # -> proxy.set_min_level
+        self.proxy.set_tag(spec.tag)
+        ex_pat = "|".join(re.escape(t) for t in spec.excludes)
+        ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
+        self.regex_check.setChecked(spec.regex)  # -> _apply_search
+        self.search.setText(spec.search)  # -> _apply_search (search + highlight)
+        search_ok = True
+        try:
+            compile_matcher(spec.search, spec.regex, case)
+        except re.error:
+            search_ok = False
+        good = search_ok and ex_ok
+        self.query.setStyleSheet(
+            "" if good else f"QLineEdit {{ background-color: {self._search_error_color}; }}"
+        )
+        if spec.package != self._query_package:
+            self._query_package = spec.package
+            self.package_box.setEditText(spec.package)
+            if spec.package:
+                self.apply_package_filter()
+            else:
+                self.clear_package_filter()
+
+    def _on_case_toggled(self, checked: bool) -> None:
+        self.case_check.setChecked(checked)
+        self._apply_query()
+
+    def _on_highlight_toggled(self, checked: bool) -> None:
+        self.search_mode_box.setCurrentIndex(1 if checked else 0)
+        self._apply_query()
 
     # --- match navigation --------------------------------------------------
     def _match_rows(self) -> list[int]:

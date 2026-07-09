@@ -96,7 +96,7 @@ def test_exclude_hides_lines(window):
             LogEntry("t", "1", "1", "I", "T", "spammy noise"),
         ]
     )
-    window.exclude.setText("spammy")
+    window.query.setText("-spammy")  # exclude via the query bar
     assert window.proxy.rowCount() == 1
 
 
@@ -170,3 +170,19 @@ def test_font_zoom(window):
     w2 = MainWindow()
     w2._load_and_apply_settings()
     assert w2._font_delta == 3
+
+
+def test_query_bar_drives_filters(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "E", "Activity", "boom error"),
+            LogEntry("t", "1", "1", "I", "Activity", "quiet info"),
+            LogEntry("t", "1", "1", "E", "Other", "boom elsewhere"),
+        ]
+    )
+    window.query.setText("level:E tag:Activity boom")
+    assert window.proxy.rowCount() == 1  # E + tag Activity + "boom"
+    window.query.clear()
+    assert window.proxy.rowCount() == 3

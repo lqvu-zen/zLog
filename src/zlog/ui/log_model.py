@@ -247,6 +247,7 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._matcher = compile_matcher("", regex=False)  # match-all by default
         self._exclude = None  # optional predicate; matching rows are hidden
         self._pids: set[str] | None = None  # None = no package filter
+        self._tag = ""  # tag-contains gate ("" = off)
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -277,6 +278,11 @@ class LogFilterProxy(QSortFilterProxyModel):
         self.invalidate()
         return True
 
+    def set_tag(self, text: str) -> None:
+        """Restrict to rows whose tag contains this text (case-insensitive); "" = off."""
+        self._tag = text.lower()
+        self.invalidate()
+
     def set_pids(self, pids) -> None:
         """Restrict to these PID strings, or pass None to clear the package filter."""
         self._pids = set(pids) if pids is not None else None
@@ -293,6 +299,9 @@ class LogFilterProxy(QSortFilterProxyModel):
         if entry.level and entry.rank < self._min_level:
             return False
         haystack = f"{entry.tag} {entry.message}"
+        # Tag gate: when set, the entry's tag must contain it.
+        if self._tag and self._tag not in entry.tag.lower():
+            return False
         # Exclude gate: hide rows matching the exclude term (if any).
         if self._exclude is not None and self._exclude(haystack):
             return False
