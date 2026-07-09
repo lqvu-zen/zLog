@@ -37,7 +37,6 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QTableView,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -191,7 +190,7 @@ class MainWindow(QMainWindow):
 
         self.count_label = QLabel("0 lines")
 
-        # Single query bar (parsed into the filters) + overflow menu button.
+        # Single query bar, parsed into the filters.
         self.query = QLineEdit()
         self.query.setPlaceholderText(
             "Filter — e.g. level:E tag:Activity package:com.x -noise text"
@@ -202,9 +201,6 @@ class MainWindow(QMainWindow):
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
         self.query.setCompleter(completer)
-        self.overflow_btn = QToolButton()
-        self.overflow_btn.setText("\u22ee")
-        self.overflow_btn.setToolTip("Menu")
 
     def _build_layout(self) -> None:
         """Arrange the widgets built in _build_widgets into the window."""
@@ -215,8 +211,7 @@ class MainWindow(QMainWindow):
         self._splitter.setStretchFactor(1, 0)
         self._splitter.setSizes([520, 150])
 
-        # Thin vertical icon rail of the essential stream actions (like Android
-        # Studio). Filter/scope controls live in the query bar and the overflow menu.
+        # Compact glyph buttons for the stream/device actions.
         for btn, glyph, tip in (
             (self.refresh_btn, "\u21bb", "Refresh devices"),
             (self.start_btn, "\u25b6", "Start streaming"),
@@ -228,36 +223,32 @@ class MainWindow(QMainWindow):
             btn.setText(glyph)
             btn.setToolTip(tip)
             btn.setFixedWidth(34)
-        rail = QVBoxLayout()
-        rail.setSpacing(4)
-        for w in (
-            self.refresh_btn,
-            self.start_btn,
-            self.stop_btn,
-            self.clear_btn,
-            self.to_top_btn,
-            self.to_latest_btn,
-        ):
-            rail.addWidget(w)
-        rail.addSpacing(8)
-        rail.addWidget(self.follow_check)
-        rail.addStretch(1)
 
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Device:"))
-        top.addWidget(self.device_box)
-        top.addWidget(self.query, stretch=1)
-        top.addWidget(self.overflow_btn)
+        # Device bar: device selection + stream/device controls.
+        device_row = QHBoxLayout()
+        device_row.addWidget(QLabel("Device:"))
+        device_row.addWidget(self.device_box)
+        device_row.addWidget(self.refresh_btn)
+        device_row.addSpacing(12)
+        device_row.addWidget(self.start_btn)
+        device_row.addWidget(self.stop_btn)
+        device_row.addWidget(self.clear_btn)
+        device_row.addWidget(self.follow_check)
+        device_row.addSpacing(12)
+        device_row.addWidget(self.to_top_btn)
+        device_row.addWidget(self.to_latest_btn)
+        device_row.addStretch(1)
 
-        right = QVBoxLayout()
-        right.addLayout(top)
-        right.addWidget(self._splitter)
+        # Filter bar: the query box on its own full-width row.
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(self.query)
 
-        main = QHBoxLayout()
-        main.addLayout(rail)
-        main.addLayout(right, stretch=1)
+        layout = QVBoxLayout()
+        layout.addLayout(device_row)
+        layout.addLayout(filter_row)
+        layout.addWidget(self._splitter)
         container = QWidget()
-        container.setLayout(main)
+        container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
         self.statusBar().addPermanentWidget(self.count_label)
@@ -271,10 +262,7 @@ class MainWindow(QMainWindow):
 
     def _build_menus(self) -> None:
         """Build the File and View menus (their actions wire themselves here)."""
-        self._overflow_menu = QMenu(self)
-        self.overflow_btn.setMenu(self._overflow_menu)
-        self.overflow_btn.setPopupMode(QToolButton.InstantPopup)
-        file_menu = self._overflow_menu.addMenu("&File")
+        file_menu = self.menuBar().addMenu("&File")
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
         open_act.triggered.connect(self.open_log)
@@ -284,7 +272,7 @@ class MainWindow(QMainWindow):
         save_filtered_act = file_menu.addAction("Save &Filtered Log…")
         save_filtered_act.triggered.connect(self.save_filtered_log)
 
-        view_menu = self._overflow_menu.addMenu("&View")
+        view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("&Theme")
         self._theme_group = QActionGroup(self)
         self._theme_group.setExclusive(True)
