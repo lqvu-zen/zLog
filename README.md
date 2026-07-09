@@ -42,10 +42,13 @@ AdbReader (background thread)
         ▼
 LogTableModel  ── master list of every line (virtualized)
         │
-LogFilterProxy ── decides which rows show (min level + text search)
+LogFilterProxy ── decides which rows show (level + tag + text + package + exclude)
         │
-QTableView     ── only renders the rows currently on screen
+LogItemDelegate ─ paints one dense line per visible row (no grid)
 ```
+
+Filtering is driven by a single **query bar** parsed by `core/query.py`
+(`level: tag: package: -exclude /regex/ text`).
 
 Three ideas make this scale to huge logs: reading happens **off the UI thread**;
 the model is **virtualized** (Qt only asks for visible rows); and filtering is a
@@ -101,15 +104,14 @@ uv run --extra build python cxfreeze_setup.py build
 The app lands in `build\exe.win-amd64-<pyver>\zlog.exe` (with its bundled runtime).
 Or double-click **build.bat**. See the `release-zlog` skill for the full release flow.
 
-## Where to go next
+## Features
 
-The layered structure makes these additive, not invasive:
-
-- **Device picker** — parse `adb devices`, pass the serial to `AdbReader`.
-- **Package/PID filter** — map PID → process name to show only your app.
-- **Save / load** — serialize the master list; reopen offline logs.
-- **Per-tag colors** and a regex search mode (extend `LogFilterProxy`).
-- **Pause-autoscroll** toggle in the toolbar.
+A dense, Android-Studio-style log view with a single **query bar**
+(`level: tag: package: -exclude /regex/ text`), device picker, live package/PID
+tracking, highlight mode, match navigation, bookmarks, filter presets, relative-time
+display, light/dark themes, font zoom, and save/open. See
+**[docs/GUIDE.md](docs/GUIDE.md)** for the walkthrough and
+**[docs/ROADMAP.md](docs/ROADMAP.md)** for what's planned next.
 
 ## License
 

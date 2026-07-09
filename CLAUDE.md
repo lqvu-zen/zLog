@@ -65,9 +65,11 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | logcat line parsing (`parse_line`) | `src/zlog/core/parser.py` |
 | `adb logcat` streaming thread (`AdbReader`) | `src/zlog/adb/reader.py` |
 | Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
+| one-line-per-entry paint delegate | `src/zlog/ui/log_delegate.py` |
+| query-bar parser (`level: tag: package: -exclude /regex/`) | `src/zlog/core/query.py` |
 | device picker + package/PID filter state (`DeviceController`) | `src/zlog/ui/device_controller.py` |
 | color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
-| main window, toolbar, wiring | `src/zlog/ui/main_window.py` |
+| main window, query bar, icon rail, overflow, wiring | `src/zlog/ui/main_window.py` |
 | headless-Qt test setup (`offscreen` qapp fixture) | `tests/conftest.py` |
 | `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
@@ -91,18 +93,26 @@ subprocess, reads it line-by-line, and emits `batch_ready(list[LogEntry])` in
 chunks of 50 (`_BATCH_SIZE`). Batching prevents high-volume logs from flooding the
 Qt event loop. Stopped by setting `_running = False` and calling `proc.terminate()`.
 
-**`ui/`** — Two Qt model classes, a controller, plus the window:
-- `LogTableModel(QAbstractTableModel)` — virtualized master list; `QTableView` only
+**`ui/`** — Two Qt model classes, a paint delegate, a controller, plus the window.
+The log is presented **Android-Studio-style**: one dense line per entry (no grid),
+driven by a single **query bar**; secondary features live in a **⋮ overflow menu**
+and a thin **icon rail**.
+- `LogTableModel(QAbstractTableModel)` — virtualized master list; the view only
   calls `data()` for visible rows, so rendering stays cheap even at millions of rows.
-- `LogFilterProxy(QSortFilterProxyModel)` — filters by minimum level rank and a
-  substring/regex over `tag + message` (case-insensitive by default; `case=True` for
-  case-sensitive), without mutating the master list.
+  Exposes `Qt.UserRole` (the `LogEntry`) and `HIGHLIGHT_ROLE` (tag/search highlight)
+  for the delegate.
+- `LogFilterProxy(QSortFilterProxyModel)` — gates rows by min level, a substring/regex
+  over `tag + message` (case-insensitive by default), a **tag** contains, a **package**
+  PID set, and an **exclude** matcher — all without mutating the master list.
+- `LogItemDelegate` (`log_delegate.py`) — paints one line per row: colored level chip,
+  monospace `time  pid-tid  tag  ▮level  message`, per-level text color. Keeps the model
+  virtualized (runs only for visible rows). Column visibility was retired with the grid.
 - `DeviceController(QObject)` — owns the device list, remembered serial, and package/PID
   filter state (no widgets), so device selection, filtering, and live PID tracking are
-  unit-testable without a `MainWindow`. `MainWindow` drives its widgets from it.
-- `MainWindow` — wires `AdbReader.batch_ready` → `LogTableModel.append_entries`,
-  toolbar buttons to start/stop/clear, the combo to `proxy.set_min_level`, the search
-  box to `proxy.set_search`. Auto-scrolls only when already at the bottom.
+  unit-testable without a `MainWindow`.
+- `MainWindow` — wires `AdbReader.batch_ready` → `LogTableModel.append_entries`, the
+  rail buttons to start/stop/clear/scroll, and the **query bar** (`_apply_query` →
+  `core.query.parse_query`) to the proxy gates. Auto-scrolls only when at the bottom.
 
 ## Architecture rules that always apply
 
@@ -125,9 +135,6 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
 - **Filter through the proxy, not the master list.** Keep `_rows` complete so
   clearing a filter is instant.
 - **Preserve reader→UI batching** (`_BATCH_SIZE`) when changing the read loop.
-- **Centralize colors in `ui/theme.py`.** All palette tokens (chrome colors,
-  per-level row tints, the regex-error tint) live there; the model gets its tints
-  from the active theme. Add new colors to a `Theme`, never hard-code hex at a widget.
 - **Comments explain WHY, not WHAT.**
 - **Version bumps happen only on release.** Don't change `__version__`
   (`src/zlog/__init__.py`) or `version` (`pyproject.toml`) per feature or fix —

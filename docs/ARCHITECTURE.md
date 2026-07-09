@@ -20,7 +20,8 @@ Every decision below serves one of these.
 ```
 ┌──────────────────────────────────────────────┐
 │  ui/        QApplication, MainWindow,          │  Qt widgets
-│             LogTableModel, LogFilterProxy      │
+│             LogTableModel, LogFilterProxy,     │
+│             LogItemDelegate, DeviceController   │
 └───────────────┬───────────────────────────────┘
                 │ depends on
 ┌───────────────▼───────────────────────────────┐
@@ -79,9 +80,17 @@ logs:
   list, but rendering only ever touches the ~50 rows on screen.
 
 - **`LogFilterProxy`** sits between model and view. `filterAcceptsRow` decides
-  visibility from a minimum level rank and a text substring. Because filtering is a
-  view concern, the master list is never mutated — clearing a filter instantly
-  reveals everything again, and no data is lost.
+  visibility from min level, a `tag+message` substring/regex, a tag-contains gate, a
+  package PID set, and an exclude matcher. Because filtering is a view concern, the
+  master list is never mutated — clearing a filter instantly reveals everything again.
+
+- **`LogItemDelegate`** (`ui/log_delegate.py`) paints one dense line per visible row
+  (no grid): a colored level chip and monospace `time  pid-tid  tag  ▮level  message`,
+  text tinted per level. It runs only for on-screen rows, so the view stays virtualized.
+
+- **`core/query.py`** parses the single query bar (`level: tag: package: -exclude
+  /regex/ text`) into a `QuerySpec`; `MainWindow._apply_query` drives the proxy gates
+  from it. Pure and unit-tested.
 
 - **`DeviceController`** (`ui/device_controller.py`) holds the device list, the
   remembered serial, and the package/PID filter state — but no widgets. Selection
@@ -103,8 +112,9 @@ device ──adb logcat──> AdbReader.run()  [worker thread]
               MainWindow.on_batch()      [main thread]
                             │ model.append_entries(entries)
                             ▼
-              LogTableModel  ──>  LogFilterProxy  ──>  QTableView
-                                   (level + text)      (renders visible rows)
+              LogTableModel  ──>  LogFilterProxy  ──>  view + LogItemDelegate
+                                   (level+tag+text     (paints visible lines)
+                                    +package+exclude)
 ```
 
 ## Why these choices over the alternatives

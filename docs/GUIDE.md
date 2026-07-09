@@ -1,8 +1,9 @@
 # zLog User Guide
 
 zLog is a desktop viewer for Android `adb logcat`. It streams your device's logs
-into a fast, filterable table so you can find what matters — and save it to read
-later. This guide walks through everyday use.
+into a fast, dense, one-line-per-entry view — with a single query bar to filter
+down to what matters — and can save a capture to read later. This guide walks
+through everyday use.
 
 ## Before you start
 
@@ -15,61 +16,97 @@ later. This guide walks through everyday use.
    uv run zlog
    ```
 
-## Streaming logs
+## The window at a glance
 
-Pick your device from the **Device** dropdown (press **Refresh** if it isn't
-listed yet), then click **Start**. Logs stream in live, newest at the bottom.
+- A thin **icon rail** down the left edge holds the stream controls:
+  ↻ refresh devices, ▶ start, ■ stop, ✕ clear, ⭱ scroll to top, ⭳ scroll to
+  newest, and a **Follow** toggle.
+- The **top bar** has the **Device** dropdown, the **query bar**, and a **⋮**
+  overflow menu (themes, save/open, zoom, bookmarks, presets, and more).
+- The **log view** shows one line per entry — `time  pid-tid  tag  ▮level  message`
+  — with each level in its own color (I green, D blue, W amber, E/F red).
 
 ![Streaming logs](images/guide-streaming.png)
 
+## Streaming logs
+
+Pick your device from **Device** (press ↻ if it isn't listed yet), then click ▶.
+Logs stream in live, newest at the bottom.
+
 - **Follow** (on by default) keeps the view pinned to the newest line. Turn it off
-  to scroll back through history without being pulled to the bottom.
-- **Clear** empties the view; **Stop** ends streaming.
-- Warnings are tinted amber, errors and fatals red, so problems jump out.
+  to scroll back through history without being pulled to the bottom; ⭱ / ⭳ jump to
+  the oldest / newest line at any time.
+- ✕ clears the view; ■ ends streaming.
 
-## Filtering
+## Filtering with the query bar
 
-zLog has three filters that combine — a line must pass all of them to show.
+Type in the **query bar** to narrow the view. Terms combine — a line must match all
+of them. Bare words match the tag or message; prefixes target a field:
 
-**By level.** Use **Min level** to hide anything below a severity. Set it to `W`
-to see only warnings and above:
+| Type this | To… |
+|---|---|
+| `timeout` | show lines whose tag or message contains "timeout" |
+| `level:E` | show only Error and above (V D I W E F) |
+| `tag:Activity` | show only lines whose tag contains "Activity" |
+| `package:com.example` | show only that app's process (resolved to its PID on the device) |
+| `-GnssHal` | **hide** lines matching this term (repeatable, e.g. `-Gnss -Sensors`) |
+| `/Skipped \d+ frames/` | match a **regular expression** |
+| `"two words"` | quote to include spaces |
 
-![Filter by level](images/guide-level.png)
+Example — errors from one tag, hiding noise:
 
-**By app (package).** Type or pick a package and click **Apply** to show only that
-app's process. zLog resolves the package to its PID(s) on the device; if the app
-restarts, zLog follows the new process automatically. **Load** fills the dropdown
-with the device's installed apps; **Clear pkg** removes the filter.
+```
+level:E tag:Activity -Gnss
+```
 
-![Filter by package](images/guide-package.png)
+![Filtering with the query bar](images/guide-query.png)
 
-**By text or regex.** Type in the search box to match the tag or message. Tick
-**Regex** to use a regular expression (e.g. `Exception|ANR`); an invalid pattern
-tints the box and keeps your previous filter.
+An invalid regex tints the query bar and keeps your previous filter. The status bar
+shows how many lines are visible (e.g. *Showing 8 of 26 lines*) plus a per-level
+tally. Press **Clear filters** (in the ⋮ menu) or empty the query to show everything.
 
-## Dark mode
+Filtering by tag or any field works the same way:
 
-Switch between **Light** and **Dark** from **View → Theme**. Dark is easy on the
-eyes for long sessions:
+![Filter by tag](images/guide-tag.png)
 
-![Dark theme](images/guide-dark.png)
+## Highlight instead of hide
+
+Prefer to keep every line visible and just *highlight* the matches? Turn on
+**⋮ → View → Search options → Highlight matches**. Use **F3 / Shift+F3** to jump
+between matches.
+
+## Themes
+
+Switch between **Light** and **Dark** from **⋮ → View → Theme**.
+
+![Light theme](images/guide-light.png)
+
+## Reading, bookmarking, and zoom
+
+- Select a line to see its full, word-wrapped text in the detail pane.
+- **Ctrl+B** bookmarks the selected line (a colored marker appears); **F2 / Shift+F2**
+  jump between bookmarks (**⋮ → View**).
+- **Ctrl+= / Ctrl+- / Ctrl+0** zoom the text in, out, and back to default.
+- **Time display** (**⋮ → View**) switches the timestamp between absolute, elapsed
+  since the first line, and delta from the previous line.
 
 ## Saving and reopening logs
 
-- **File → Save Log…** (Ctrl+S) writes everything captured to a `.log` file in the
-  standard `logcat` text format — readable in any editor.
-- **File → Open Log…** (Ctrl+O) loads a saved file so you can read it offline, with
-  no device attached. Opening a file stops any live stream first.
+From the **⋮ → File** menu:
 
-## Tips
+- **Save Log…** (Ctrl+S) writes everything captured to a `.log` file in the standard
+  `logcat` text format — readable in any editor. **Save Filtered Log…** writes only
+  the lines currently visible.
+- **Open Log…** (Ctrl+O) loads a saved file to read offline, with no device attached.
+  Opening a file stops any live stream first.
 
-- Columns are draggable — widen **Message** or **Tag** to taste.
-- The status bar shows the current line count and what just happened (device found,
-  filter applied, file saved).
-- No device connected? The empty view tells you what to do next.
+## Filter presets
+
+Save a query you use often via **⋮ → View → Filter Presets → Save current filter
+as…**, then re-apply it any time from the same menu. Presets persist across launches.
 
 ## Troubleshooting
 
 - **"adb not found"** — install platform-tools and add `adb` to your PATH.
 - **No devices listed** — check the USB cable/authorization dialog on the phone,
-  then press **Refresh**. `adb devices` in a terminal should show it too.
+  then press ↻. `adb devices` in a terminal should show it too.
