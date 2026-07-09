@@ -239,12 +239,22 @@ class MainWindow(QMainWindow):
         device_row.addWidget(self.to_latest_btn)
         device_row.addStretch(1)
 
+        # Package bar: pick an app's process to focus on (Load/Apply/Clear).
+        package_row = QHBoxLayout()
+        package_row.addWidget(QLabel("Package:"))
+        package_row.addWidget(self.package_box)
+        package_row.addWidget(self.load_pkgs_btn)
+        package_row.addWidget(self.apply_pkg_btn)
+        package_row.addWidget(self.clear_pkg_btn)
+        package_row.addStretch(1)
+
         # Filter bar: the query box on its own full-width row.
         filter_row = QHBoxLayout()
         filter_row.addWidget(self.query)
 
         layout = QVBoxLayout()
         layout.addLayout(device_row)
+        layout.addLayout(package_row)
         layout.addLayout(filter_row)
         layout.addWidget(self._splitter)
         container = QWidget()
