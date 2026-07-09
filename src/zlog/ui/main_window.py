@@ -363,6 +363,22 @@ class MainWindow(QMainWindow):
         clear_buf_act = view_menu.addAction("Clear device log &buffer")
         clear_buf_act.triggered.connect(self._clear_device_buffer)
 
+        tail_menu = view_menu.addMenu("&Start from")
+        self._tail_group = QActionGroup(self)
+        self._tail_group.setExclusive(True)
+        self._tail_actions = {}
+        for count, label in (
+            (0, "Whole buffer"),
+            (500, "Last 500"),
+            (1000, "Last 1000"),
+            (5000, "Last 5000"),
+        ):
+            act = tail_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(count == 0)
+            self._tail_group.addAction(act)
+            self._tail_actions[count] = act
+
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
@@ -974,6 +990,10 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_tail_count(v):
+            count = v if v in self._tail_actions else 0
+            self._tail_actions[count].setChecked(True)
+
         def set_log_buffers(v):
             names = v if isinstance(v, list) else []
             for name, act in self._buffer_actions.items():
@@ -1063,6 +1083,11 @@ class MainWindow(QMainWindow):
                 lambda: [n for n, a in self._buffer_actions.items() if a.isChecked()],
                 set_log_buffers,
             ),
+            (
+                "tail_count",
+                lambda: next((c for c, a in self._tail_actions.items() if a.isChecked()), 0),
+                set_tail_count,
+            ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
@@ -1092,7 +1117,8 @@ class MainWindow(QMainWindow):
             self.model.clear()
         serial = self.device_box.currentData()
         buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
-        self.reader = AdbReader(serial=serial, buffers=buffers or None)
+        tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
+        self.reader = AdbReader(serial=serial, buffers=buffers or None, tail=tail)
         self.reader.batch_ready.connect(self.on_batch)
         self.reader.error.connect(self.on_error)
         self.reader.start()

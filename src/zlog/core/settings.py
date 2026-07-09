@@ -29,6 +29,7 @@ DEFAULTS: dict = {
     "font_delta": 0,  # point-size offset applied to the table + detail pane
     "search_history": [],  # recent query-bar entries (see core/history.py)
     "log_buffers": [],  # adb logcat -b buffers ([] = adb default)
+    "tail_count": 0,  # start from the last N lines (0 = whole buffer)
 }
 
 

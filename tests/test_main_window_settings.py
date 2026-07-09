@@ -244,3 +244,9 @@ def test_clear_device_buffer_needs_device(window):
     # No device selected -> guidance message, no crash.
     window._clear_device_buffer()
     assert "device" in window.statusBar().currentMessage().lower()
+
+
+def test_tail_count_setting(window):
+    window._tail_actions[1000].setChecked(True)
+    got = next(g for k, g, _ in window._settings_specs() if k == "tail_count")()
+    assert got == 1000

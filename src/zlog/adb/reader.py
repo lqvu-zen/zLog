@@ -24,7 +24,7 @@ _BATCH_SIZE = 50
 _VALID_BUFFERS = ("main", "system", "crash", "radio", "events", "kernel")
 
 
-def build_logcat_command(adb_path, serial, buffers=None):
+def build_logcat_command(adb_path, serial, buffers=None, tail=0):
     """Build the `adb logcat` argv. Pure (no Qt), so it's unit-testable."""
     cmd = [adb_path]
     if serial:
@@ -33,6 +33,8 @@ def build_logcat_command(adb_path, serial, buffers=None):
     for buf in buffers or []:
         if buf in _VALID_BUFFERS:
             cmd += ["-b", buf]
+    if tail and tail > 0:
+        cmd += ["-T", str(int(tail))]  # print the last N lines, then keep following
     return cmd
 
 
@@ -45,6 +47,7 @@ class AdbReader(QThread):
         serial: str | None = None,
         adb_path: str = "adb",
         buffers: list[str] | None = None,
+        tail: int = 0,
         parent=None,
     ):
         super().__init__(parent)
@@ -53,11 +56,12 @@ class AdbReader(QThread):
         self.serial = serial
         self.adb_path = adb_path
         self.buffers = buffers
+        self.tail = tail
         self._proc: subprocess.Popen | None = None
         self._running = False
 
     def _command(self) -> list[str]:
-        return build_logcat_command(self.adb_path, self.serial, self.buffers)
+        return build_logcat_command(self.adb_path, self.serial, self.buffers, self.tail)
 
     def run(self) -> None:
         """Runs on the background thread once start() is called."""

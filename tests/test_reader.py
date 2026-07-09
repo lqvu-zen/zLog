@@ -21,3 +21,33 @@ def test_serial():
 def test_buffers_and_bad_names_dropped():
     cmd = build_logcat_command("adb", None, ["main", "radio", "bogus"])
     assert cmd == ["adb", "logcat", "-v", "threadtime", "-b", "main", "-b", "radio"]
+
+
+def test_tail():
+    assert build_logcat_command("adb", None, tail=500) == [
+        "adb",
+        "logcat",
+        "-v",
+        "threadtime",
+        "-T",
+        "500",
+    ]
+
+
+def test_tail_zero_omitted():
+    assert build_logcat_command("adb", None, tail=0) == ["adb", "logcat", "-v", "threadtime"]
+
+
+def test_buffers_and_tail():
+    assert build_logcat_command("adb", "S", ["main"], tail=100) == [
+        "adb",
+        "-s",
+        "S",
+        "logcat",
+        "-v",
+        "threadtime",
+        "-b",
+        "main",
+        "-T",
+        "100",
+    ]
