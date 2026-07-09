@@ -350,6 +350,16 @@ class MainWindow(QMainWindow):
         zoom_reset.setShortcut("Ctrl+0")
         zoom_reset.triggered.connect(self._reset_zoom)
 
+        buffers_menu = view_menu.addMenu("Log &buffers")
+        self._buffer_actions = {}
+        for name in ("main", "system", "crash", "radio", "events", "kernel"):
+            act = buffers_menu.addAction(name)
+            act.setCheckable(True)
+            self._buffer_actions[name] = act
+        buffers_menu.addSeparator()
+        buffers_hint = buffers_menu.addAction("(applies on next Start)")
+        buffers_hint.setEnabled(False)
+
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
@@ -946,6 +956,11 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_log_buffers(v):
+            names = v if isinstance(v, list) else []
+            for name, act in self._buffer_actions.items():
+                act.setChecked(name in names)
+
         def set_search_history(v):
             self._history = normalize_history(v)
             self._history_model.setStringList(self._history)
@@ -1025,6 +1040,11 @@ class MainWindow(QMainWindow):
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
             ("search_history", lambda: self._history, set_search_history),
+            (
+                "log_buffers",
+                lambda: [n for n, a in self._buffer_actions.items() if a.isChecked()],
+                set_log_buffers,
+            ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
@@ -1053,7 +1073,8 @@ class MainWindow(QMainWindow):
         if self.clear_on_start_action.isChecked():
             self.model.clear()
         serial = self.device_box.currentData()
-        self.reader = AdbReader(serial=serial)
+        buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
+        self.reader = AdbReader(serial=serial, buffers=buffers or None)
         self.reader.batch_ready.connect(self.on_batch)
         self.reader.error.connect(self.on_error)
         self.reader.start()

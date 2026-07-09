@@ -229,3 +229,12 @@ def test_level_multiselect(window):
     assert window.proxy.rowCount() == 2  # only W and E
     window.query.setText("level:E")  # floor -> E and above (just E here)
     assert window.proxy.rowCount() == 1
+
+
+def test_log_buffers_persist(window):
+    window._buffer_actions["radio"].setChecked(True)
+    window._buffer_actions["events"].setChecked(True)
+    keys = {k for k, _, _ in window._settings_specs()}
+    assert "log_buffers" in keys
+    got = next(g for k, g, _ in window._settings_specs() if k == "log_buffers")()
+    assert set(got) == {"radio", "events"}

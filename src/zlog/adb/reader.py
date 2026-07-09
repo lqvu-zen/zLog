@@ -19,26 +19,45 @@ from zlog.core.parser import parse_line
 # doesn't drown the event loop. Tune for responsiveness vs. overhead.
 _BATCH_SIZE = 50
 
+# Buffers `adb logcat -b` accepts; anything else is ignored so a bad value can't
+# break the command. An empty selection uses adb's default buffers.
+_VALID_BUFFERS = ("main", "system", "crash", "radio", "events", "kernel")
+
+
+def build_logcat_command(adb_path, serial, buffers=None):
+    """Build the `adb logcat` argv. Pure (no Qt), so it's unit-testable."""
+    cmd = [adb_path]
+    if serial:
+        cmd += ["-s", serial]
+    cmd += ["logcat", "-v", "threadtime"]
+    for buf in buffers or []:
+        if buf in _VALID_BUFFERS:
+            cmd += ["-b", buf]
+    return cmd
+
 
 class AdbReader(QThread):
     batch_ready = Signal(list)  # list[LogEntry]
     error = Signal(str)
 
-    def __init__(self, serial: str | None = None, adb_path: str = "adb", parent=None):
+    def __init__(
+        self,
+        serial: str | None = None,
+        adb_path: str = "adb",
+        buffers: list[str] | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         # serial selects a specific device (`adb -s <serial>`); None uses the
         # single default device, matching adb's own behavior.
         self.serial = serial
         self.adb_path = adb_path
+        self.buffers = buffers
         self._proc: subprocess.Popen | None = None
         self._running = False
 
     def _command(self) -> list[str]:
-        cmd = [self.adb_path]
-        if self.serial:
-            cmd += ["-s", self.serial]
-        cmd += ["logcat", "-v", "threadtime"]
-        return cmd
+        return build_logcat_command(self.adb_path, self.serial, self.buffers)
 
     def run(self) -> None:
         """Runs on the background thread once start() is called."""
