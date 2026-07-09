@@ -1,6 +1,6 @@
 # Plan: Mute tag / PID from the context menu
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** Vũ
 - **Created:** 2026-07-08
 - **Related:** exclude-filter, tag-highlight

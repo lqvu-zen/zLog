@@ -186,3 +186,20 @@ def test_query_bar_drives_filters(window):
     assert window.proxy.rowCount() == 1  # E + tag Activity + "boom"
     window.query.clear()
     assert window.proxy.rowCount() == 3
+
+
+def test_mute_tag(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "GnssHal", "noise a"),
+            LogEntry("t", "1", "1", "I", "Activity", "real one"),
+        ]
+    )
+    assert window.proxy.rowCount() == 2
+    window._mute_tag("GnssHal")
+    assert "-GnssHal" in window.query.text()
+    assert window.proxy.rowCount() == 1  # the GnssHal line is hidden
+    window._mute_tag("GnssHal")  # idempotent
+    assert window.query.text().count("-GnssHal") == 1

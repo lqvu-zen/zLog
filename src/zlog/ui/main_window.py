@@ -781,6 +781,10 @@ class MainWindow(QMainWindow):
         highlight.triggered.connect(lambda: self._highlight_tag(tag))
         clear = menu.addAction("Clear tag highlights")
         clear.triggered.connect(self._clear_tag_highlights)
+        menu.addSeparator()
+        mute = menu.addAction(f"Mute tag \u201c{tag}\u201d" if tag else "Mute tag")
+        mute.setEnabled(bool(tag))
+        mute.triggered.connect(lambda: self._mute_tag(tag))
         menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _highlight_tag(self, tag: str) -> None:
@@ -794,6 +798,15 @@ class MainWindow(QMainWindow):
 
     def _clear_tag_highlights(self) -> None:
         self.model.clear_tag_colors()
+
+    def _mute_tag(self, tag: str) -> None:
+        """Hide a tag's lines by appending an exclude term to the query bar."""
+        if not tag:
+            return
+        token = f"-{tag}"
+        if token in self.query.text().split():
+            return
+        self.query.setText((self.query.text() + " " + token).strip())
         self.table.viewport().update()
         self.statusBar().showMessage("Cleared tag highlights.")
 
