@@ -18,11 +18,12 @@ through everyday use.
 
 ## The window at a glance
 
-- A thin **icon rail** down the left edge holds the stream controls:
-  ↻ refresh devices, ▶ start, ■ stop, ✕ clear, ⭱ scroll to top, ⭳ scroll to
-  newest, and a **Follow** toggle.
-- The **top bar** has the **Device** dropdown, the **query bar**, and a **⋮**
-  overflow menu (themes, save/open, zoom, bookmarks, presets, and more).
+- A **device bar** holds the **Device** dropdown and the stream controls:
+  ↻ refresh, ▶ start, ■ stop, ✕ clear, a **Follow** toggle, and ⭱ / ⭳ to jump to
+  the oldest / newest line.
+- Below it, a **filter bar** holds the **query bar** on its own full-width row.
+- The **File** and **View** menus at the top hold themes, save/open, zoom, bookmarks,
+  presets, and more.
 - The **log view** shows one line per entry — `time  pid-tid  tag  ▮level  message`
   — with each level in its own color (I green, D blue, W amber, E/F red).
 
@@ -63,7 +64,7 @@ level:E tag:Activity -Gnss
 
 An invalid regex tints the query bar and keeps your previous filter. The status bar
 shows how many lines are visible (e.g. *Showing 8 of 26 lines*) plus a per-level
-tally. Press **Clear filters** (in the ⋮ menu) or empty the query to show everything.
+tally. Press **Clear filters** (in the **View** menu) or empty the query to show everything.
 
 Filtering by tag or any field works the same way:
 
@@ -72,12 +73,12 @@ Filtering by tag or any field works the same way:
 ## Highlight instead of hide
 
 Prefer to keep every line visible and just *highlight* the matches? Turn on
-**⋮ → View → Search options → Highlight matches**. Use **F3 / Shift+F3** to jump
+**View → Search options → Highlight matches**. Use **F3 / Shift+F3** to jump
 between matches.
 
 ## Themes
 
-Switch between **Light** and **Dark** from **⋮ → View → Theme**.
+Switch between **Light** and **Dark** from **View → Theme**.
 
 ![Light theme](images/guide-light.png)
 
@@ -85,14 +86,14 @@ Switch between **Light** and **Dark** from **⋮ → View → Theme**.
 
 - Select a line to see its full, word-wrapped text in the detail pane.
 - **Ctrl+B** bookmarks the selected line (a colored marker appears); **F2 / Shift+F2**
-  jump between bookmarks (**⋮ → View**).
+  jump between bookmarks (**View** menu).
 - **Ctrl+= / Ctrl+- / Ctrl+0** zoom the text in, out, and back to default.
-- **Time display** (**⋮ → View**) switches the timestamp between absolute, elapsed
+- **Time display** (**View** menu) switches the timestamp between absolute, elapsed
   since the first line, and delta from the previous line.
 
 ## Saving and reopening logs
 
-From the **⋮ → File** menu:
+From the **File** menu:
 
 - **Save Log…** (Ctrl+S) writes everything captured to a `.log` file in the standard
   `logcat` text format — readable in any editor. **Save Filtered Log…** writes only
@@ -102,7 +103,7 @@ From the **⋮ → File** menu:
 
 ## Filter presets
 
-Save a query you use often via **⋮ → View → Filter Presets → Save current filter
+Save a query you use often via **View → Filter Presets → Save current filter
 as…**, then re-apply it any time from the same menu. Presets persist across launches.
 
 ## Troubleshooting

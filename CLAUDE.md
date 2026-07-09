@@ -69,7 +69,7 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | query-bar parser (`level: tag: package: -exclude /regex/`) | `src/zlog/core/query.py` |
 | device picker + package/PID filter state (`DeviceController`) | `src/zlog/ui/device_controller.py` |
 | color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
-| main window, query bar, icon rail, overflow, wiring | `src/zlog/ui/main_window.py` |
+| main window, query bar, device bar, menus, wiring | `src/zlog/ui/main_window.py` |
 | headless-Qt test setup (`offscreen` qapp fixture) | `tests/conftest.py` |
 | `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
@@ -95,8 +95,8 @@ Qt event loop. Stopped by setting `_running = False` and calling `proc.terminate
 
 **`ui/`** — Two Qt model classes, a paint delegate, a controller, plus the window.
 The log is presented **Android-Studio-style**: one dense line per entry (no grid),
-driven by a single **query bar**; secondary features live in a **⋮ overflow menu**
-and a thin **icon rail**.
+driven by a single **query bar**. The header is a **device bar** (device + stream
+controls) over a full-width **filter row**; **File**/**View** menus hold the rest.
 - `LogTableModel(QAbstractTableModel)` — virtualized master list; the view only
   calls `data()` for visible rows, so rendering stays cheap even at millions of rows.
   Exposes `Qt.UserRole` (the `LogEntry`) and `HIGHLIGHT_ROLE` (tag/search highlight)
@@ -111,7 +111,7 @@ and a thin **icon rail**.
   filter state (no widgets), so device selection, filtering, and live PID tracking are
   unit-testable without a `MainWindow`.
 - `MainWindow` — wires `AdbReader.batch_ready` → `LogTableModel.append_entries`, the
-  rail buttons to start/stop/clear/scroll, and the **query bar** (`_apply_query` →
+  device-bar buttons to start/stop/clear/scroll, and the **query bar** (`_apply_query` →
   `core.query.parse_query`) to the proxy gates. Auto-scrolls only when at the bottom.
 
 ## Architecture rules that always apply
