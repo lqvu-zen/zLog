@@ -238,3 +238,9 @@ def test_log_buffers_persist(window):
     assert "log_buffers" in keys
     got = next(g for k, g, _ in window._settings_specs() if k == "log_buffers")()
     assert set(got) == {"radio", "events"}
+
+
+def test_clear_device_buffer_needs_device(window):
+    # No device selected -> guidance message, no crash.
+    window._clear_device_buffer()
+    assert "device" in window.statusBar().currentMessage().lower()

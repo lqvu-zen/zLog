@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 )
 
 from zlog.adb.devices import list_devices
-from zlog.adb.packages import list_packages, resolve_pids
+from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device
 from zlog.core.history import normalize_history, push_history
@@ -359,6 +359,9 @@ class MainWindow(QMainWindow):
         buffers_menu.addSeparator()
         buffers_hint = buffers_menu.addAction("(applies on next Start)")
         buffers_hint.setEnabled(False)
+
+        clear_buf_act = view_menu.addAction("Clear device log &buffer")
+        clear_buf_act.triggered.connect(self._clear_device_buffer)
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -742,6 +745,21 @@ class MainWindow(QMainWindow):
     def _reset_zoom(self) -> None:
         self._font_delta = 0
         self._apply_font()
+
+    def _clear_device_buffer(self) -> None:
+        """Wipe the device's on-device logcat ring buffer (adb logcat -c)."""
+        serial = self._current_serial()
+        if serial is None:
+            self.statusBar().showMessage("Select a device first.")
+            return
+        ok = self._run_adb(
+            lambda: clear_logcat(serial),
+            missing_msg="adb not found.",
+            error_prefix="Could not clear the device buffer",
+            report=self.statusBar().showMessage,
+        )
+        if ok:
+            self.statusBar().showMessage(f"Cleared the device log buffer ({serial}).")
 
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:

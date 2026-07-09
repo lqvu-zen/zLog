@@ -41,3 +41,16 @@ def list_packages(serial: str | None, adb_path: str = "adb", timeout: float = 10
         timeout=timeout,
     )
     return parse_packages(proc.stdout)
+
+
+def clear_logcat(serial: str | None, adb_path: str = "adb", timeout: float = 10.0) -> bool:
+    """Clear the device's logcat ring buffer (`adb logcat -c`). Returns True on
+    success; raises CalledProcessError on a non-zero exit."""
+    subprocess.run(
+        _base(adb_path, serial) + ["logcat", "-c"],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=True,
+    )
+    return True

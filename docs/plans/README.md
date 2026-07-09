@@ -72,6 +72,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [two-bar-header.md](two-bar-header.md) | Done | Device bar over a dedicated full-width filter row |
 | [package-bar.md](package-bar.md) | Done | Restore a visible package/process selector bar |
 | [log-buffers.md](log-buffers.md) | Done | Choose adb logcat buffers (main/system/crash/radio/...) |
+| [clear-device-buffer.md](clear-device-buffer.md) | Done | View action: adb logcat -c to wipe the device buffer |
 | [level-multiselect.md](level-multiselect.md) | Done | Show only specific levels, not just a min-level floor |
 | [logcat-style-ui.md](logcat-style-ui.md) | Done | Android-Studio-style dense log view: query bar + icon rail + overflow |
 | [docs-sync-redesign.md](docs-sync-redesign.md) | Done | Sync GUIDE/README/CLAUDE/ARCHITECTURE + screenshots to the redesign |
