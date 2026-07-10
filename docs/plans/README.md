@@ -80,3 +80,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [ui-combo-selection-contrast.md](ui-combo-selection-contrast.md) | Done | Legible hover/selected text in combo-box dropdowns (both themes) |
 | [log-text-contrast.md](log-text-contrast.md) | Done | Darker metadata columns + always-visible level chip on selected rows |
 | [ring-buffer-cap.md](ring-buffer-cap.md) | Done | Cap the master list to the last N lines (bounded memory) |
+| [clear-device-button.md](clear-device-button.md) | Done | Device-bar button to wipe the device logcat buffer (adb logcat -c) |

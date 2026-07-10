@@ -262,3 +262,11 @@ def test_max_rows_setting_applies_to_model(window):
     setter = next(s for k, _, s in window._settings_specs() if k == "max_rows")
     setter(10000)
     assert window.model._max_rows == 10000
+
+
+def test_clear_device_button_no_device(window):
+    # The dedicated device-buffer button exists and, with no device selected,
+    # routes through the guarded path (status message, no crash).
+    assert hasattr(window, "clear_device_btn")
+    window.clear_device_btn.click()
+    assert "device" in window.statusBar().currentMessage().lower()

@@ -143,6 +143,8 @@ class MainWindow(QMainWindow):
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.clear_btn = QPushButton("Clear")
+        self.clear_device_btn = QPushButton("Clear device")
+        self.clear_device_btn.setToolTip("Wipe the device's logcat buffer (adb logcat -c)")
         self.follow_check = QCheckBox("Follow")
         self.follow_check.setChecked(True)
         self.to_top_btn = QPushButton("Top")
@@ -216,7 +218,7 @@ class MainWindow(QMainWindow):
             (self.refresh_btn, "\u21bb", "Refresh devices"),
             (self.start_btn, "\u25b6", "Start streaming"),
             (self.stop_btn, "\u25a0", "Stop streaming"),
-            (self.clear_btn, "\u2715", "Clear the log"),
+            (self.clear_btn, "\u2715", "Clear the log view"),
             (self.to_top_btn, "\u2912", "Scroll to the oldest line"),
             (self.to_latest_btn, "\u2913", "Scroll to the newest line"),
         ):
@@ -233,6 +235,7 @@ class MainWindow(QMainWindow):
         device_row.addWidget(self.start_btn)
         device_row.addWidget(self.stop_btn)
         device_row.addWidget(self.clear_btn)
+        device_row.addWidget(self.clear_device_btn)
         device_row.addWidget(self.follow_check)
         device_row.addSpacing(12)
         device_row.addWidget(self.to_top_btn)
@@ -406,6 +409,7 @@ class MainWindow(QMainWindow):
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
+        self.clear_device_btn.clicked.connect(self._clear_device_buffer)
         self.load_pkgs_btn.clicked.connect(self.load_packages)
         self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
         self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
