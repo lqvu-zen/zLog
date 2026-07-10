@@ -61,6 +61,20 @@ from zlog.ui.theme import THEMES, build_stylesheet
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
 
+# Preferred monospace faces for the log, first available wins (Consolas on
+# Windows, DejaVu Sans Mono on Linux); Courier New + the Monospace style hint
+# are the safe last resort. "monospace" alone falls back to a thin, hard-to-read
+# face on Windows.
+LOG_FONT_FAMILIES = [
+    "Consolas",
+    "Cascadia Mono",
+    "SF Mono",
+    "Menlo",
+    "DejaVu Sans Mono",
+    "Courier New",
+]
+BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -106,8 +120,10 @@ class MainWindow(QMainWindow):
         # Android-Studio-style dense view: one line per entry. Show only column 0
         # stretched full-width and paint the whole entry with a delegate (the model
         # stays virtualized — the delegate runs only for visible rows).
-        mono = QFont("monospace")
+        mono = QFont()
+        mono.setFamilies(LOG_FONT_FAMILIES)
         mono.setStyleHint(QFont.Monospace)
+        mono.setFixedPitch(True)
         self.table.setFont(mono)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         for col in range(1, len(COLUMNS)):
@@ -778,10 +794,7 @@ class MainWindow(QMainWindow):
 
     # --- font zoom ---------------------------------------------------------
     def _apply_font(self) -> None:
-        base = QApplication.font().pointSize()
-        if base <= 0:
-            base = 10
-        size = max(6, min(28, base + self._font_delta))
+        size = max(6, min(28, BASE_FONT_PT + self._font_delta))
         for widget in (self.table, self.detail):
             font = widget.font()
             font.setPointSize(size)
@@ -1190,10 +1203,16 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
+        # Follow is a stable manual toggle. Tail only when it is on AND the view is
+        # already at the bottom, so scrolling up to read history is never yanked by
+        # incoming logs; scrolling back to the bottom resumes tailing on its own.
+        # Capture "at bottom" before appending, since appending grows the range.
+        sb = self.table.verticalScrollBar()
+        was_at_bottom = sb.value() >= sb.maximum() - 4
         self.model.append_entries(entries)
         if self.devctl.filtering:
             self._track_new_pids(entries)
-        if self.follow_check.isChecked():
+        if self.follow_check.isChecked() and was_at_bottom:
             self.table.scrollToBottom()
 
     def _track_new_pids(self, entries) -> None:

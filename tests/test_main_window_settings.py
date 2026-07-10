@@ -330,3 +330,52 @@ def test_clear_device_button_keeps_view_on_failure(window, monkeypatch):
     window.model.append_entries([LogEntry("t", "1", "2", "I", "T", "hi")])
     window.clear_device_btn.click()
     assert window.model.rowCount() == 1  # failed clear must not wipe the view
+
+
+def test_log_font_readable(window):
+    from PySide6.QtGui import QFont
+
+    f = window.table.font()
+    assert f.styleHint() == QFont.Monospace
+    assert f.pointSize() == 11  # BASE_FONT_PT at zero zoom
+    window._zoom(2)
+    assert window.table.font().pointSize() == 13  # zoom still shifts the base
+
+
+def test_follow_stays_manual_and_never_yanks(window, qapp):
+    from zlog.core.models import LogEntry
+
+    window.resize(1100, 700)
+    window.show()
+    qapp.processEvents()
+
+    def batch(n):
+        window.on_batch(
+            [
+                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
+                for i in range(n)
+            ]
+        )
+
+    window.follow_check.setChecked(True)
+    for _ in range(20):
+        batch(50)
+    qapp.processEvents()
+    sb = window.table.verticalScrollBar()
+    assert sb.maximum() > 0 and sb.value() == sb.maximum()  # tailing at the bottom
+
+    # scroll up to read: Follow is a manual toggle, so it stays checked...
+    sb.setValue(0)
+    qapp.processEvents()
+    assert window.follow_check.isChecked() is True
+    # ...and incoming logs must NOT yank the viewport back down
+    batch(50)
+    qapp.processEvents()
+    assert sb.value() == 0
+
+    # scroll back to the bottom and tailing resumes on the next batch
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    batch(50)
+    qapp.processEvents()
+    assert sb.value() == sb.maximum()

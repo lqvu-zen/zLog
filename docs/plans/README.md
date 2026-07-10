@@ -84,3 +84,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [single-header-bar.md](single-header-bar.md) | Done | Device + package controls on one bar, split by a vertical divider |
 | [ctrl-wheel-zoom.md](ctrl-wheel-zoom.md) | Done | Ctrl+mouse-wheel zooms the log/detail text (reuses _zoom) |
 | [clear-device-clears-view.md](clear-device-clears-view.md) | Done | Clear device also empties the view so the action is visible |
+| [readable-log-font.md](readable-log-font.md) | Done | Readable monospace family chain + 11pt base for the log |
+| [smart-follow.md](smart-follow.md) | Done | Follow auto-pauses when you scroll up, resumes at the bottom |
