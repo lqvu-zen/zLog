@@ -87,3 +87,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [readable-log-font.md](readable-log-font.md) | Done | Readable monospace family chain + 11pt base for the log |
 | [smart-follow.md](smart-follow.md) | Done | Follow auto-pauses when you scroll up, resumes at the bottom |
 | [checkbox-checked-visual.md](checkbox-checked-visual.md) | Done | Checkboxes show a filled accent box when checked (native glyph was suppressed) |
+| [robust-parsing.md](robust-parsing.md) | Done | Parse threadtime/time/brief/tag formats; raw fallback for odd lines |
