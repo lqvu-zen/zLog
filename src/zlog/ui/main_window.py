@@ -15,7 +15,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QStandardPaths, QStringListModel, Qt
+from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt
 from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -409,6 +409,10 @@ class MainWindow(QMainWindow):
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
         self.clear_device_btn.clicked.connect(self._clear_device_buffer)
+        # Ctrl+wheel over the log or detail zooms (handled in eventFilter);
+        # filter the viewports, since that is where wheel events are delivered.
+        self.table.viewport().installEventFilter(self)
+        self.detail.viewport().installEventFilter(self)
         self.load_pkgs_btn.clicked.connect(self.load_packages)
         self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
         self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
@@ -761,6 +765,17 @@ class MainWindow(QMainWindow):
     def _clear_bookmarks(self) -> None:
         self.model.clear_bookmarks()
 
+    def eventFilter(self, obj, event) -> bool:
+        # Ctrl + mouse wheel zooms the text (same as Ctrl+=/-), reusing _zoom so
+        # it stays clamped and in sync across the log and detail panes. A plain
+        # wheel is left alone so normal scrolling still works.
+        if event.type() == QEvent.Wheel and event.modifiers() & Qt.ControlModifier:
+            dy = event.angleDelta().y()
+            if dy:
+                self._zoom(1 if dy > 0 else -1)
+            return True
+        return super().eventFilter(obj, event)
+
     # --- font zoom ---------------------------------------------------------
     def _apply_font(self) -> None:
         base = QApplication.font().pointSize()
@@ -795,7 +810,10 @@ class MainWindow(QMainWindow):
             report=self.statusBar().showMessage,
         )
         if ok:
-            self.statusBar().showMessage(f"Cleared the device log buffer ({serial}).")
+            # The on-device lines are gone; clear the stale view too so the button
+            # visibly does something (a live stream then refills with fresh lines).
+            self.model.clear()
+            self.statusBar().showMessage(f"Cleared the device log buffer and view ({serial}).")
 
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:

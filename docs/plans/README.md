@@ -82,3 +82,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [ring-buffer-cap.md](ring-buffer-cap.md) | Done | Cap the master list to the last N lines (bounded memory) |
 | [clear-device-button.md](clear-device-button.md) | Done | Device-bar button to wipe the device logcat buffer (adb logcat -c) |
 | [single-header-bar.md](single-header-bar.md) | Done | Device + package controls on one bar, split by a vertical divider |
+| [ctrl-wheel-zoom.md](ctrl-wheel-zoom.md) | Done | Ctrl+mouse-wheel zooms the log/detail text (reuses _zoom) |
+| [clear-device-clears-view.md](clear-device-clears-view.md) | Done | Clear device also empties the view so the action is visible |

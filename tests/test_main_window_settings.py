@@ -270,3 +270,63 @@ def test_clear_device_button_no_device(window):
     assert hasattr(window, "clear_device_btn")
     window.clear_device_btn.click()
     assert "device" in window.statusBar().currentMessage().lower()
+
+
+def _wheel(dy, ctrl):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+
+    mods = Qt.ControlModifier if ctrl else Qt.NoModifier
+    return QWheelEvent(
+        QPointF(5, 5),
+        QPointF(5, 5),
+        QPoint(0, 0),
+        QPoint(0, dy),
+        Qt.NoButton,
+        mods,
+        Qt.ScrollUpdate,
+        False,
+    )
+
+
+def test_ctrl_wheel_zooms(window):
+    before = window._font_delta
+    assert window.eventFilter(window.table.viewport(), _wheel(120, ctrl=True)) is True
+    assert window._font_delta == before + 1
+    # and down over the detail pane
+    assert window.eventFilter(window.detail.viewport(), _wheel(-120, ctrl=True)) is True
+    assert window._font_delta == before
+
+
+def test_plain_wheel_not_consumed(window):
+    before = window._font_delta
+    assert window.eventFilter(window.table.viewport(), _wheel(120, ctrl=False)) is False
+    assert window._font_delta == before
+
+
+def test_clear_device_button_clears_view(window, monkeypatch):
+    import zlog.ui.main_window as mw
+    from zlog.core.models import LogEntry
+
+    monkeypatch.setattr(mw, "clear_logcat", lambda *a, **k: True)
+    monkeypatch.setattr(window, "_current_serial", lambda: "SER123")
+    window.model.append_entries([LogEntry("t", "1", "2", "I", "T", "hi")])
+    assert window.model.rowCount() == 1
+    window.clear_device_btn.click()
+    assert window.model.rowCount() == 0  # device clear also empties the view
+
+
+def test_clear_device_button_keeps_view_on_failure(window, monkeypatch):
+    import subprocess
+
+    import zlog.ui.main_window as mw
+    from zlog.core.models import LogEntry
+
+    def boom(*a, **k):
+        raise subprocess.CalledProcessError(1, "adb")
+
+    monkeypatch.setattr(mw, "clear_logcat", boom)
+    monkeypatch.setattr(window, "_current_serial", lambda: "SER123")
+    window.model.append_entries([LogEntry("t", "1", "2", "I", "T", "hi")])
+    window.clear_device_btn.click()
+    assert window.model.rowCount() == 1  # failed clear must not wipe the view
