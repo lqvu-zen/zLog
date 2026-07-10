@@ -79,3 +79,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [docs-sync-redesign.md](docs-sync-redesign.md) | Done | Sync GUIDE/README/CLAUDE/ARCHITECTURE + screenshots to the redesign |
 | [ui-combo-selection-contrast.md](ui-combo-selection-contrast.md) | Done | Legible hover/selected text in combo-box dropdowns (both themes) |
 | [log-text-contrast.md](log-text-contrast.md) | Done | Darker metadata columns + always-visible level chip on selected rows |
+| [ring-buffer-cap.md](ring-buffer-cap.md) | Done | Cap the master list to the last N lines (bounded memory) |

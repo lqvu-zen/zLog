@@ -289,3 +289,48 @@ def test_clear_log_clears_bookmarks(qapp):
     model.toggle_bookmark(0)
     model.clear()
     assert model.bookmarked_rows() == []
+
+
+def test_max_rows_trims_to_last_n(qapp):
+    model, _ = _wire(qapp)
+    model.set_max_rows(3)
+    model.append_entries([_entry(message=str(i)) for i in range(5)])
+    assert model.rowCount() == 3
+    assert [model.entry_at(r).message for r in range(3)] == ["2", "3", "4"]
+
+
+def test_max_rows_zero_is_unlimited(qapp):
+    model, _ = _wire(qapp)
+    model.set_max_rows(0)
+    model.append_entries([_entry() for _ in range(10)])
+    assert model.rowCount() == 10
+
+
+def test_set_max_rows_trims_existing_rows(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=str(i)) for i in range(6)])
+    model.set_max_rows(2)
+    assert model.rowCount() == 2
+    assert [model.entry_at(r).message for r in range(2)] == ["4", "5"]
+
+
+def test_max_rows_decrements_counts_for_dropped(qapp):
+    model, _ = _wire(qapp)
+    model.set_max_rows(2)
+    model.append_entries(
+        [_entry(level="E"), _entry(level="E"), _entry(level="W"), _entry(level="W")]
+    )
+    counts = model.level_counts()
+    assert model.rowCount() == 2
+    assert counts.get("E") is None  # both E rows trimmed away
+    assert counts.get("W") == 2
+
+
+def test_max_rows_remaps_bookmarks(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=str(i)) for i in range(3)])
+    model.toggle_bookmark(2)  # bookmark the 3rd row (message "2")
+    model.set_max_rows(3)
+    model.append_entries([_entry(message="3"), _entry(message="4")])  # 5 rows -> drop 2
+    assert model.bookmarked_rows() == [0]  # original row 2 shifted down to 0
+    assert model.entry_at(0).message == "2"

@@ -379,6 +379,23 @@ class MainWindow(QMainWindow):
             self._tail_group.addAction(act)
             self._tail_actions[count] = act
 
+        cap_menu = view_menu.addMenu("Buffer &limit")
+        self._max_rows_group = QActionGroup(self)
+        self._max_rows_group.setExclusive(True)
+        self._max_rows_actions = {}
+        for cap, label in (
+            (0, "Unlimited"),
+            (10000, "10,000 lines"),
+            (50000, "50,000 lines"),
+            (100000, "100,000 lines"),
+        ):
+            act = cap_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(cap == 0)
+            act.triggered.connect(lambda _checked=False, n=cap: self.model.set_max_rows(n))
+            self._max_rows_group.addAction(act)
+            self._max_rows_actions[cap] = act
+
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
@@ -995,6 +1012,11 @@ class MainWindow(QMainWindow):
             count = v if v in self._tail_actions else 0
             self._tail_actions[count].setChecked(True)
 
+        def set_max_rows(v):
+            cap = v if v in self._max_rows_actions else 0
+            self._max_rows_actions[cap].setChecked(True)
+            self.model.set_max_rows(cap)
+
         def set_log_buffers(v):
             names = v if isinstance(v, list) else []
             for name, act in self._buffer_actions.items():
@@ -1088,6 +1110,11 @@ class MainWindow(QMainWindow):
                 "tail_count",
                 lambda: next((c for c, a in self._tail_actions.items() if a.isChecked()), 0),
                 set_tail_count,
+            ),
+            (
+                "max_rows",
+                lambda: next((c for c, a in self._max_rows_actions.items() if a.isChecked()), 0),
+                set_max_rows,
             ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice

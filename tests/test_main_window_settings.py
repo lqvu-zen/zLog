@@ -250,3 +250,15 @@ def test_tail_count_setting(window):
     window._tail_actions[1000].setChecked(True)
     got = next(g for k, g, _ in window._settings_specs() if k == "tail_count")()
     assert got == 1000
+
+
+def test_max_rows_setting_applies_to_model(window):
+    window._max_rows_actions[50000].setChecked(True)
+    keys = {k for k, _, _ in window._settings_specs()}
+    assert "max_rows" in keys
+    got = next(g for k, g, _ in window._settings_specs() if k == "max_rows")()
+    assert got == 50000
+    # the restore path also pushes the cap into the model
+    setter = next(s for k, _, s in window._settings_specs() if k == "max_rows")
+    setter(10000)
+    assert window.model._max_rows == 10000

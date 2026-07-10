@@ -48,6 +48,7 @@ class LogTableModel(QAbstractTableModel):
         self._baseline = None  # datetime of the first parseable row (since_start ref)
         self._bookmarks: set[int] = set()  # bookmarked source-row indices
         self._bookmark_color = QColor(LIGHT.bookmark)
+        self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -120,6 +121,36 @@ class LogTableModel(QAbstractTableModel):
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
         self.endInsertRows()
+        self._enforce_cap()
+
+    def set_max_rows(self, n: int) -> None:
+        """Cap the master list to the last `n` entries (0 = unlimited). Applying a
+        tighter cap trims immediately; a looser/zero one just changes future appends."""
+        self._max_rows = max(0, int(n))
+        self._enforce_cap()
+
+    def _enforce_cap(self) -> None:
+        """Drop the oldest rows past the cap, keeping counts/bookmarks consistent.
+
+        Uses beginRemoveRows (not a reset) so the view stays virtualized. Bookmarks
+        are source-row indices, so they shift down by the number dropped; any that
+        referred to a trimmed row are discarded.
+        """
+        if self._max_rows <= 0:
+            return
+        overflow = len(self._rows) - self._max_rows
+        if overflow <= 0:
+            return
+        self.beginRemoveRows(QModelIndex(), 0, overflow - 1)
+        dropped = self._rows[:overflow]
+        del self._rows[:overflow]
+        for entry in dropped:
+            self._level_counts[entry.level] -= 1
+            if self._level_counts[entry.level] <= 0:
+                del self._level_counts[entry.level]
+        if self._bookmarks:
+            self._bookmarks = {i - overflow for i in self._bookmarks if i >= overflow}
+        self.endRemoveRows()
 
     def clear(self) -> None:
         self.beginResetModel()
