@@ -184,7 +184,13 @@ def test_query_bar_drives_filters(window):
     )
     window.query.setText("level:E tag:Activity boom")
     assert window.proxy.rowCount() == 1  # E + tag Activity + "boom"
+    # Clearing the query text drops tag/search, but level:E moved the visible Level
+    # dropdown to E and that floor persists (the dropdown owns it now).
     window.query.clear()
+    assert window.level_box.currentData() == "E"
+    assert window.proxy.rowCount() == 2  # both E rows
+    # Clear Filters is the full reset, including the level floor.
+    window.clear_filters()
     assert window.proxy.rowCount() == 3
 
 
@@ -379,3 +385,32 @@ def test_follow_stays_manual_and_never_yanks(window, qapp):
     batch(50)
     qapp.processEvents()
     assert sb.value() == sb.maximum()
+
+
+def test_min_level_dropdown_floors_and_survives_query(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "2", "V", "T", "verbose"),
+            LogEntry("t", "1", "2", "E", "T", "error"),
+        ]
+    )
+    # pick E via the visible dropdown -> only E and above show
+    window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    assert window.proxy.rowCount() == 1
+
+    # a non-level query must NOT reset the floor back to V
+    window.query.setText("error")
+    assert window.level_box.currentData() == "E"
+    assert window.proxy.rowCount() == 1
+
+    # a level: token still drives the dropdown
+    window.query.setText("level:V")
+    assert window.level_box.currentData() == "V"
+
+    # Clear Filters returns the floor to V and shows everything
+    window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    window.clear_filters()
+    assert window.level_box.currentData() == "V"
+    assert window.proxy.rowCount() == 2

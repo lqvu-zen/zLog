@@ -60,6 +60,7 @@ from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
+LEVEL_NAMES = {"V": "Verbose", "D": "Debug", "I": "Info", "W": "Warn", "E": "Error", "F": "Fatal"}
 
 # Preferred monospace faces for the log, first available wins (Consolas on
 # Windows, DejaVu Sans Mono on Linux); Courier New + the Monospace style hint
@@ -180,7 +181,10 @@ class MainWindow(QMainWindow):
 
         self.level_box = QComboBox()
         for letter in LEVELS:
-            self.level_box.addItem(letter, letter)
+            self.level_box.addItem(LEVEL_NAMES[letter], letter)  # text = name, data = letter
+        self.level_box.setToolTip(
+            "Minimum log level (V \u2264 D \u2264 I \u2264 W \u2264 E \u2264 F)"
+        )
 
         self.search = QLineEdit()
         self.search.setPlaceholderText("Filter by tag or message…")
@@ -265,6 +269,11 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.load_pkgs_btn)
         top_row.addWidget(self.apply_pkg_btn)
         top_row.addWidget(self.clear_pkg_btn)
+        top_row.addSpacing(12)
+        top_row.addWidget(self._vsep())
+        top_row.addSpacing(12)
+        top_row.addWidget(QLabel("Level:"))
+        top_row.addWidget(self.level_box)
         top_row.addStretch(1)
 
         # Filter bar: the query box on its own full-width row.
@@ -575,7 +584,10 @@ class MainWindow(QMainWindow):
 
     def clear_filters(self) -> None:
         """Reset every filter to 'show everything' without touching the log."""
-        self.query.clear()  # fires _apply_query -> resets level/tag/search/exclude/pkg
+        idx = self.level_box.findData("V")
+        if idx >= 0:
+            self.level_box.setCurrentIndex(idx)  # min level back to V (show all)
+        self.query.clear()  # fires _apply_query -> resets tag/search/exclude/pkg
         self.statusBar().showMessage("Filters cleared.")
 
     # --- filter presets ----------------------------------------------------
@@ -668,9 +680,13 @@ class MainWindow(QMainWindow):
             self.proxy.set_levels(set(spec.levels))  # exact level set
         else:
             self.proxy.set_levels(None)
-            idx = self.level_box.findData(spec.level or "V")
-            if idx >= 0:
-                self.level_box.setCurrentIndex(idx)  # -> proxy.set_min_level
+            if spec.level:
+                idx = self.level_box.findData(spec.level)
+                if idx >= 0:
+                    self.level_box.setCurrentIndex(idx)  # query level: drives the dropdown
+            else:
+                # No level: token — the visible Level dropdown is the floor source.
+                self.proxy.set_min_level(self.level_box.currentData())
         self.proxy.set_tag(spec.tag)
         ex_pat = "|".join(re.escape(t) for t in spec.excludes)
         ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)

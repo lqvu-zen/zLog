@@ -88,3 +88,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [smart-follow.md](smart-follow.md) | Done | Follow auto-pauses when you scroll up, resumes at the bottom |
 | [checkbox-checked-visual.md](checkbox-checked-visual.md) | Done | Checkboxes show a filled accent box when checked (native glyph was suppressed) |
 | [robust-parsing.md](robust-parsing.md) | Done | Parse threadtime/time/brief/tag formats; raw fallback for odd lines |
+| [min-level-selector.md](min-level-selector.md) | Done | Visible min-level dropdown on the filter row (coexists with query level:) |
