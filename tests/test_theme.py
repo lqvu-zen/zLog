@@ -62,3 +62,13 @@ def test_level_text_colors():
         for level in ("V", "D", "I", "W", "E", "F"):
             c = theme.level_text[level]
             assert c.startswith("#") and len(c) == 7
+
+
+def test_checkbox_indicator_has_checked_state():
+    # Styling the indicator border replaces Qt's native check glyph, so the
+    # checked state must be styled explicitly or on/off look identical.
+    for theme in THEMES.values():
+        qss = build_stylesheet(theme)
+        assert "QCheckBox::indicator" in qss
+        assert "QCheckBox::indicator:checked" in qss
+        assert theme.selection_bg in qss  # checked fill uses the accent

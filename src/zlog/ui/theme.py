@@ -132,7 +132,12 @@ def build_stylesheet(theme: Theme) -> str:
         f"QPushButton:disabled {{ color: {theme.muted}; }}\n"
         f"QMenuBar, QMenu {{ background-color: {theme.window}; color: {theme.text}; }}\n"
         f"QStatusBar {{ color: {theme.text}; }}\n"
-        # The native unchecked-indicator border is too faint against a dark
-        # chrome background to scan at a glance; give it explicit contrast.
-        f"QCheckBox::indicator {{ border: 1px solid {theme.muted}; }}\n"
+        # Styling the indicator's border replaces Qt's native check glyph, so the
+        # checked state needs its own look or on/off render as the same empty box.
+        # Give unchecked a visible bordered box and fill checked with the selection
+        # accent so it's unmistakably on.
+        f"QCheckBox::indicator {{ width: 14px; height: 14px; border-radius: 3px;\n"
+        f"    border: 1px solid {theme.muted}; background-color: {theme.base}; }}\n"
+        f"QCheckBox::indicator:checked {{ background-color: {theme.selection_bg};\n"
+        f"    border-color: {theme.selection_bg}; }}\n"
     )
