@@ -41,3 +41,25 @@ def test_empty_exports_are_valid():
     assert to_csv([]).strip() == ",".join(FIELDS)  # header only
     assert json.loads(to_json([])) == []
     assert "<table>" in to_html([])
+
+
+def test_markdown_table_and_pipe_escape():
+    from zlog.core.export import to_markdown
+
+    entries = [LogEntry("t", "1", "2", "I", "Tag", "a | b\nc")]
+    md = to_markdown(entries).splitlines()
+    assert md[0] == "| time | pid | tid | level | tag | message |"
+    assert set(md[1]) <= set("|-")  # separator row
+    # pipe escaped, newline flattened so the table stays intact
+    assert md[2].endswith(r"a \| b c |")
+
+
+def test_messages_only():
+    from zlog.core.export import to_messages
+
+    entries = [
+        LogEntry("t", "1", "2", "I", "T", "first"),
+        LogEntry("t", "1", "2", "E", "T", "second"),
+    ]
+    assert to_messages(entries) == "first\nsecond\n"
+    assert to_messages([]) == ""

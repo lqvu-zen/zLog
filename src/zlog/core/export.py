@@ -56,3 +56,26 @@ def to_html(entries: list[LogEntry]) -> str:
         cells = "".join(f"<td>{html.escape(v)}</td>" for v in _row(entry))
         body.append(f'<tr class="lvl-{html.escape(entry.level)}">{cells}</tr>')
     return head + header + "\n".join(body) + "\n</table>\n</body>\n</html>\n"
+
+
+def to_markdown(entries: list[LogEntry]) -> str:
+    """A GitHub-flavored Markdown table. Pipes are escaped and newlines flattened
+    so a log message can't break the table."""
+
+    def cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    lines = [
+        "| " + " | ".join(FIELDS) + " |",
+        "|" + "|".join(["---"] * len(FIELDS)) + "|",
+    ]
+    for entry in entries:
+        lines.append("| " + " | ".join(cell(v) for v in _row(entry)) + " |")
+    return "\n".join(lines) + "\n"
+
+
+def to_messages(entries: list[LogEntry]) -> str:
+    """Just the message text of each entry, one per line."""
+    if not entries:
+        return ""
+    return "\n".join(entry.message for entry in entries) + "\n"

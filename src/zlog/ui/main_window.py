@@ -45,7 +45,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device, is_serial_streamable
-from zlog.core.export import to_csv, to_html, to_json
+from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
@@ -923,9 +923,27 @@ class MainWindow(QMainWindow):
         n = text.count("\n")
         self.statusBar().showMessage(f"Copied {n} line{'s' if n != 1 else ''}.")
 
+    def _copy_markdown(self) -> None:
+        entries = self._selected_entries()
+        if not entries:
+            return
+        QApplication.clipboard().setText(to_markdown(entries))
+        self.statusBar().showMessage(f"Copied {len(entries)} line(s) as Markdown.")
+
+    def _copy_messages(self) -> None:
+        entries = self._selected_entries()
+        if not entries:
+            return
+        QApplication.clipboard().setText(to_messages(entries))
+        self.statusBar().showMessage(f"Copied {len(entries)} message(s).")
+
     def _show_table_menu(self, pos) -> None:
         menu = QMenu(self.table)
         menu.addAction(self.copy_action)
+        copy_md = menu.addAction("Copy as Markdown")
+        copy_md.triggered.connect(self._copy_markdown)
+        copy_msg = menu.addAction("Copy message only")
+        copy_msg.triggered.connect(self._copy_messages)
         menu.addAction(self.select_all_action)
         menu.addAction(self.bookmark_action)
         menu.addSeparator()
