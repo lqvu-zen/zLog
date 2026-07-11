@@ -92,6 +92,7 @@ class MainWindow(QMainWindow):
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._query_package = ""  # last package resolved from the query bar
         self._history: list[str] = []  # recent query-bar entries
+        self._recent: list[str] = []  # recently opened/saved .log paths
         self._paused = False  # Pause freezes the view; new lines buffer until Resume
         self._pause_buffer: list[LogEntry] = []
         self._want_stream = False  # user intends to be streaming (drives auto-reconnect)
@@ -316,6 +317,8 @@ class MainWindow(QMainWindow):
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
         open_act.triggered.connect(self.open_log)
+        self._recent_menu = file_menu.addMenu("Open &Recent")
+        self._rebuild_recent_menu()
         save_act = file_menu.addAction("&Save Log…")
         save_act.setShortcut("Ctrl+S")
         save_act.triggered.connect(self.save_log)
@@ -1006,6 +1009,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Could not save: {exc}")
             return
         self.statusBar().showMessage(f"Saved {len(entries)} lines to {Path(path).name}.")
+        self._remember_recent(path)
 
     def save_log(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -1036,13 +1040,17 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Log", "", "Log files (*.log);;All files (*)"
         )
-        if not path:
-            return
+        if path:
+            self._load_log_file(path)
+
+    def _load_log_file(self, path: str) -> None:
+        """Load a saved log into the offline view; used by Open and Open Recent."""
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
         except OSError as exc:
             self.statusBar().showMessage(f"Could not open: {exc}")
+            self._forget_recent(path)  # gone/moved -> drop it from the list
             return
         # Opening is an offline view: stop any live stream and drop the
         # device-specific package (PID) filter, which no longer applies.
@@ -1053,6 +1061,37 @@ class MainWindow(QMainWindow):
         self.model.clear()
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
+        self._remember_recent(path)
+
+    # --- recent files ------------------------------------------------------
+    def _remember_recent(self, path: str) -> None:
+        self._recent = push_history(self._recent, path, limit=10)
+        self._rebuild_recent_menu()
+        self._save_settings()
+
+    def _forget_recent(self, path: str) -> None:
+        if path in self._recent:
+            self._recent = [p for p in self._recent if p != path]
+            self._rebuild_recent_menu()
+            self._save_settings()
+
+    def _clear_recent(self) -> None:
+        self._recent = []
+        self._rebuild_recent_menu()
+        self._save_settings()
+
+    def _rebuild_recent_menu(self) -> None:
+        self._recent_menu.clear()
+        if not self._recent:
+            act = self._recent_menu.addAction("(none)")
+            act.setEnabled(False)
+            return
+        for path in self._recent:
+            act = self._recent_menu.addAction(Path(path).name)
+            act.setToolTip(path)
+            act.triggered.connect(lambda _checked=False, p=path: self._load_log_file(p))
+        self._recent_menu.addSeparator()
+        self._recent_menu.addAction("Clear Recent").triggered.connect(self._clear_recent)
 
     # --- status counts -----------------------------------------------------
     def _update_counts(self, *args) -> None:
@@ -1136,6 +1175,10 @@ class MainWindow(QMainWindow):
             self._history = normalize_history(v)
             self._history_model.setStringList(self._history)
 
+        def set_recent(v):
+            self._recent = normalize_history(v, limit=10)
+            self._rebuild_recent_menu()
+
         def set_font_delta(v):
             delta = v if isinstance(v, int) else 0
             self._font_delta = max(-4, min(12, delta))
@@ -1211,6 +1254,7 @@ class MainWindow(QMainWindow):
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
             ("search_history", lambda: self._history, set_search_history),
+            ("recent_files", lambda: self._recent, set_recent),
             (
                 "log_buffers",
                 lambda: [n for n, a in self._buffer_actions.items() if a.isChecked()],

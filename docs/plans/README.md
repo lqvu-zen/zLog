@@ -93,3 +93,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [auto-reconnect.md](auto-reconnect.md) | Done | Resume the stream after a device drop, from the last timestamp (no re-dump) |
 | [export-formats.md](export-formats.md) | Done | File → Export the visible log to CSV / JSON / HTML |
 | [copy-variants.md](copy-variants.md) | Done | Right-click: Copy as Markdown / Copy message only |
+| [open-recent.md](open-recent.md) | Done | File → Open Recent list of recently opened/saved logs (persisted) |

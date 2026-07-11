@@ -476,3 +476,21 @@ def test_stream_ended_ignored_after_user_stop(window):
     window._want_stream = False
     window._on_stream_ended()  # user stopped: must not start reconnect polling
     assert window._reconnect_timer.isActive() is False
+
+
+def test_open_recent_tracks_and_dedups(window, tmp_path):
+    f = tmp_path / "cap.log"
+    f.write_text("06-30 12:00:00.000 1 2 I Tag: hi\n", encoding="utf-8")
+    window._load_log_file(str(f))
+    assert window.model.rowCount() == 1
+    assert window._recent[0] == str(f)
+    # reopening moves it to the front without duplicating
+    window._load_log_file(str(f))
+    assert window._recent.count(str(f)) == 1
+
+
+def test_open_missing_recent_is_forgotten(window, tmp_path):
+    missing = str(tmp_path / "gone.log")
+    window._recent = [missing]
+    window._load_log_file(missing)  # OSError -> drop it
+    assert missing not in window._recent
