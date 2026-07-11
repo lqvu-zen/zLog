@@ -45,6 +45,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
 from zlog.core.devices import Device, is_serial_streamable
+from zlog.core.export import to_csv, to_html, to_json
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
@@ -320,6 +321,17 @@ class MainWindow(QMainWindow):
         save_act.triggered.connect(self.save_log)
         save_filtered_act = file_menu.addAction("Save &Filtered Log…")
         save_filtered_act.triggered.connect(self.save_filtered_log)
+
+        export_menu = file_menu.addMenu("&Export")
+        for name, fmt, ext in (
+            ("CSV", to_csv, "csv"),
+            ("JSON", to_json, "json"),
+            ("HTML", to_html, "html"),
+        ):
+            act = export_menu.addAction(f"{name}…")
+            act.triggered.connect(
+                lambda _checked=False, n=name, f=fmt, e=ext: self._export(n, f, e)
+            )
 
         view_menu = self.menuBar().addMenu("&View")
         theme_menu = view_menu.addMenu("&Theme")
@@ -984,6 +996,23 @@ class MainWindow(QMainWindow):
     def save_filtered_log(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
         self._write_log(self._filtered_entries(), f"zlog-{stamp}-filtered.log")
+
+    def _export(self, name, formatter, ext) -> None:
+        """Save the currently-visible entries via `formatter` (CSV/JSON/HTML)."""
+        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export {name}", f"zlog-{stamp}.{ext}", f"{name} (*.{ext});;All files (*)"
+        )
+        if not path:
+            return
+        entries = self._filtered_entries()
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(formatter(entries))
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not export: {exc}")
+            return
+        self.statusBar().showMessage(f"Exported {len(entries)} lines to {Path(path).name}.")
 
     def open_log(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

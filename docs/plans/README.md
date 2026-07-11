@@ -91,3 +91,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [min-level-selector.md](min-level-selector.md) | Done | Visible min-level dropdown on the filter row (coexists with query level:) |
 | [pause-resume.md](pause-resume.md) | Done | Pause freezes the view (adb keeps running); Resume flushes buffered lines |
 | [auto-reconnect.md](auto-reconnect.md) | Done | Resume the stream after a device drop, from the last timestamp (no re-dump) |
+| [export-formats.md](export-formats.md) | Done | File → Export the visible log to CSV / JSON / HTML |
