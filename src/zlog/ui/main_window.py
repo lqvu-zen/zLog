@@ -91,6 +91,8 @@ class MainWindow(QMainWindow):
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._query_package = ""  # last package resolved from the query bar
         self._history: list[str] = []  # recent query-bar entries
+        self._paused = False  # Pause freezes the view; new lines buffer until Resume
+        self._pause_buffer: list[LogEntry] = []
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -159,6 +161,9 @@ class MainWindow(QMainWindow):
         self.refresh_btn = QPushButton("Refresh")
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
+        self.pause_btn = QPushButton("Pause")
+        self.pause_btn.setToolTip("Pause the view (keep capturing; new lines buffer until Resume)")
+        self.pause_btn.setEnabled(False)
         self.clear_btn = QPushButton("Clear")
         self.clear_device_btn = QPushButton("Clear device")
         self.clear_device_btn.setToolTip("Wipe the device's logcat buffer (adb logcat -c)")
@@ -255,6 +260,7 @@ class MainWindow(QMainWindow):
         top_row.addSpacing(12)
         top_row.addWidget(self.start_btn)
         top_row.addWidget(self.stop_btn)
+        top_row.addWidget(self.pause_btn)
         top_row.addWidget(self.clear_btn)
         top_row.addWidget(self.clear_device_btn)
         top_row.addWidget(self.follow_check)
@@ -434,6 +440,7 @@ class MainWindow(QMainWindow):
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
         self.clear_device_btn.clicked.connect(self._clear_device_buffer)
+        self.pause_btn.clicked.connect(self._toggle_pause)
         # Ctrl+wheel over the log or detail zooms (handled in eventFilter);
         # filter the viewports, since that is where wheel events are delivered.
         self.table.viewport().installEventFilter(self)
@@ -1205,6 +1212,10 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
+        self.pause_btn.setEnabled(True)
+        self.pause_btn.setText("Pause")
+        self._paused = False
+        self._pause_buffer = []
         self._update_package_enabled()
         self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
@@ -1215,10 +1226,19 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(True)
         self.device_box.setEnabled(bool(self.devctl.devices))
         self.stop_btn.setEnabled(False)
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setText("Pause")
+        self._paused = False
+        self._pause_buffer = []
         self._update_start_enabled()
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
+        if self._paused:
+            # Keep capturing but hold new lines back until Resume flushes them.
+            self._pause_buffer.extend(entries)
+            self.statusBar().showMessage(f"Paused — {len(self._pause_buffer)} line(s) buffered.")
+            return
         # Follow is a stable manual toggle. Tail only when it is on AND the view is
         # already at the bottom, so scrolling up to read history is never yanked by
         # incoming logs; scrolling back to the bottom resumes tailing on its own.
@@ -1230,6 +1250,19 @@ class MainWindow(QMainWindow):
             self._track_new_pids(entries)
         if self.follow_check.isChecked() and was_at_bottom:
             self.table.scrollToBottom()
+
+    def _toggle_pause(self) -> None:
+        self._paused = not self._paused
+        if self._paused:
+            self.pause_btn.setText("Resume")
+            self.statusBar().showMessage("Paused — capturing continues; new lines buffer.")
+        else:
+            buffered = self._pause_buffer
+            self._pause_buffer = []
+            self.pause_btn.setText("Pause")
+            if buffered:
+                self.on_batch(buffered)  # flush in arrival order now that we are live
+            self.statusBar().showMessage("Resumed.")
 
     def _track_new_pids(self, entries) -> None:
         """Keep an active package filter live: add PIDs of newly started

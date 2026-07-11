@@ -414,3 +414,24 @@ def test_min_level_dropdown_floors_and_survives_query(window):
     window.clear_filters()
     assert window.level_box.currentData() == "V"
     assert window.proxy.rowCount() == 2
+
+
+def test_pause_buffers_then_resume_flushes(window):
+    from zlog.core.models import LogEntry
+
+    def rows(n):
+        return [LogEntry("t", "1", "2", "I", "T", f"l{i}") for i in range(n)]
+
+    window._paused = True
+    window.on_batch(rows(3))
+    assert window.model.rowCount() == 0  # nothing shown while paused
+    assert len(window._pause_buffer) == 3
+
+    window._toggle_pause()  # resume
+    assert window._paused is False
+    assert window._pause_buffer == []
+    assert window.model.rowCount() == 3  # buffered lines flushed in
+
+    # after resume, live batches append normally again
+    window.on_batch(rows(2))
+    assert window.model.rowCount() == 5
