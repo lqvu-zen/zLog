@@ -15,7 +15,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt
+from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -44,7 +44,7 @@ from PySide6.QtWidgets import (
 from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
-from zlog.core.devices import Device
+from zlog.core.devices import Device, is_serial_streamable
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
@@ -93,6 +93,12 @@ class MainWindow(QMainWindow):
         self._history: list[str] = []  # recent query-bar entries
         self._paused = False  # Pause freezes the view; new lines buffer until Resume
         self._pause_buffer: list[LogEntry] = []
+        self._want_stream = False  # user intends to be streaming (drives auto-reconnect)
+        self._reconnect_serial: str | None = None  # device to poll for after a drop
+        self._last_time = ""  # last log timestamp seen (resume point on reconnect)
+        self._reconnect_timer = QTimer(self)
+        self._reconnect_timer.setInterval(2000)
+        self._reconnect_timer.timeout.connect(self._try_reconnect)
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -1200,12 +1206,20 @@ class MainWindow(QMainWindow):
             return
         if self.clear_on_start_action.isChecked():
             self.model.clear()
-        serial = self.device_box.currentData()
+        self._want_stream = True
+        self._last_time = ""
+        self._reconnect_serial = self.device_box.currentData()
+        self._start_reader(self._reconnect_serial)
+
+    def _start_reader(self, serial, since_time=None) -> None:
         buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
         tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
-        self.reader = AdbReader(serial=serial, buffers=buffers or None, tail=tail)
+        self.reader = AdbReader(
+            serial=serial, buffers=buffers or None, tail=tail, since_time=since_time
+        )
         self.reader.batch_ready.connect(self.on_batch)
         self.reader.error.connect(self.on_error)
+        self.reader.stream_ended.connect(self._on_stream_ended)
         self.reader.start()
         # Lock device selection while streaming; switching needs Stop first.
         self.device_box.setEnabled(False)
@@ -1220,6 +1234,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
     def stop(self) -> None:
+        self._want_stream = False
+        self._reconnect_timer.stop()
         if self.reader:
             self.reader.stop()
             self.reader = None
@@ -1234,6 +1250,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
+        for entry in reversed(entries):
+            if entry.time:  # remember the newest real timestamp for reconnect resume
+                self._last_time = entry.time
+                break
         if self._paused:
             # Keep capturing but hold new lines back until Resume flushes them.
             self._pause_buffer.extend(entries)
@@ -1263,6 +1283,28 @@ class MainWindow(QMainWindow):
             if buffered:
                 self.on_batch(buffered)  # flush in arrival order now that we are live
             self.statusBar().showMessage("Resumed.")
+
+    def _on_stream_ended(self) -> None:
+        # The reader ended without a user Stop -> the device dropped. Poll for it to
+        # come back and resume from the last timestamp (auto-reconnect).
+        if not self._want_stream:
+            return
+        self.reader = None
+        self.statusBar().showMessage("Device disconnected — waiting to reconnect…")
+        self._reconnect_timer.start()
+
+    def _try_reconnect(self) -> None:
+        if not self._want_stream:
+            self._reconnect_timer.stop()
+            return
+        try:
+            devices = list_devices()
+        except Exception:
+            return  # adb hiccup; keep polling
+        if is_serial_streamable(devices, self._reconnect_serial):
+            self._reconnect_timer.stop()
+            self.statusBar().showMessage("Device back — reconnecting…")
+            self._start_reader(self._reconnect_serial, since_time=self._last_time or None)
 
     def _track_new_pids(self, entries) -> None:
         """Keep an active package filter live: add PIDs of newly started

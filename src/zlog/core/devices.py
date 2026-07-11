@@ -57,3 +57,12 @@ def choose_device_index(devices: list[Device], preferred_serial: str | None) -> 
             if dev.serial == preferred_serial:
                 return i
     return first
+
+
+def is_serial_streamable(devices: list[Device], serial: str | None) -> bool:
+    """True if we can (re)start a stream for `serial`. A falsy serial means the
+    single default device, so any streamable device qualifies; otherwise the named
+    serial must be present and online. Used by auto-reconnect to poll for return."""
+    if not serial:
+        return any(dev.streamable for dev in devices)
+    return any(dev.serial == serial and dev.streamable for dev in devices)

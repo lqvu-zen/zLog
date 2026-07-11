@@ -90,3 +90,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [robust-parsing.md](robust-parsing.md) | Done | Parse threadtime/time/brief/tag formats; raw fallback for odd lines |
 | [min-level-selector.md](min-level-selector.md) | Done | Visible min-level dropdown on the filter row (coexists with query level:) |
 | [pause-resume.md](pause-resume.md) | Done | Pause freezes the view (adb keeps running); Resume flushes buffered lines |
+| [auto-reconnect.md](auto-reconnect.md) | Done | Resume the stream after a device drop, from the last timestamp (no re-dump) |

@@ -435,3 +435,44 @@ def test_pause_buffers_then_resume_flushes(window):
     # after resume, live batches append normally again
     window.on_batch(rows(2))
     assert window.model.rowCount() == 5
+
+
+def test_last_time_tracked_and_reconnect_resumes(window, monkeypatch):
+    import zlog.ui.main_window as mw
+    from zlog.core.devices import Device
+    from zlog.core.models import LogEntry
+
+    # on_batch remembers the newest real timestamp
+    window.on_batch([LogEntry("06-30 12:00:00.000", "1", "2", "I", "T", "a")])
+    window.on_batch([LogEntry("06-30 12:00:05.500", "1", "2", "I", "T", "b")])
+    assert window._last_time == "06-30 12:00:05.500"
+
+    # simulate a live session whose device dropped
+    window._want_stream = True
+    window._reconnect_serial = "SER1"
+    calls = []
+    monkeypatch.setattr(window, "_start_reader", lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(mw, "list_devices", lambda *a, **k: [Device("SER1", "device")])
+
+    window._try_reconnect()
+    assert window._reconnect_timer.isActive() is False  # stopped once reconnected
+    assert calls and calls[0][1].get("since_time") == "06-30 12:00:05.500"
+
+
+def test_reconnect_waits_while_device_absent(window, monkeypatch):
+    import zlog.ui.main_window as mw
+    from zlog.core.devices import Device
+
+    window._want_stream = True
+    window._reconnect_serial = "SER1"
+    called = []
+    monkeypatch.setattr(window, "_start_reader", lambda *a, **k: called.append(1))
+    monkeypatch.setattr(mw, "list_devices", lambda *a, **k: [Device("OTHER", "device")])
+    window._try_reconnect()
+    assert called == []  # target not back yet -> keep waiting, no restart
+
+
+def test_stream_ended_ignored_after_user_stop(window):
+    window._want_stream = False
+    window._on_stream_ended()  # user stopped: must not start reconnect polling
+    assert window._reconnect_timer.isActive() is False

@@ -51,3 +51,15 @@ def test_buffers_and_tail():
         "-T",
         "100",
     ]
+
+
+def test_since_time_maps_to_dash_T():
+    cmd = build_logcat_command("adb", None, since_time="06-30 12:34:56.789")
+    assert "-T" in cmd and cmd[cmd.index("-T") + 1] == "06-30 12:34:56.789"
+
+
+def test_since_time_wins_over_tail():
+    cmd = build_logcat_command("adb", None, tail=500, since_time="06-30 12:00:00.000")
+    # only the timestamp form is present, not the count
+    assert cmd.count("-T") == 1
+    assert cmd[cmd.index("-T") + 1] == "06-30 12:00:00.000"

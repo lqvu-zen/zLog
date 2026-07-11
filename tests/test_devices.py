@@ -49,3 +49,14 @@ def test_choose_device_index():
     assert choose_device_index(devs, "BBB") == 1  # remembered
     assert choose_device_index(devs, "ZZZ") == 0  # absent -> first streamable
     assert choose_device_index([Device("CCC", "offline")], None) == -1
+
+
+def test_is_serial_streamable():
+    from zlog.core.devices import Device, is_serial_streamable
+
+    devs = [Device("AAA", "device"), Device("BBB", "unauthorized")]
+    assert is_serial_streamable(devs, "AAA") is True
+    assert is_serial_streamable(devs, "BBB") is False  # present but not online
+    assert is_serial_streamable(devs, "ZZZ") is False  # absent
+    assert is_serial_streamable(devs, None) is True  # any online device (default)
+    assert is_serial_streamable([Device("BBB", "offline")], None) is False

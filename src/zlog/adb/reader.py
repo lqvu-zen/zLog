@@ -24,8 +24,13 @@ _BATCH_SIZE = 50
 _VALID_BUFFERS = ("main", "system", "crash", "radio", "events", "kernel")
 
 
-def build_logcat_command(adb_path, serial, buffers=None, tail=0):
-    """Build the `adb logcat` argv. Pure (no Qt), so it's unit-testable."""
+def build_logcat_command(adb_path, serial, buffers=None, tail=0, since_time=None):
+    """Build the `adb logcat` argv. Pure (no Qt), so it's unit-testable.
+
+    `since_time` (a logcat timestamp like "06-30 12:34:56.789") wins over `tail`
+    and maps to `-T <time>` — used on auto-reconnect to resume near where the
+    stream dropped instead of re-dumping the whole on-device buffer.
+    """
     cmd = [adb_path]
     if serial:
         cmd += ["-s", serial]
@@ -33,7 +38,9 @@ def build_logcat_command(adb_path, serial, buffers=None, tail=0):
     for buf in buffers or []:
         if buf in _VALID_BUFFERS:
             cmd += ["-b", buf]
-    if tail and tail > 0:
+    if since_time:
+        cmd += ["-T", since_time]  # print from this timestamp onward, then follow
+    elif tail and tail > 0:
         cmd += ["-T", str(int(tail))]  # print the last N lines, then keep following
     return cmd
 
@@ -41,6 +48,7 @@ def build_logcat_command(adb_path, serial, buffers=None, tail=0):
 class AdbReader(QThread):
     batch_ready = Signal(list)  # list[LogEntry]
     error = Signal(str)
+    stream_ended = Signal()  # the process ended on its own (device drop), not stop()
 
     def __init__(
         self,
@@ -48,6 +56,7 @@ class AdbReader(QThread):
         adb_path: str = "adb",
         buffers: list[str] | None = None,
         tail: int = 0,
+        since_time: str | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -57,11 +66,14 @@ class AdbReader(QThread):
         self.adb_path = adb_path
         self.buffers = buffers
         self.tail = tail
+        self.since_time = since_time
         self._proc: subprocess.Popen | None = None
         self._running = False
 
     def _command(self) -> list[str]:
-        return build_logcat_command(self.adb_path, self.serial, self.buffers, self.tail)
+        return build_logcat_command(
+            self.adb_path, self.serial, self.buffers, self.tail, self.since_time
+        )
 
     def run(self) -> None:
         """Runs on the background thread once start() is called."""
@@ -103,6 +115,10 @@ class AdbReader(QThread):
             return
         if batch:
             self.batch_ready.emit(batch)
+        if self._running:
+            # We didn't call stop(), yet the process ended — the device dropped
+            # (unplugged / adb died). Tell the UI so it can try to reconnect.
+            self.stream_ended.emit()
 
     def stop(self) -> None:
         """Called from the UI thread to end streaming."""
