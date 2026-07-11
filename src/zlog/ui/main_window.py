@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self.refresh_devices()
         self._load_and_apply_settings()
         self._update_placeholder()
+        self._maybe_reopen_last()
 
     # --- construction (called once, in order, from __init__) ---------------
     def _build_widgets(self) -> None:
@@ -355,6 +356,9 @@ class MainWindow(QMainWindow):
         self.clear_on_start_action = view_menu.addAction("Clear on &Start")
         self.clear_on_start_action.setCheckable(True)
         self.clear_on_start_action.setChecked(False)
+        self.reopen_last_action = view_menu.addAction("Reopen &Last Log on Launch")
+        self.reopen_last_action.setCheckable(True)
+        self.reopen_last_action.setChecked(False)
 
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
@@ -1036,6 +1040,12 @@ class MainWindow(QMainWindow):
             return
         self.statusBar().showMessage(f"Exported {len(entries)} lines to {Path(path).name}.")
 
+    def _maybe_reopen_last(self) -> None:
+        """On launch, reopen the most-recent log if the user opted in (and no live
+        stream is running)."""
+        if self.reopen_last_action.isChecked() and self._recent and self.reader is None:
+            self._load_log_file(self._recent[0])
+
     def open_log(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Log", "", "Log files (*.log);;All files (*)"
@@ -1237,6 +1247,11 @@ class MainWindow(QMainWindow):
                 "clear_on_start",
                 self.clear_on_start_action.isChecked,
                 lambda v: self.clear_on_start_action.setChecked(bool(v)),
+            ),
+            (
+                "reopen_last",
+                self.reopen_last_action.isChecked,
+                lambda v: self.reopen_last_action.setChecked(bool(v)),
             ),
             (
                 "last_device",

@@ -94,3 +94,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [export-formats.md](export-formats.md) | Done | File → Export the visible log to CSV / JSON / HTML |
 | [copy-variants.md](copy-variants.md) | Done | Right-click: Copy as Markdown / Copy message only |
 | [open-recent.md](open-recent.md) | Done | File → Open Recent list of recently opened/saved logs (persisted) |
+| [reopen-last.md](reopen-last.md) | Done | Opt-in View toggle: reopen the most-recent log on launch |

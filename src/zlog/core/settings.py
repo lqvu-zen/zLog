@@ -32,6 +32,7 @@ DEFAULTS: dict = {
     "tail_count": 0,  # start from the last N lines (0 = whole buffer)
     "max_rows": 0,  # ring-buffer cap on retained lines (0 = unlimited)
     "recent_files": [],  # recently opened/saved .log paths (see core/history.py)
+    "reopen_last": False,  # reopen the most-recent log on launch
 }
 
 

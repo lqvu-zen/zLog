@@ -494,3 +494,21 @@ def test_open_missing_recent_is_forgotten(window, tmp_path):
     window._recent = [missing]
     window._load_log_file(missing)  # OSError -> drop it
     assert missing not in window._recent
+
+
+def test_reopen_last_loads_when_enabled(window, tmp_path):
+    f = tmp_path / "s.log"
+    f.write_text("06-30 12:00:00.000 1 2 I T: hi\n", encoding="utf-8")
+    window._recent = [str(f)]
+    window.reopen_last_action.setChecked(True)
+    window._maybe_reopen_last()
+    assert window.model.rowCount() == 1
+
+
+def test_reopen_last_noop_when_disabled(window, tmp_path):
+    f = tmp_path / "s.log"
+    f.write_text("06-30 12:00:00.000 1 2 I T: hi\n", encoding="utf-8")
+    window._recent = [str(f)]
+    window.reopen_last_action.setChecked(False)
+    window._maybe_reopen_last()
+    assert window.model.rowCount() == 0
