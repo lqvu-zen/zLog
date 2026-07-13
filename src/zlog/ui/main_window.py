@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -107,6 +108,10 @@ class MainWindow(QMainWindow):
         self._history: list[str] = []  # recent query-bar entries
         self._recent: list[str] = []  # recently opened/saved .log paths
         self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
+        self._watch = None  # compiled substring matcher, or None
+        self._watch_pattern = ""
+        self._watch_last = 0.0  # monotonic time of last notification (throttle)
+        self._tray = None  # lazily-created system-tray icon
         self._paused = False  # Pause freezes the view; new lines buffer until Resume
         self._pause_buffer: list[LogEntry] = []
         self._want_stream = False  # user intends to be streaming (drives auto-reconnect)
@@ -403,6 +408,8 @@ class MainWindow(QMainWindow):
         prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
         tag_summary_act = view_menu.addAction("&Tag Summary…")
         tag_summary_act.triggered.connect(self._show_tag_summary)
+        watch_act = view_menu.addAction("Set &Watch…")
+        watch_act.triggered.connect(self._set_watch_dialog)
         self.collapse_action = view_menu.addAction("&Collapse Repeated Lines")
         self.collapse_action.setCheckable(True)
         self.collapse_action.setChecked(False)
@@ -965,6 +972,54 @@ class MainWindow(QMainWindow):
         box.setFocus()
         dlg.exec()
 
+    # --- watch pattern -----------------------------------------------------
+    def _set_watch_dialog(self) -> None:
+        text, ok = QInputDialog.getText(
+            self,
+            "Watch Pattern",
+            "Notify on lines containing (blank to clear):",
+            text=self._watch_pattern,
+        )
+        if ok:
+            self._apply_watch(text)
+
+    def _apply_watch(self, pattern: str, announce: bool = True) -> None:
+        self._watch_pattern = pattern or ""
+        self._watch = (
+            compile_matcher(self._watch_pattern, regex=False) if self._watch_pattern else None
+        )
+        if announce:
+            msg = f'Watching for "{pattern}".' if pattern else "Watch cleared."
+            self.statusBar().showMessage(msg)
+
+    def _watch_hits(self, entries) -> list:
+        if self._watch is None:
+            return []
+        return [e for e in entries if self._watch(f"{e.tag} {e.message}")]
+
+    def _ensure_tray(self):
+        from PySide6.QtWidgets import QSystemTrayIcon
+
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return None
+        if self._tray is None:
+            self._tray = QSystemTrayIcon(self.windowIcon(), self)
+            self._tray.show()
+        return self._tray
+
+    def _notify_watch(self, entry) -> None:
+        now = time.monotonic()
+        if now - self._watch_last < 3.0:  # throttle bursts
+            return
+        self._watch_last = now
+        text = f"{entry.tag}: {entry.message}"[:120]
+        tray = self._ensure_tray()
+        if tray is not None:
+            tray.showMessage("zLog watch match", text)
+        else:
+            self.statusBar().showMessage(f"Watch match — {text}")
+            QApplication.beep()
+
     def _show_tag_summary(self) -> None:
         """Modal list of tags in the current view by count; double-click filters."""
         rows = tag_counts(self._filtered_entries())
@@ -1447,6 +1502,9 @@ class MainWindow(QMainWindow):
             self._recent = normalize_history(v, limit=10)
             self._rebuild_recent_menu()
 
+        def set_watch(v):
+            self._apply_watch(v if isinstance(v, str) else "", announce=False)
+
         def set_collapse(v):
             self.collapse_action.setChecked(bool(v))
             self.proxy.set_collapse(bool(v))
@@ -1542,6 +1600,7 @@ class MainWindow(QMainWindow):
             ("font_delta", lambda: self._font_delta, set_font_delta),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
+            ("watch", lambda: self._watch_pattern, set_watch),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             (
                 "log_buffers",
@@ -1634,6 +1693,9 @@ class MainWindow(QMainWindow):
                 self._last_time = entry.time
                 break
         self._autosave(entries)  # persist before the pause gate so paused capture is saved too
+        hits = self._watch_hits(entries)
+        if hits:
+            self._notify_watch(hits[-1])
         if self._paused:
             # Keep capturing but hold new lines back until Resume flushes them.
             self._pause_buffer.extend(entries)

@@ -36,6 +36,7 @@ DEFAULTS: dict = {
     "autosave": False,  # stream capture to disk while running (see core/autosave.py)
     "splitter_state": "",  # base64 QSplitter.saveState() for the log/detail divider
     "collapse": False,  # hide consecutive duplicate lines
+    "watch": "",  # substring; notify when a captured line matches
 }
 
 

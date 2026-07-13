@@ -601,3 +601,20 @@ def test_all_commands_includes_known_labels(window):
     assert "Open Log" in labels
     assert "Tag Summary" in labels
     assert "Save Session" in labels
+
+
+def test_watch_hits_and_clear(window):
+    from zlog.core.models import LogEntry
+
+    window._apply_watch("boom", announce=False)
+    hits = window._watch_hits(
+        [
+            LogEntry("t", "1", "2", "I", "T", "all good"),
+            LogEntry("t", "1", "2", "E", "Crash", "boom happened"),
+        ]
+    )
+    assert [h.message for h in hits] == ["boom happened"]
+    # clearing disables the watch
+    window._apply_watch("", announce=False)
+    assert window._watch is None
+    assert window._watch_hits([LogEntry("t", "1", "2", "E", "T", "boom")]) == []
