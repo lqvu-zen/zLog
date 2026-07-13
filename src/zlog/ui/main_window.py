@@ -53,6 +53,7 @@ from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
+from zlog.core.heat import heat_marks
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
@@ -62,6 +63,7 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.summary import format_level_summary, tag_counts
 from zlog.ui.device_controller import DeviceController
+from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS, LogFilterProxy, LogTableModel
 from zlog.ui.table_view import LogTableView
@@ -109,6 +111,10 @@ class MainWindow(QMainWindow):
         self._reconnect_timer = QTimer(self)
         self._reconnect_timer.setInterval(2000)
         self._reconnect_timer.timeout.connect(self._try_reconnect)
+        self._heat_timer = QTimer(self)  # debounce heat-mark recompute
+        self._heat_timer.setSingleShot(True)
+        self._heat_timer.setInterval(400)
+        self._heat_timer.timeout.connect(self._recompute_heat)
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -132,6 +138,8 @@ class MainWindow(QMainWindow):
 
         self.table = LogTableView()
         self.table.setModel(self.proxy)
+        self.heat_bar = HeatScrollBar()  # scrollbar with error-position ticks
+        self.table.setVerticalScrollBar(self.heat_bar)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setVisible(False)
@@ -484,6 +492,10 @@ class MainWindow(QMainWindow):
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
+        self.proxy.rowsInserted.connect(self._schedule_heat)
+        self.proxy.rowsRemoved.connect(self._schedule_heat)
+        self.proxy.modelReset.connect(self._schedule_heat)
+        self.proxy.layoutChanged.connect(self._schedule_heat)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
         self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
@@ -860,6 +872,14 @@ class MainWindow(QMainWindow):
         src = self.proxy.mapToSource(self.proxy.index(proxy_row, 0)).row()
         return self.model.entry_at(src).rank
 
+    def _schedule_heat(self, *args) -> None:
+        self._heat_timer.start()
+
+    def _recompute_heat(self) -> None:
+        n = self.proxy.rowCount()
+        marks = heat_marks((self._proxy_rank(r) for r in range(n)), n, LEVEL_RANK["E"])
+        self.heat_bar.set_marks(marks, THEMES[self._theme_name].level_text["E"])
+
     def _goto_severity(self, step: int) -> None:
         """Jump to the next/previous visible warning-or-above line, wrapping."""
         n = self.proxy.rowCount()
@@ -975,6 +995,7 @@ class MainWindow(QMainWindow):
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
+        self._schedule_heat()  # recolor error ticks for the new theme
 
     def _update_placeholder(self) -> None:
         """Contextual empty-state text: nothing captured vs. filtered to nothing."""

@@ -100,3 +100,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [severity-navigation.md](severity-navigation.md) | Done | F2/Shift+F2 jump to next/prev warning-or-above line (wraps) |
 | [tag-summary.md](tag-summary.md) | Done | View → Tag Summary dialog (tags by count); double-click to filter |
 | [remember-splitter.md](remember-splitter.md) | Done | Persist the log/detail splitter position across launches |
+| [scrollbar-heat.md](scrollbar-heat.md) | Done | Error-position ticks on the log scrollbar (debounced, bucketed) |
