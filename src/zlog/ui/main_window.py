@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
+from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.history import normalize_history, push_history
@@ -326,6 +327,12 @@ class MainWindow(QMainWindow):
         save_filtered_act = file_menu.addAction("Save &Filtered Log…")
         save_filtered_act.triggered.connect(self.save_filtered_log)
 
+        file_menu.addSeparator()
+        save_session_act = file_menu.addAction("Save Sess&ion…")
+        save_session_act.triggered.connect(self.save_session)
+        open_session_act = file_menu.addAction("Open Se&ssion…")
+        open_session_act.triggered.connect(self.open_session)
+        file_menu.addSeparator()
         export_menu = file_menu.addMenu("&Export")
         for name, fmt, ext in (
             ("CSV", to_csv, "csv"),
@@ -1039,6 +1046,65 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Could not export: {exc}")
             return
         self.statusBar().showMessage(f"Exported {len(entries)} lines to {Path(path).name}.")
+
+    # --- sessions ----------------------------------------------------------
+    def save_session(self) -> None:
+        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Session",
+            f"zlog-{stamp}.zsession",
+            "Session files (*.zsession);;All files (*)",
+        )
+        if path:
+            self._write_session(path)
+
+    def _write_session(self, path: str) -> None:
+        text = make_bundle(
+            entries_to_text(self.model.all_entries()),
+            self.query.text(),
+            self.model.tag_colors(),
+            self.model.bookmarked_rows(),
+        )
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not save session: {exc}")
+            return
+        self.statusBar().showMessage(f"Saved session to {Path(path).name}.")
+
+    def open_session(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Session", "", "Session files (*.zsession);;All files (*)"
+        )
+        if path:
+            self._read_session(path)
+
+    def _read_session(self, path: str) -> None:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = parse_bundle(fh.read())
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not open session: {exc}")
+            return
+        except ValueError:
+            self.statusBar().showMessage("Not a valid session file.")
+            return
+        # Like Open: go offline and drop the device-specific PID filter.
+        if self.reader and self.reader.isRunning():
+            self.stop()
+        self.proxy.set_pids(None)
+        entries = text_to_entries(data["log"])
+        self.model.clear()
+        self.model.append_entries(entries)
+        self.model.clear_tag_colors()
+        for tag, color in data["tag_highlights"].items():
+            self.model.set_tag_color(tag, color)
+        self.model.set_bookmarks(data["bookmarks"])
+        self.query.setText(data["query"])  # -> _apply_query
+        self.table.viewport().update()
+        self.statusBar().showMessage(f"Loaded session from {Path(path).name}.")
 
     def _maybe_reopen_last(self) -> None:
         """On launch, reopen the most-recent log if the user opted in (and no live

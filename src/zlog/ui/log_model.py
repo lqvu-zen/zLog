@@ -264,6 +264,13 @@ class LogTableModel(QAbstractTableModel):
         self._bookmarks.clear()
         self._repaint_bookmarks()
 
+    def set_bookmarks(self, rows) -> None:
+        """Replace the bookmark set (used when restoring a session), clamped to
+        valid source rows so a stale index can't point out of range."""
+        n = len(self._rows)
+        self._bookmarks = {int(r) for r in rows if 0 <= int(r) < n}
+        self._repaint_bookmarks()
+
     def _repaint_bookmarks(self) -> None:
         if self._rows:
             top = self.index(0, 0)

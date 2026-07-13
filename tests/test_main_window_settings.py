@@ -512,3 +512,27 @@ def test_reopen_last_noop_when_disabled(window, tmp_path):
     window.reopen_last_action.setChecked(False)
     window._maybe_reopen_last()
     assert window.model.rowCount() == 0
+
+
+def test_session_save_and_restore(window, tmp_path):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("06-30 12:00:00.000", "1", "2", "I", "Act", "hi"),
+            LogEntry("06-30 12:00:01.000", "1", "2", "E", "Boom", "crash"),
+        ]
+    )
+    window.model.set_tag_color("Boom", "#ff0000")
+    window.model.toggle_bookmark(1)
+    window.query.setText("level:E")
+    path = str(tmp_path / "s.zsession")
+    window._write_session(path)
+
+    w2 = type(window)()
+    w2._read_session(path)
+    assert w2.model.rowCount() == 2
+    assert w2.query.text() == "level:E"
+    assert w2.model.tag_colors() == {"Boom": "#ff0000"}
+    assert w2.model.bookmarked_rows() == [1]
+    assert w2.proxy.rowCount() == 1  # level:E restored and applied
