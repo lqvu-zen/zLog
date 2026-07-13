@@ -563,3 +563,24 @@ def test_autosave_off_writes_nothing(window, tmp_path, monkeypatch):
     window.autosave_action.setChecked(False)
     window._autosave([LogEntry("t", "1", "2", "I", "T", "x")])
     assert not path.exists()
+
+
+def test_goto_severity_next_prev_and_wrap(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "2", "I", "T", "i0"),
+            LogEntry("t", "1", "2", "W", "T", "w1"),
+            LogEntry("t", "1", "2", "I", "T", "i2"),
+            LogEntry("t", "1", "2", "E", "T", "e3"),
+        ]
+    )
+    window._goto_severity(1)
+    assert window.table.currentIndex().row() == 1  # first problem = W
+    window._goto_severity(1)
+    assert window.table.currentIndex().row() == 3  # next = E
+    window._goto_severity(1)
+    assert window.table.currentIndex().row() == 1  # wrap back to W
+    window._goto_severity(-1)
+    assert window.table.currentIndex().row() == 3  # previous wraps to E

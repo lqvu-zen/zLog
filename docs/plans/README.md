@@ -97,3 +97,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [reopen-last.md](reopen-last.md) | Done | Opt-in View toggle: reopen the most-recent log on launch |
 | [session-bundles.md](session-bundles.md) | Done | Save/Open a .zsession: log + query + highlights + bookmarks together |
 | [autosave-capture.md](autosave-capture.md) | Done | Opt-in autosave of live capture to disk, size-capped with one .1 rollover |
+| [severity-navigation.md](severity-navigation.md) | Done | F2/Shift+F2 jump to next/prev warning-or-above line (wraps) |

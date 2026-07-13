@@ -50,7 +50,7 @@ from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.history import normalize_history, push_history
-from zlog.core.models import LogEntry
+from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
 from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
@@ -376,6 +376,12 @@ class MainWindow(QMainWindow):
 
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
+        next_problem_act = view_menu.addAction("Next Problem")
+        next_problem_act.setShortcut("F2")
+        next_problem_act.triggered.connect(lambda: self._goto_severity(1))
+        prev_problem_act = view_menu.addAction("Previous Problem")
+        prev_problem_act.setShortcut("Shift+F2")
+        prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
 
         search_menu = view_menu.addMenu("&Search options")
         self.case_action = search_menu.addAction("Case sensitive")
@@ -842,6 +848,28 @@ class MainWindow(QMainWindow):
 
     def _clear_bookmarks(self) -> None:
         self.model.clear_bookmarks()
+
+    # --- severity navigation ----------------------------------------------
+    def _proxy_rank(self, proxy_row: int) -> int:
+        src = self.proxy.mapToSource(self.proxy.index(proxy_row, 0)).row()
+        return self.model.entry_at(src).rank
+
+    def _goto_severity(self, step: int) -> None:
+        """Jump to the next/previous visible warning-or-above line, wrapping."""
+        n = self.proxy.rowCount()
+        if n == 0:
+            return
+        threshold = LEVEL_RANK["W"]
+        cur = self.table.currentIndex().row()
+        forward = range(cur + 1, n) if step > 0 else range(cur - 1, -1, -1)
+        wrap = range(n) if step > 0 else range(n - 1, -1, -1)
+        for r in list(forward) + list(wrap):
+            if self._proxy_rank(r) >= threshold:
+                index = self.proxy.index(r, 0)
+                self.table.setCurrentIndex(index)
+                self.table.selectRow(r)
+                self.table.scrollTo(index)
+                return
 
     def eventFilter(self, obj, event) -> bool:
         # Ctrl + mouse wheel zooms the text (same as Ctrl+=/-), reusing _zoom so
