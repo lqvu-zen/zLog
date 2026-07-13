@@ -110,4 +110,6 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [new-window.md](new-window.md) | Done | File → New Window: independent second window for concurrent device streams |
 | [device-tabs.md](device-tabs.md) | Done | Tabbed concurrent device streams (LogSession re-rooting + tab bar) |
 | [saved-filters-sidebar.md](saved-filters-sidebar.md) | Done | Left dock listing saved filter presets; Save/Delete + double-click apply |
-| [context-filter.md](context-filter.md) | Done | Right-click a line → Filter to / Exclude its level or tag (adds query tokens) |
+| [preset-edit.md](preset-edit.md) | Done | Preview a saved filter (summary + tooltip); Update-to-current + Rename |
+| [preset-save-full-query.md](preset-save-full-query.md) | Done | Presets store the raw query text so tag:/-exclude tokens survive save/apply |
+| [preset-save-
