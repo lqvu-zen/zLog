@@ -34,6 +34,7 @@ DEFAULTS: dict = {
     "recent_files": [],  # recently opened/saved .log paths (see core/history.py)
     "reopen_last": False,  # reopen the most-recent log on launch
     "autosave": False,  # stream capture to disk while running (see core/autosave.py)
+    "splitter_state": "",  # base64 QSplitter.saveState() for the log/detail divider
 }
 
 

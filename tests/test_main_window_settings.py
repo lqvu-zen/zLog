@@ -584,3 +584,13 @@ def test_goto_severity_next_prev_and_wrap(window):
     assert window.table.currentIndex().row() == 1  # wrap back to W
     window._goto_severity(-1)
     assert window.table.currentIndex().row() == 3  # previous wraps to E
+
+
+def test_splitter_state_roundtrips(window):
+    getter = next(g for k, g, _ in window._settings_specs() if k == "splitter_state")
+    setter = next(s for k, _, s in window._settings_specs() if k == "splitter_state")
+    saved = getter()
+    assert isinstance(saved, str) and saved  # non-empty base64
+    setter(saved)  # restores without error
+    assert getter() == saved  # round-trips
+    setter("")  # empty is a harmless no-op

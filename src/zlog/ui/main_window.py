@@ -1303,6 +1303,10 @@ class MainWindow(QMainWindow):
             if v:
                 self.restoreGeometry(QByteArray.fromBase64(v.encode("ascii")))
 
+        def set_splitter_state(v):
+            if v:
+                self._splitter.restoreState(QByteArray.fromBase64(v.encode("ascii")))
+
         def set_theme(v):
             name = v if v in THEMES else "Light"
             for act in self._theme_group.actions():
@@ -1383,6 +1387,11 @@ class MainWindow(QMainWindow):
                 "geometry",
                 lambda: bytes(self.saveGeometry().toBase64()).decode("ascii"),
                 set_geometry,
+            ),
+            (
+                "splitter_state",
+                lambda: bytes(self._splitter.saveState().toBase64()).decode("ascii"),
+                set_splitter_state,
             ),
             ("theme", lambda: self._theme_name, set_theme),
             (
