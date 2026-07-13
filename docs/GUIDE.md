@@ -110,4 +110,4 @@ as…**, then re-apply it any time from the same menu. Presets persist across la
 
 - **"adb not found"** — install platform-tools and add `adb` to your PATH.
 - **No devices listed** — check the USB cable/authorization dialog on the phone,
-  then press ↻. `adb devices` in a terminal should show it too.
+  then press ↻. `adb devices` in a terminal should sho

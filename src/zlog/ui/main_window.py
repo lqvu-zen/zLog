@@ -126,6 +126,7 @@ class MainWindow(QMainWindow):
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._query_package = ""  # last package resolved from the query bar
+        self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
         self._history: list[str] = []  # recent query-bar entries
         self._recent: list[str] = []  # recently opened/saved .log paths
         self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
@@ -188,11 +189,10 @@ class MainWindow(QMainWindow):
         di = self.device_box.findData(sess.serial)
         if di >= 0:
             self.device_box.setCurrentIndex(di)
-        li = self.level_box.findData(sess.level or "V")
-        if li >= 0:
-            self.level_box.setCurrentIndex(li)
         self.package_box.setEditText(sess.package)
-        self.query.setText(sess.query)  # -> _apply_query on the now-active proxy
+        # The session query carries the level: token, so it drives the dropdown +
+        # proxy via _apply_query — no separate level_box set needed.
+        self.query.setText(sess.query)
 
     def _set_tab_label(self, sess) -> None:
         if sess in self._sessions:
@@ -765,9 +765,7 @@ class MainWindow(QMainWindow):
         self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
         self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
         self.package_box.lineEdit().returnPressed.connect(self.apply_package_filter)
-        self.level_box.currentIndexChanged.connect(
-            lambda: self.proxy.set_min_level(self.level_box.currentData())
-        )
+        self.level_box.currentIndexChanged.connect(self._on_level_box_changed)
         self.search.textChanged.connect(self._apply_search)
         self.query.textChanged.connect(self._apply_query)
         self.query.returnPressed.connect(self._commit_query_history)
@@ -900,11 +898,40 @@ class MainWindow(QMainWindow):
 
     def clear_filters(self) -> None:
         """Reset every filter to 'show everything' without touching the log."""
-        idx = self.level_box.findData("V")
-        if idx >= 0:
-            self.level_box.setCurrentIndex(idx)  # min level back to V (show all)
-        self.query.clear()  # fires _apply_query -> resets tag/search/exclude/pkg
+        # The query bar owns every filter incl. the level floor, so clearing it
+        # (via _apply_query) resets level/tag/search/exclude/package together.
+        self.query.clear()
         self.statusBar().showMessage("Filters cleared.")
+
+    def _on_level_box_changed(self) -> None:
+        # A real user change of the Level dropdown mirrors into the query's level:
+        # token so the two never disagree. Programmatic sets (from _apply_query
+        # reflecting the query) are guarded out to avoid a signal loop.
+        if self._syncing_level:
+            return
+        self._set_query_level(self.level_box.currentData() or "V")
+
+    def _set_query_level(self, letter: str) -> None:
+        """Write level:<letter> into the query (drop it for V), replacing any
+        existing level: token. Drives _apply_query, which re-applies the filter."""
+        try:
+            tokens = shlex.split(self.query.text())
+        except ValueError:
+            tokens = self.query.text().split()
+        kept = [t for t in tokens if not t.lower().startswith("level:")]
+        if letter and letter != "V":
+            kept.insert(0, f"level:{letter}")
+        new_text = " ".join(shlex.quote(t) if any(ch.isspace() for ch in t) else t for t in kept)
+        if new_text != self.query.text():
+            self.query.setText(new_text)  # -> _apply_query
+
+    def _set_level_box(self, letter: str) -> None:
+        """Reflect a level into the dropdown without triggering the query mirror."""
+        idx = self.level_box.findData(letter)
+        if idx >= 0 and idx != self.level_box.currentIndex():
+            self._syncing_level = True
+            self.level_box.setCurrentIndex(idx)
+            self._syncing_level = False
 
     # --- filter presets ----------------------------------------------------
     def _rebuild_presets_menu(self) -> None:
@@ -947,17 +974,11 @@ class MainWindow(QMainWindow):
 
     def _apply_preset(self, preset: dict) -> None:
         self.case_check.setChecked(bool(preset.get("case")))
-        # Set the level floor explicitly (incl. V) so the preset fully defines the
-        # filter; otherwise a leftover higher floor from a previous filter hides
-        # its rows and the preset looks like it did nothing.
         level = preset.get("min_level", "V")
-        idx = self.level_box.findData(level)
-        if idx >= 0:
-            self.level_box.setCurrentIndex(idx)
         if "query" in preset:
             # Newer presets store the raw query bar text verbatim, so tag:/-exclude/
-            # regex/package tokens all survive. The Level dropdown holds the floor.
-            self.query.setText(preset.get("query", ""))  # -> _apply_query
+            # regex/package tokens all survive.
+            text = preset.get("query", "")
         else:
             # Legacy preset: reconstruct the query from the decomposed fields.
             parts = []
@@ -967,7 +988,12 @@ class MainWindow(QMainWindow):
             search = preset.get("search", "")
             if search:
                 parts.append(f"/{search}/" if preset.get("regex") else search)
-            self.query.setText(" ".join(parts))  # -> _apply_query
+            text = " ".join(parts)
+        # Fold the level floor into the query so it applies and the dropdown stays
+        # in sync (unless a level: token is already present).
+        if level and level != "V" and "level:" not in text.lower():
+            text = f"level:{level} {text}".strip()
+        self.query.setText(text)  # -> _apply_query drives the dropdown + proxy
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
     def _delete_preset(self, name: str) -> None:
@@ -1081,13 +1107,9 @@ class MainWindow(QMainWindow):
             self.proxy.set_levels(set(spec.levels))  # exact level set
         else:
             self.proxy.set_levels(None)
-            if spec.level:
-                idx = self.level_box.findData(spec.level)
-                if idx >= 0:
-                    self.level_box.setCurrentIndex(idx)  # query level: drives the dropdown
-            else:
-                # No level: token — the visible Level dropdown is the floor source.
-                self.proxy.set_min_level(self.level_box.currentData())
+            level = spec.level or "V"  # query is the source of truth; no token = V
+            self._set_level_box(level)  # mirror into the dropdown (guarded)
+            self.proxy.set_min_level(level)
         self.proxy.set_tag(spec.tag)
         ex_pat = "|".join(re.escape(t) for t in spec.excludes)
         ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
@@ -1866,9 +1888,7 @@ class MainWindow(QMainWindow):
             self.apply_theme(name)
 
         def set_min_level(v):
-            idx = self.level_box.findData(v)
-            if idx >= 0:
-                self.level_box.setCurrentIndex(idx)
+            self._set_query_level(v)
 
         def set_show_details(v):
             self.details_action.setChecked(bool(v))

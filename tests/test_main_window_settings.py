@@ -184,12 +184,12 @@ def test_query_bar_drives_filters(window):
     )
     window.query.setText("level:E tag:Activity boom")
     assert window.proxy.rowCount() == 1  # E + tag Activity + "boom"
-    # Clearing the query text drops tag/search, but level:E moved the visible Level
-    # dropdown to E and that floor persists (the dropdown owns it now).
+    # The query bar is the single source of truth: clearing it also drops the level
+    # floor (the dropdown mirrors the query), so every row returns.
     window.query.clear()
-    assert window.level_box.currentData() == "E"
-    assert window.proxy.rowCount() == 2  # both E rows
-    # Clear Filters is the full reset, including the level floor.
+    assert window.level_box.currentData() == "V"
+    assert window.proxy.rowCount() == 3
+    # Clear Filters is the same full reset.
     window.clear_filters()
     assert window.proxy.rowCount() == 3
 
@@ -387,7 +387,7 @@ def test_follow_stays_manual_and_never_yanks(window, qapp):
     assert sb.value() == sb.maximum()
 
 
-def test_min_level_dropdown_floors_and_survives_query(window):
+def test_min_level_dropdown_and_query_stay_in_sync(window):
     from zlog.core.models import LogEntry
 
     window.model.append_entries(
@@ -396,17 +396,19 @@ def test_min_level_dropdown_floors_and_survives_query(window):
             LogEntry("t", "1", "2", "E", "T", "error"),
         ]
     )
-    # pick E via the visible dropdown -> only E and above show
+    # pick E via the dropdown -> it mirrors into the query as a level: token
     window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    assert "level:E" in window.query.text()
     assert window.proxy.rowCount() == 1
 
-    # a non-level query must NOT reset the floor back to V
-    window.query.setText("error")
-    assert window.level_box.currentData() == "E"
-    assert window.proxy.rowCount() == 1
-
-    # a level: token still drives the dropdown
+    # typing a level: token drives the dropdown the other way
     window.query.setText("level:V")
+    assert window.level_box.currentData() == "V"
+    assert window.proxy.rowCount() == 2
+
+    # a query with no level token means floor V — the two stay in sync
+    window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    window.query.setText("error")
     assert window.level_box.currentData() == "V"
 
     # Clear Filters returns the floor to V and shows everything
@@ -414,6 +416,21 @@ def test_min_level_dropdown_floors_and_survives_query(window):
     window.clear_filters()
     assert window.level_box.currentData() == "V"
     assert window.proxy.rowCount() == 2
+
+
+def test_level_dropdown_mirrors_query(window):
+    # dropdown -> query
+    window.level_box.setCurrentIndex(window.level_box.findData("W"))
+    assert window.query.text().startswith("level:W")
+    # changing it replaces the old token, keeping other tokens
+    window.query.setText("level:W boom")
+    window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    assert "level:E" in window.query.text()
+    assert "level:W" not in window.query.text()
+    assert "boom" in window.query.text()
+    # back to Verbose drops the token entirely
+    window.level_box.setCurrentIndex(window.level_box.findData("V"))
+    assert "level:" not in window.query.text()
 
 
 def test_pause_buffers_then_resume_flushes(window):
