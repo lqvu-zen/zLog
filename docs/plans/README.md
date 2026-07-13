@@ -112,4 +112,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [saved-filters-sidebar.md](saved-filters-sidebar.md) | Done | Left dock listing saved filter presets; Save/Delete + double-click apply |
 | [preset-edit.md](preset-edit.md) | Done | Preview a saved filter (summary + tooltip); Update-to-current + Rename |
 | [preset-save-full-query.md](preset-save-full-query.md) | Done | Presets store the raw query text so tag:/-exclude tokens survive save/apply |
-| [preset-save-
+| [level-query-sync.md](level-query-sync.md) | Done | Level dropdown ↔ query level: token stay in sync both ways |
+| [level-query-
