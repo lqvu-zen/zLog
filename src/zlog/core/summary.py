@@ -20,3 +20,18 @@ def format_level_summary(total: int, counts: dict[str, int], visible: int | None
     if parts:
         line += "  " + " ".join(parts)
     return line
+
+
+def tag_counts(entries) -> list[tuple[str, int]]:
+    """Count entries per (non-empty) tag, sorted by count desc then tag asc.
+
+    Pure — takes any iterable of objects with a `.tag`, so it's testable without Qt.
+    Empty-tag lines (banners/unparsed) are ignored.
+    """
+    from collections import Counter
+
+    counts: Counter = Counter()
+    for entry in entries:
+        if entry.tag:
+            counts[entry.tag] += 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))

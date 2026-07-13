@@ -31,3 +31,17 @@ def test_summary_no_prefix_when_visible_equals_total():
 
 def test_summary_visible_none_is_plain_total():
     assert format_level_summary(1204, {"E": 12}, visible=None) == "1,204 lines  E:12"
+
+
+def test_tag_counts_orders_by_count_then_name():
+    from zlog.core.models import LogEntry
+    from zlog.core.summary import tag_counts
+
+    entries = [
+        LogEntry("t", "1", "2", "I", "B", "x"),
+        LogEntry("t", "1", "2", "I", "A", "x"),
+        LogEntry("t", "1", "2", "I", "B", "x"),
+        LogEntry("t", "1", "2", "I", "", "banner"),  # no tag -> ignored
+    ]
+    assert tag_counts(entries) == [("B", 2), ("A", 1)]
+    assert tag_counts([]) == []

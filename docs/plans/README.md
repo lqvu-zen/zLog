@@ -98,3 +98,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [session-bundles.md](session-bundles.md) | Done | Save/Open a .zsession: log + query + highlights + bookmarks together |
 | [autosave-capture.md](autosave-capture.md) | Done | Opt-in autosave of live capture to disk, size-capped with one .1 rollover |
 | [severity-navigation.md](severity-navigation.md) | Done | F2/Shift+F2 jump to next/prev warning-or-above line (wraps) |
+| [tag-summary.md](tag-summary.md) | Done | View → Tag Summary dialog (tags by count); double-click to filter |

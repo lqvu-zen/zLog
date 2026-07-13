@@ -19,11 +19,13 @@ from pathlib import Path
 from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QColorDialog,
     QComboBox,
     QCompleter,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -38,6 +40,8 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStatusBar,
     QTableView,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -56,7 +60,7 @@ from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
-from zlog.core.summary import format_level_summary
+from zlog.core.summary import format_level_summary, tag_counts
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS, LogFilterProxy, LogTableModel
@@ -382,6 +386,8 @@ class MainWindow(QMainWindow):
         prev_problem_act = view_menu.addAction("Previous Problem")
         prev_problem_act.setShortcut("Shift+F2")
         prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
+        tag_summary_act = view_menu.addAction("&Tag Summary…")
+        tag_summary_act.triggered.connect(self._show_tag_summary)
 
         search_menu = view_menu.addMenu("&Search options")
         self.case_action = search_menu.addAction("Case sensitive")
@@ -870,6 +876,35 @@ class MainWindow(QMainWindow):
                 self.table.selectRow(r)
                 self.table.scrollTo(index)
                 return
+
+    def _show_tag_summary(self) -> None:
+        """Modal list of tags in the current view by count; double-click filters."""
+        rows = tag_counts(self._filtered_entries())
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Tag Summary")
+        dlg.resize(360, 440)
+        table = QTableWidget(len(rows), 2, dlg)
+        table.setHorizontalHeaderLabels(["Tag", "Count"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for i, (tag, count) in enumerate(rows):
+            table.setItem(i, 0, QTableWidgetItem(tag))
+            cell = QTableWidgetItem(str(count))
+            cell.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+            table.setItem(i, 1, cell)
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+
+        def use(row: int, _col: int) -> None:
+            self.query.setText(f"tag:{rows[row][0]}")  # -> _apply_query
+            dlg.accept()
+
+        table.cellDoubleClicked.connect(use)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Double-click a tag to filter to it:"))
+        layout.addWidget(table)
+        dlg.exec()
 
     def eventFilter(self, obj, event) -> bool:
         # Ctrl + mouse wheel zooms the text (same as Ctrl+=/-), reusing _zoom so
