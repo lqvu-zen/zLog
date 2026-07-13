@@ -676,9 +676,49 @@ def test_saved_filters_sidebar(window):
     assert window.presets_list.count() == 2
 
     window._on_preset_activated(window.presets_list.item(0))  # "Errors"
-    assert window.query.text() == "level:E"  # preset applied via the query path
+    assert window.level_box.currentData() == "E"  # preset sets the level floor
 
     window.presets_list.setCurrentRow(0)
     window._delete_selected_preset()
     assert window.presets_list.count() == 1
     assert [p["name"] for p in window._presets] == ["Boom"]
+
+
+def test_add_query_token_filter(window):
+    from zlog.core.query import parse_query
+
+    window.query.setText("boom")
+    window._add_query_token("level:E")
+    assert "level:E" in window.query.text() and "boom" in window.query.text()
+
+    window._add_query_token("level:W")  # same key replaces the previous level
+    assert "level:E" not in window.query.text()
+    assert parse_query(window.query.text()).level == "W"
+
+    window._add_query_token("tag:Activity")
+    assert parse_query(window.query.text()).tag == "Activity"
+
+
+def test_add_query_token_quotes_spaces(window):
+    from zlog.core.query import parse_query
+
+    window.query.setText("")
+    window._add_query_token("tag:My Tag")  # spaced value must round-trip
+    assert parse_query(window.query.text()).tag == "My Tag"
+
+
+def test_preset_resets_level_floor(window):
+    from zlog.core.models import LogEntry
+    from zlog.core.presets import make_preset
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "info"),
+            LogEntry("t", "1", "1", "E", "T", "err"),
+        ]
+    )
+    window._apply_preset(make_preset("Err", min_level="E"))
+    assert window.proxy.rowCount() == 1  # only the E row
+    # applying a show-all (V) preset must reset the floor and reveal both rows
+    window._apply_preset(make_preset("All", min_level="V"))
+    assert window.proxy.rowCount() == 2

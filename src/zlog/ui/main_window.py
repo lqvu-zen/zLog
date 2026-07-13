@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import time
 from datetime import datetime
 from pathlib import Path
@@ -924,16 +925,21 @@ class MainWindow(QMainWindow):
 
     def _apply_preset(self, preset: dict) -> None:
         self.case_check.setChecked(bool(preset.get("case")))
-        parts = []
+        # Set the level floor explicitly (incl. V) so the preset fully defines the
+        # filter; otherwise a leftover higher floor from a previous filter hides
+        # its rows and the preset looks like it did nothing.
         level = preset.get("min_level", "V")
-        if level and level != "V":
-            parts.append(f"level:{level}")
+        idx = self.level_box.findData(level)
+        if idx >= 0:
+            self.level_box.setCurrentIndex(idx)
+        parts = []
         package = preset.get("package", "")
         if package:
             parts.append(f"package:{package}")
         search = preset.get("search", "")
         if search:
             parts.append(f"/{search}/" if preset.get("regex") else search)
+        # No level: token — the Level dropdown now holds the floor.
         self.query.setText(" ".join(parts))  # -> _apply_query
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
@@ -1441,6 +1447,21 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(to_messages(entries))
         self.statusBar().showMessage(f"Copied {len(entries)} message(s).")
 
+    def _add_query_token(self, token: str) -> None:
+        """Add `token` (key:value) to the query bar, replacing any token with the
+        same key; values with spaces are quoted so parse_query reads them back."""
+        key = token.split(":", 1)[0]
+        try:
+            tokens = shlex.split(self.query.text())
+        except ValueError:
+            tokens = self.query.text().split()
+        kept = [t for t in tokens if not t.startswith(key + ":")]
+        kept.append(token)
+        self.query.setText(
+            " ".join(shlex.quote(t) if any(ch.isspace() for ch in t) else t for t in kept)
+        )
+        self.statusBar().showMessage(f"Filter \u2192 {token}")
+
     def _show_table_menu(self, pos) -> None:
         menu = QMenu(self.table)
         menu.addAction(self.copy_action)
@@ -1452,9 +1473,28 @@ class MainWindow(QMainWindow):
         menu.addAction(self.bookmark_action)
         menu.addSeparator()
         index = self.table.indexAt(pos)
-        tag = ""
+        entry = None
         if index.isValid():
-            tag = self.model.entry_at(self.proxy.mapToSource(index).row()).tag
+            entry = self.model.entry_at(self.proxy.mapToSource(index).row())
+        tag = entry.tag if entry else ""
+        if entry is not None:
+            filt = menu.addMenu("Filter to…")
+            if entry.level:
+                act = filt.addAction(f"Level \u2265 {entry.level}")
+                act.triggered.connect(
+                    lambda _c=False, lv=entry.level: self._add_query_token(f"level:{lv}")
+                )
+            if entry.tag:
+                act = filt.addAction(f"Tag: {entry.tag}")
+                act.triggered.connect(
+                    lambda _c=False, tg=entry.tag: self._add_query_token(f"tag:{tg}")
+                )
+            filt.setEnabled(bool(entry.level or entry.tag))
+            excl = menu.addMenu("Exclude…")
+            ex_tag = excl.addAction(f"Tag: {entry.tag}" if entry.tag else "Tag")
+            ex_tag.setEnabled(bool(entry.tag))
+            ex_tag.triggered.connect(lambda _c=False, tg=entry.tag: self._mute_tag(tg))
+            menu.addSeparator()
         highlight = menu.addAction(f"Highlight tag \u201c{tag}\u201d…" if tag else "Highlight tag…")
         highlight.setEnabled(bool(tag))
         highlight.triggered.connect(lambda: self._highlight_tag(tag))
