@@ -18,7 +18,15 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt, QTimer
-from PySide6.QtGui import QAction, QActionGroup, QFont, QFontMetrics, QKeySequence, QShortcut
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QKeySequence,
+    QShortcut,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -55,6 +63,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
+from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.history import normalize_history, push_history
@@ -359,6 +368,8 @@ class MainWindow(QMainWindow):
         save_session_act.triggered.connect(self.save_session)
         open_session_act = file_menu.addAction("Open Se&ssion…")
         open_session_act.triggered.connect(self.open_session)
+        diff_act = file_menu.addAction("&Diff Against File…")
+        diff_act.triggered.connect(self._diff_against_file)
         file_menu.addSeparator()
         export_menu = file_menu.addMenu("&Export")
         for name, fmt, ext in (
@@ -970,6 +981,41 @@ class MainWindow(QMainWindow):
         layout.addWidget(lst)
         refresh()
         box.setFocus()
+        dlg.exec()
+
+    def _diff_against_file(self) -> None:
+        """Compare the current log with another saved log (unified, colored diff)."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Diff Against File", "", "Log files (*.log);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                other = fh.read()
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not open: {exc}")
+            return
+        a = [line_key(e) for e in self.model.all_entries()]
+        b = [line_key(e) for e in text_to_entries(other)]
+        rows = diff_logs(a, b)
+        added = sum(1 for op, _ in rows if op == "+")
+        removed = sum(1 for op, _ in rows if op == "-")
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Diff — {removed} removed, {added} added vs {Path(path).name}")
+        dlg.resize(760, 560)
+        lst = QListWidget(dlg)
+        mono = QFont()
+        mono.setFamilies(LOG_FONT_FAMILIES)
+        mono.setStyleHint(QFont.Monospace)
+        lst.setFont(mono)
+        colors = {"-": QColor("#c62828"), "+": QColor("#2e7d32"), " ": QColor("#9aa0a6")}
+        for op, line in rows:
+            item = QListWidgetItem(f"{op} {line}")
+            item.setForeground(colors[op])
+            lst.addItem(item)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(lst)
         dlg.exec()
 
     # --- watch pattern -----------------------------------------------------
