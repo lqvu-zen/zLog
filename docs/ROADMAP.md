@@ -58,12 +58,13 @@ Each component is scored on **User value**, **Effort**, and **Risk**, then bucke
 Version cadence is the milestone. Each phase ends with a release (bump + CHANGELOG +
 tag; the workflow builds/publishes the exe).
 
-> **Status (2026-07-11):** every item below is **implemented and tested** (210
-> passing tests) but **not yet released** — the shipped binary is still the July‑1
-> 1.0.0 build. The immediate next step is to **cut a release** (bump, CHANGELOG,
-> tag). The only roadmap item not built as originally framed is **multiple device
-> *tabs*** are now implemented ([device-tabs.md](plans/device-tabs.md)); **New Window**
-> ([new-window.md](plans/new-window.md)) remains as an alternative for separate windows.
+> **Status (2026-07-11):** every roadmap item below is **implemented and tested**
+> (213 passing tests) but **not yet released** — the shipped binary is still the
+> July‑1 1.0.0 build. The immediate next step is to **cut a release** (bump,
+> CHANGELOG, tag). Multiple device **tabs** are implemented
+> ([device-tabs.md](plans/device-tabs.md)); **New Window**
+> ([new-window.md](plans/new-window.md)) remains as an alternative for separate
+> windows.
 
 ### v1.1 — Finish the current cycle — **DONE (unreleased)**
 Ship the in-flight search/filter polish, then cut the release.
