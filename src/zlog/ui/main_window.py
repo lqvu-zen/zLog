@@ -80,7 +80,8 @@ from zlog.core.summary import format_level_summary, tag_counts
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.log_delegate import LogItemDelegate
-from zlog.ui.log_model import COLUMNS, LogFilterProxy, LogTableModel
+from zlog.ui.log_model import COLUMNS
+from zlog.ui.log_session import LogSession
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
@@ -111,7 +112,6 @@ class MainWindow(QMainWindow):
         self.resize(1100, 700)
 
         # Runtime state, created before widgets so slots can rely on it existing.
-        self.reader: AdbReader | None = None
         self.devctl = DeviceController(self)  # device picker + package/PID filter state
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
@@ -124,14 +124,8 @@ class MainWindow(QMainWindow):
         self._watch_pattern = ""
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
-        self._paused = False  # Pause freezes the view; new lines buffer until Resume
-        self._pause_buffer: list[LogEntry] = []
-        self._want_stream = False  # user intends to be streaming (drives auto-reconnect)
-        self._reconnect_serial: str | None = None  # device to poll for after a drop
-        self._last_time = ""  # last log timestamp seen (resume point on reconnect)
-        self._reconnect_timer = QTimer(self)
-        self._reconnect_timer.setInterval(2000)
-        self._reconnect_timer.timeout.connect(self._try_reconnect)
+        self._sessions: list[LogSession] = []  # capture tabs; re-rooted via properties
+        self._active_index = 0
         self._heat_timer = QTimer(self)  # debounce heat-mark recompute
         self._heat_timer.setSingleShot(True)
         self._heat_timer.setInterval(400)
@@ -151,12 +145,81 @@ class MainWindow(QMainWindow):
         self._maybe_reopen_last()
         self._load_plugins()
 
+    # --- active-session re-rooting (tabs) ----------------------------------
+    def _make_session(self) -> LogSession:
+        sess = LogSession(self)
+        sess.reconnect_timer.timeout.connect(self._try_reconnect)
+        return sess
+
+    @property
+    def _active(self) -> LogSession:
+        return self._sessions[self._active_index]
+
+    @property
+    def model(self):
+        return self._active.model
+
+    @property
+    def proxy(self):
+        return self._active.proxy
+
+    @property
+    def reader(self):
+        return self._active.reader
+
+    @reader.setter
+    def reader(self, value):
+        self._active.reader = value
+
+    @property
+    def _paused(self):
+        return self._active.paused
+
+    @_paused.setter
+    def _paused(self, value):
+        self._active.paused = value
+
+    @property
+    def _pause_buffer(self):
+        return self._active.pause_buffer
+
+    @_pause_buffer.setter
+    def _pause_buffer(self, value):
+        self._active.pause_buffer = value
+
+    @property
+    def _want_stream(self):
+        return self._active.want_stream
+
+    @_want_stream.setter
+    def _want_stream(self, value):
+        self._active.want_stream = value
+
+    @property
+    def _reconnect_serial(self):
+        return self._active.reconnect_serial
+
+    @_reconnect_serial.setter
+    def _reconnect_serial(self, value):
+        self._active.reconnect_serial = value
+
+    @property
+    def _last_time(self):
+        return self._active.last_time
+
+    @_last_time.setter
+    def _last_time(self, value):
+        self._active.last_time = value
+
+    @property
+    def _reconnect_timer(self):
+        return self._active.reconnect_timer
+
     # --- construction (called once, in order, from __init__) ---------------
     def _build_widgets(self) -> None:
         """Create the model/proxy/view and every toolbar widget (no layout yet)."""
-        self.model = LogTableModel(self)
-        self.proxy = LogFilterProxy(self)
-        self.proxy.setSourceModel(self.model)
+        self._sessions = [self._make_session()]
+        self._active_index = 0
 
         self.table = LogTableView()
         self.table.setModel(self.proxy)
