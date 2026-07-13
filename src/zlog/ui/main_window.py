@@ -33,6 +33,8 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QPlainTextEdit,
@@ -56,6 +58,7 @@ from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LEVEL_RANK, LogEntry
+from zlog.core.palette import match_commands
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
 from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
@@ -530,6 +533,7 @@ class MainWindow(QMainWindow):
         self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
         self.match_prev_btn.clicked.connect(lambda: self._goto_match(-1))
         QShortcut(QKeySequence("F3"), self, activated=lambda: self._goto_match(1))
+        QShortcut(QKeySequence("Ctrl+K"), self, activated=self._open_command_palette)
         QShortcut(QKeySequence("Shift+F3"), self, activated=lambda: self._goto_match(-1))
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
@@ -904,6 +908,62 @@ class MainWindow(QMainWindow):
                 self.table.selectRow(r)
                 self.table.scrollTo(index)
                 return
+
+    def _all_commands(self) -> list[tuple[str, QAction]]:
+        """Every leaf menu action (into submenus), as (clean label, action)."""
+        out: list[tuple[str, QAction]] = []
+
+        def walk(menu):
+            for act in menu.actions():
+                sub = act.menu()
+                if sub is not None:
+                    walk(sub)
+                elif act.text() and not act.isSeparator():
+                    label = act.text().replace("&", "").replace("\u2026", "").strip()
+                    out.append((label, act))
+
+        for act in self.menuBar().actions():
+            if act.menu() is not None:
+                walk(act.menu())
+        return out
+
+    def _open_command_palette(self) -> None:
+        """Ctrl+K: type to fuzzy-find and run any menu command."""
+        cmds = self._all_commands()
+        labels = [c[0] for c in cmds]
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Command Palette")
+        dlg.resize(420, 380)
+        box = QLineEdit(dlg)
+        box.setPlaceholderText("Type a command…")
+        lst = QListWidget(dlg)
+
+        def refresh():
+            lst.clear()
+            for idx in match_commands(labels, box.text()):
+                item = QListWidgetItem(labels[idx])
+                item.setData(Qt.UserRole, idx)
+                lst.addItem(item)
+            if lst.count():
+                lst.setCurrentRow(0)
+
+        def run(item=None):
+            item = item or lst.currentItem()
+            if item is None:
+                return
+            idx = item.data(Qt.UserRole)
+            dlg.accept()
+            cmds[idx][1].trigger()
+
+        box.textChanged.connect(refresh)
+        box.returnPressed.connect(lambda: run())
+        lst.itemActivated.connect(run)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(box)
+        layout.addWidget(lst)
+        refresh()
+        box.setFocus()
+        dlg.exec()
 
     def _show_tag_summary(self) -> None:
         """Modal list of tags in the current view by count; double-click filters."""

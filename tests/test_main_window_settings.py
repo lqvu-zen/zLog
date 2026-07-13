@@ -594,3 +594,10 @@ def test_splitter_state_roundtrips(window):
     setter(saved)  # restores without error
     assert getter() == saved  # round-trips
     setter("")  # empty is a harmless no-op
+
+
+def test_all_commands_includes_known_labels(window):
+    labels = [label for label, _ in window._all_commands()]
+    assert "Open Log" in labels
+    assert "Tag Summary" in labels
+    assert "Save Session" in labels

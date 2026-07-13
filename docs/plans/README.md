@@ -103,3 +103,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [scrollbar-heat.md](scrollbar-heat.md) | Done | Error-position ticks on the log scrollbar (debounced, bucketed) |
 | [collapse-repeats.md](collapse-repeats.md) | Done | View toggle: hide consecutive duplicate lines (proxy gate) |
 | [error-sparkline.md](error-sparkline.md) | Done | Status-bar sparkline of error density over the recent tail |
+| [command-palette.md](command-palette.md) | Done | Ctrl+K fuzzy command palette over the menus |
