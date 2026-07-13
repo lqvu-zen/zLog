@@ -666,3 +666,19 @@ def test_tab_query_is_per_tab(window):
 def test_cannot_close_last_tab(window):
     window._close_tab(0)
     assert window.tab_bar.count() == 1  # the last tab is kept
+
+
+def test_saved_filters_sidebar(window):
+    from zlog.core.presets import make_preset
+
+    window._presets = [make_preset("Errors", min_level="E"), make_preset("Boom", search="boom")]
+    window._rebuild_presets_menu()  # also refreshes the sidebar list
+    assert window.presets_list.count() == 2
+
+    window._on_preset_activated(window.presets_list.item(0))  # "Errors"
+    assert window.query.text() == "level:E"  # preset applied via the query path
+
+    window.presets_list.setCurrentRow(0)
+    window._delete_selected_preset()
+    assert window.presets_list.count() == 1
+    assert [p["name"] for p in window._presets] == ["Boom"]

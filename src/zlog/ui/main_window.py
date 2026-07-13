@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QCompleter,
     QDialog,
+    QDockWidget,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -423,6 +424,10 @@ class MainWindow(QMainWindow):
         self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
 
         self.count_label = QLabel("0 lines")
+        self.presets_list = QListWidget()
+        self.presets_list.setToolTip("Double-click a saved filter to apply it")
+        self.save_filter_btn = QPushButton("Save current filter…")
+        self.delete_filter_btn = QPushButton("Delete")
         self.spark_label = QLabel("")
         self.spark_label.setToolTip("Error rate over the last 500 lines")
 
@@ -510,6 +515,20 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+        panel = QWidget()
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(6, 6, 6, 6)
+        panel_layout.addWidget(QLabel("Saved Filters"))
+        panel_layout.addWidget(self.presets_list)
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self.save_filter_btn)
+        btn_row.addWidget(self.delete_filter_btn)
+        panel_layout.addLayout(btn_row)
+        self.presets_dock = QDockWidget("Saved Filters", self)
+        self.presets_dock.setObjectName("presetsDock")
+        self.presets_dock.setWidget(panel)
+        self.addDockWidget(Qt.LeftDockWidgetArea, self.presets_dock)
         self.setStatusBar(QStatusBar())
         self.statusBar().addPermanentWidget(self.spark_label)
         self.statusBar().addPermanentWidget(self.count_label)
@@ -602,6 +621,7 @@ class MainWindow(QMainWindow):
         watch_act.triggered.connect(self._set_watch_dialog)
         reload_plugins_act = view_menu.addAction("Reload &Plugins")
         reload_plugins_act.triggered.connect(self._load_plugins)
+        view_menu.addAction(self.presets_dock.toggleViewAction())
         self.collapse_action = view_menu.addAction("&Collapse Repeated Lines")
         self.collapse_action.setCheckable(True)
         self.collapse_action.setChecked(False)
@@ -704,6 +724,9 @@ class MainWindow(QMainWindow):
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
+        self.presets_list.itemActivated.connect(self._on_preset_activated)
+        self.save_filter_btn.clicked.connect(self.save_current_preset)
+        self.delete_filter_btn.clicked.connect(self._delete_selected_preset)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
         self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
@@ -879,6 +902,7 @@ class MainWindow(QMainWindow):
                 act.triggered.connect(
                     lambda _checked=False, n=preset["name"]: self._delete_preset(n)
                 )
+        self._rebuild_presets_list()
 
     def save_current_preset(self) -> None:
         name, ok = QInputDialog.getText(self, "Save Filter Preset", "Preset name:")
@@ -918,6 +942,25 @@ class MainWindow(QMainWindow):
         self._rebuild_presets_menu()
         self._save_settings()
         self.statusBar().showMessage(f"Deleted preset {name!r}.")
+
+    def _rebuild_presets_list(self) -> None:
+        self.presets_list.clear()
+        for preset in self._presets:
+            item = QListWidgetItem(preset["name"])
+            item.setData(Qt.UserRole, preset["name"])
+            self.presets_list.addItem(item)
+
+    def _on_preset_activated(self, item) -> None:
+        name = item.data(Qt.UserRole)
+        for preset in self._presets:
+            if preset["name"] == name:
+                self._apply_preset(preset)
+                return
+
+    def _delete_selected_preset(self) -> None:
+        item = self.presets_list.currentItem()
+        if item is not None:
+            self._delete_preset(item.data(Qt.UserRole))
 
     def _apply_search(self) -> None:
         text = self.search.text()
