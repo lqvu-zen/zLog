@@ -319,4 +319,16 @@ SCENARIOS = {
 def main() -> int:
     name = sys.argv[1] if len(sys.argv) > 1 else "smoke"
     if name not in SCENARIOS:
-        print(f"unkn
+        print(f"unknown scenario {name!r}; choose from: {', '.join(SCENARIOS)}")
+        return 2
+    app = QApplication(sys.argv[:1])
+    window = MainWindow()
+    window.resize(1100, 700)
+    window.show()
+    app.processEvents()
+    SCENARIOS[name](window)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
