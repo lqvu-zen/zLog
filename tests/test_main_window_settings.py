@@ -760,3 +760,32 @@ def test_preset_resets_level_floor(window):
     # applying a show-all (V) preset must reset the floor and reveal both rows
     window._apply_preset(make_preset("All", min_level="V"))
     assert window.proxy.rowCount() == 2
+
+
+def test_preset_saves_and_applies_full_query(window, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+
+    window.query.setText("tag:ActivityManager -spam")
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("mine", True)))
+    window.save_current_preset()
+    preset = next(x for x in window._presets if x["name"] == "mine")
+    assert preset["query"] == "tag:ActivityManager -spam"
+    # Clear, then re-apply: the query bar comes back intact.
+    window.query.setText("")
+    window._apply_preset(preset)
+    assert window.query.text() == "tag:ActivityManager -spam"
+
+
+def test_legacy_preset_without_query_still_applies(window):
+    # A preset saved before the query field existed (only search/package).
+    legacy = {
+        "name": "old",
+        "min_level": "V",
+        "search": "boom",
+        "regex": False,
+        "case": False,
+        "package": "com.x",
+    }
+    window._apply_preset(legacy)
+    text = window.query.text()
+    assert "boom" in text and "package:com.x" in text

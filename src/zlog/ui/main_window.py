@@ -938,6 +938,7 @@ class MainWindow(QMainWindow):
             regex=self.regex_check.isChecked(),
             case=self.case_check.isChecked(),
             package=self.package_box.currentText().strip(),
+            query=self.query.text(),
         )
         self._presets = upsert_preset(self._presets, preset)
         self._rebuild_presets_menu()
@@ -953,15 +954,20 @@ class MainWindow(QMainWindow):
         idx = self.level_box.findData(level)
         if idx >= 0:
             self.level_box.setCurrentIndex(idx)
-        parts = []
-        package = preset.get("package", "")
-        if package:
-            parts.append(f"package:{package}")
-        search = preset.get("search", "")
-        if search:
-            parts.append(f"/{search}/" if preset.get("regex") else search)
-        # No level: token — the Level dropdown now holds the floor.
-        self.query.setText(" ".join(parts))  # -> _apply_query
+        if "query" in preset:
+            # Newer presets store the raw query bar text verbatim, so tag:/-exclude/
+            # regex/package tokens all survive. The Level dropdown holds the floor.
+            self.query.setText(preset.get("query", ""))  # -> _apply_query
+        else:
+            # Legacy preset: reconstruct the query from the decomposed fields.
+            parts = []
+            package = preset.get("package", "")
+            if package:
+                parts.append(f"package:{package}")
+            search = preset.get("search", "")
+            if search:
+                parts.append(f"/{search}/" if preset.get("regex") else search)
+            self.query.setText(" ".join(parts))  # -> _apply_query
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
     def _delete_preset(self, name: str) -> None:
@@ -1014,6 +1020,7 @@ class MainWindow(QMainWindow):
             regex=self.regex_check.isChecked(),
             case=self.case_check.isChecked(),
             package=self.package_box.currentText().strip(),
+            query=self.query.text(),
         )
         self._presets = upsert_preset(self._presets, updated)
         self._rebuild_presets_menu()
@@ -1035,6 +1042,7 @@ class MainWindow(QMainWindow):
             regex=preset["regex"],
             case=preset["case"],
             package=preset["package"],
+            query=preset.get("query", ""),
         )
         self._presets = upsert_preset(remove_preset(self._presets, preset["name"]), renamed)
         self._rebuild_presets_menu()

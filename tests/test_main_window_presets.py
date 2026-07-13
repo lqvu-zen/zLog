@@ -20,22 +20,23 @@ def _prompt(monkeypatch, name, ok=True):
 
 
 def test_save_and_apply_preset(window, monkeypatch):
+    # The query bar is the filter input; the level floor lives in the dropdown.
     window.level_box.setCurrentIndex(4)  # E
-    window.regex_check.setChecked(True)
-    window.search.setText("FATAL|ANR")
+    window.query.setText("/FATAL|ANR/")
     _prompt(monkeypatch, "Crashes")
     window.save_current_preset()
 
     assert [p["name"] for p in window._presets] == ["Crashes"]
     saved = window._presets[0]
-    assert saved["min_level"] == "E" and saved["regex"] is True and saved["search"] == "FATAL|ANR"
+    assert saved["min_level"] == "E" and saved["query"] == "/FATAL|ANR/"
 
-    # change filters, then re-apply the preset
+    # change filters, then re-apply the preset — the query comes back verbatim
     window.level_box.setCurrentIndex(0)
-    window.regex_check.setChecked(False)
-    window.search.setText("")
+    window.query.setText("")
     window._apply_preset(saved)
     assert window.level_box.currentData() == "E"
+    assert window.query.text() == "/FATAL|ANR/"
+    # ...and the derived search/regex widgets follow from the query.
     assert window.regex_check.isChecked() is True
     assert window.search.text() == "FATAL|ANR"
 

@@ -18,6 +18,7 @@ def test_make_preset_defaults_and_coercion():
         "regex": True,
         "case": False,
         "package": "com.x",
+        "query": "",
     }
 
 
@@ -62,3 +63,17 @@ def test_preset_summary_combines_fields():
 def test_preset_summary_regex_wraps_slashes():
     p = make_preset("x", search="a.*b", regex=True)
     assert "/a.*b/" in preset_summary(p)
+
+
+def test_make_preset_carries_query():
+    assert make_preset("t", query="tag:Foo -spam")["query"] == "tag:Foo -spam"
+
+
+def test_preset_summary_uses_query_when_present():
+    out = preset_summary(make_preset("t", min_level="E", query="tag:Foo -spam"))
+    assert "level:E" in out
+    assert "tag:Foo -spam" in out
+
+
+def test_normalize_preserves_query():
+    assert normalize_presets([{"name": "t", "query": "tag:Bar"}])[0]["query"] == "tag:Bar"

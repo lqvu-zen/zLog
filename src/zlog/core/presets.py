@@ -1,9 +1,10 @@
 """Filter presets — pure, no Qt, so it's unit-testable.
 
-A preset is a plain JSON-able dict capturing the filter widgets' state under a
-name: min level, search text, regex/case flags, and package. The UI applies one
-by driving those widgets (which push through the proxy), so there's a single
-filtering code path.
+A preset is a plain JSON-able dict capturing the filter state under a name. The
+`query` field holds the raw query-bar text and is the source of truth when
+applying a preset (it preserves tag:/-exclude/multi-level tokens that the
+decomposed search/regex/package fields cannot). The older fields are kept for
+backward compatibility and for the human-readable summary.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ def make_preset(
     regex: bool = False,
     case: bool = False,
     package: str = "",
+    query: str = "",
 ) -> dict:
     """Build a normalized preset dict with coerced field types."""
     return {
@@ -26,6 +28,7 @@ def make_preset(
         "regex": bool(regex),
         "case": bool(case),
         "package": str(package),
+        "query": str(query),
     }
 
 
@@ -49,6 +52,7 @@ def normalize_presets(raw) -> list[dict]:
                 regex=item.get("regex", False),
                 case=item.get("case", False),
                 package=item.get("package", ""),
+                query=item.get("query", ""),
             )
         )
     return out
@@ -73,12 +77,17 @@ def preset_summary(preset: dict) -> str:
     level = preset.get("min_level", "V")
     if level and level != "V":
         parts.append(f"level:{level}")
-    package = preset.get("package", "")
-    if package:
-        parts.append(f"package:{package}")
-    search = preset.get("search", "")
-    if search:
-        parts.append(f"/{search}/" if preset.get("regex") else search)
+    query = preset.get("query", "")
+    if query:
+        # The raw query already encodes tag:/-exclude/regex/package tokens.
+        parts.append(query)
+    else:
+        package = preset.get("package", "")
+        if package:
+            parts.append(f"package:{package}")
+        search = preset.get("search", "")
+        if search:
+            parts.append(f"/{search}/" if preset.get("regex") else search)
     if preset.get("case"):
         parts.append("(case-sensitive)")
     return " ".join(parts) or "(show everything)"
