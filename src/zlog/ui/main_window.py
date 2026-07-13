@@ -69,6 +69,7 @@ from zlog.core.heat import heat_marks
 from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.palette import match_commands
+from zlog.core.plugins import load_colorizers
 from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
 from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
@@ -146,6 +147,7 @@ class MainWindow(QMainWindow):
         self._load_and_apply_settings()
         self._update_placeholder()
         self._maybe_reopen_last()
+        self._load_plugins()
 
     # --- construction (called once, in order, from __init__) ---------------
     def _build_widgets(self) -> None:
@@ -421,6 +423,8 @@ class MainWindow(QMainWindow):
         tag_summary_act.triggered.connect(self._show_tag_summary)
         watch_act = view_menu.addAction("Set &Watch…")
         watch_act.triggered.connect(self._set_watch_dialog)
+        reload_plugins_act = view_menu.addAction("Reload &Plugins")
+        reload_plugins_act.triggered.connect(self._load_plugins)
         self.collapse_action = view_menu.addAction("&Collapse Repeated Lines")
         self.collapse_action.setCheckable(True)
         self.collapse_action.setChecked(False)
@@ -1017,6 +1021,22 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dlg)
         layout.addWidget(lst)
         dlg.exec()
+
+    # --- plugins -----------------------------------------------------------
+    def _plugins_dir(self) -> str:
+        base = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        return str(Path(base) / "plugins")
+
+    def _load_plugins(self) -> None:
+        path = self._plugins_dir()
+        os.makedirs(path, exist_ok=True)
+        colorizers, errors = load_colorizers(path)
+        self.model.set_colorizers(colorizers)
+        self.table.viewport().update()
+        msg = f"Loaded {len(colorizers)} colorizer plugin(s) from {path}."
+        if errors:
+            msg += f" {len(errors)} failed."
+        self.statusBar().showMessage(msg)
 
     # --- watch pattern -----------------------------------------------------
     def _set_watch_dialog(self) -> None:

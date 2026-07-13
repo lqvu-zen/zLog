@@ -106,3 +106,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [command-palette.md](command-palette.md) | Done | Ctrl+K fuzzy command palette over the menus |
 | [watch-pattern.md](watch-pattern.md) | Done | Notify (tray/beep) when a captured line matches a watch pattern |
 | [diff-captures.md](diff-captures.md) | Done | File → Diff Against File: unified colored diff (normalized keys) |
+| [plugin-colorizers.md](plugin-colorizers.md) | Done | Load user colorize(entry) plugins to tint rows; View → Reload Plugins |

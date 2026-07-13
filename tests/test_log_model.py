@@ -355,3 +355,15 @@ def test_collapse_first_row_always_shows(qapp):
     model.append_entries([_entry(message="x"), _entry(message="x")])
     proxy.set_collapse(True)
     assert proxy.rowCount() == 1  # the very first row is never folded
+
+
+def test_colorizer_tints_row(qapp):
+    from PySide6.QtGui import QColor
+
+    from zlog.ui.log_model import HIGHLIGHT_ROLE
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(level="E", message="boom")])
+    model.set_colorizers([lambda e: "#123456" if e.level == "E" else None])
+    color = model.data(model.index(0, 0), HIGHLIGHT_ROLE)
+    assert isinstance(color, QColor) and color.name() == "#123456"

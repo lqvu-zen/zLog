@@ -26,6 +26,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor
 
 from zlog.core.models import LEVEL_RANK, LogEntry
+from zlog.core.plugins import apply_colorizers
 from zlog.core.search import compile_matcher
 from zlog.core.timefmt import format_delta, parse_logcat_time
 from zlog.ui.theme import LIGHT
@@ -49,6 +50,7 @@ class LogTableModel(QAbstractTableModel):
         self._bookmarks: set[int] = set()  # bookmarked source-row indices
         self._bookmark_color = QColor(LIGHT.bookmark)
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
+        self._colorizers = []  # plugin colorize(entry) callables
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -77,6 +79,10 @@ class LogTableModel(QAbstractTableModel):
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
                 return tag
+            if self._colorizers:
+                c = apply_colorizers(self._colorizers, entry)
+                if c:
+                    return QColor(c)
             if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
                 return self._highlight_color
             return self._level_colors.get(entry.level)
@@ -86,6 +92,10 @@ class LogTableModel(QAbstractTableModel):
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
                 return tag
+            if self._colorizers:
+                c = apply_colorizers(self._colorizers, entry)
+                if c:
+                    return QColor(c)
             if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
                 return self._highlight_color
             return None
@@ -204,6 +214,11 @@ class LogTableModel(QAbstractTableModel):
 
     def clear_tag_colors(self) -> None:
         self._tag_colors = {}
+
+    def set_colorizers(self, fns) -> None:
+        """Install plugin colorize(entry) callables and repaint."""
+        self._colorizers = list(fns)
+        self._repaint_backgrounds()
 
     def tag_colors(self) -> dict[str, str]:
         """Current tag highlights as hex strings (for saving)."""
