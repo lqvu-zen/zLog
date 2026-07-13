@@ -107,3 +107,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [watch-pattern.md](watch-pattern.md) | Done | Notify (tray/beep) when a captured line matches a watch pattern |
 | [diff-captures.md](diff-captures.md) | Done | File → Diff Against File: unified colored diff (normalized keys) |
 | [plugin-colorizers.md](plugin-colorizers.md) | Done | Load user colorize(entry) plugins to tint rows; View → Reload Plugins |
+| [new-window.md](new-window.md) | Done | File → New Window: independent second window for concurrent device streams |

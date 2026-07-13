@@ -58,7 +58,14 @@ Each component is scored on **User value**, **Effort**, and **Risk**, then bucke
 Version cadence is the milestone. Each phase ends with a release (bump + CHANGELOG +
 tag; the workflow builds/publishes the exe).
 
-### v1.1 — Finish the current cycle *(now)*
+> **Status (2026-07-11):** every item below is **implemented and tested** (210
+> passing tests) but **not yet released** — the shipped binary is still the July‑1
+> 1.0.0 build. The immediate next step is to **cut a release** (bump, CHANGELOG,
+> tag). The only roadmap item not built as originally framed is **multiple device
+> *tabs***; concurrent multi-device viewing is delivered instead via **New Window**
+> ([new-window.md](plans/new-window.md)) — tabs remain a deferred UX variant.
+
+### v1.1 — Finish the current cycle — **DONE (unreleased)**
 Ship the in-flight search/filter polish, then cut the release.
 - Build the three ready Drafts: **mute-tag**, **level multi-select**, **search history**.
 - Optional quick win: **monospace toggle** (pairs with font zoom).
@@ -66,7 +73,7 @@ Ship the in-flight search/filter polish, then cut the release.
   contrast (see [ui-review-polish.md](plans/ui-review-polish.md)).
 - **Cut 1.1** (version bump, CHANGELOG, `v1.1.0` tag → auto-built exe).
 
-### v1.2 — Capture & scale *(next)* — **P0**
+### v1.2 — Capture & scale — **DONE (unreleased)**
 Make zLog trustworthy on long, real-world captures.
 - **Custom adb args**: buffer selection (main/system/crash/radio), tail count, format.
 - **Clear device buffer** (`adb logcat -c`).
@@ -75,21 +82,21 @@ Make zLog trustworthy on long, real-world captures.
 - **Auto-reconnect** on device drop/return.
 - **Robust parsing** — handle `brief`/`time`/`tag` formats and odd lines gracefully.
 
-### v1.3 — Sessions & export *(later)* — **P1**
+### v1.3 — Sessions & export — **DONE (unreleased)**
 Sharing and returning to captures.
 - **Open-recent** menu; **reopen last session** on launch.
 - **Export** to CSV/JSON/HTML; copy-as-Markdown; message-only copy.
 - **Session bundles** — log + filters + bookmarks saved/reopened together.
 - **Autosave / rotating capture** to disk while streaming.
 
-### v1.4 — Reading & analysis *(later)* — **P1/P2**
+### v1.4 — Reading & analysis — **DONE (unreleased)**
 Turn volume into signal.
 - **Collapse repeated lines** ("×N"); **stack-trace folding**.
 - **Severity navigation** (jump to next error/warning); **scrollbar heat marks**.
 - **Tag/level histogram** panel; **error-rate sparkline** in the status bar.
 - Column reordering (persisted), remember splitter sizes, per-level text color.
 
-### v2.0 — Platform bets *(exploratory)* — **P3**
+### v2.0 — Platform bets — **DONE (unreleased), except device tabs (New Window instead)**
 Bigger architectural moves, each with its own design.
 - **Multiple device tabs** (concurrent streams).
 - **Command palette** (Ctrl+K); **watch-pattern desktop notifications**.
@@ -118,13 +125,4 @@ features, the CHANGELOG is updated, and the tagged build produces a working exe.
   million-line capture before each release; keep per-row work O(1).
 - **Parser brittleness** on non-standard logcat formats — the single biggest correctness
   risk; prioritize in v1.2.
-- **Feature sprawl vs. focus** — the toolbar already needed a tidy-up; prefer menus/
-  context actions over more always-visible controls, and say no to low-value P3 ideas.
-- **Scope of v2.0 bets** — multiple-device and plugins are architectural; design them
-  before committing.
-
-## Backlog
-
-The full idea list (with what's Done/Planned) is maintained alongside the per-feature
-plans in `docs/plans/`. This roadmap is the prioritized lens over that backlog; when a
-component is picked up, it becomes one or more `docs/plans/<slug>.md` files.
+- **Feature sprawl vs. focus** —

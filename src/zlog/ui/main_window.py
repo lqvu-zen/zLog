@@ -103,6 +103,8 @@ BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
 
 
 class MainWindow(QMainWindow):
+    _open_windows: list = []  # keeps New-Window spawns alive (not garbage-collected)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("zLog — Android Log Viewer")
@@ -354,6 +356,10 @@ class MainWindow(QMainWindow):
     def _build_menus(self) -> None:
         """Build the File and View menus (their actions wire themselves here)."""
         file_menu = self.menuBar().addMenu("&File")
+        new_window_act = file_menu.addAction("New &Window")
+        new_window_act.setShortcut("Ctrl+Shift+N")
+        new_window_act.triggered.connect(self._new_window)
+        file_menu.addSeparator()
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
         open_act.triggered.connect(self.open_log)
@@ -1416,6 +1422,12 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             self.autosave_action.setChecked(False)  # stop retrying every batch
             self.statusBar().showMessage(f"Autosave off (write failed): {exc}")
+
+    def _new_window(self) -> None:
+        """Open a second, fully independent zLog window (stream another device)."""
+        win = MainWindow()
+        MainWindow._open_windows.append(win)
+        win.show()
 
     def open_log(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

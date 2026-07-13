@@ -618,3 +618,15 @@ def test_watch_hits_and_clear(window):
     window._apply_watch("", announce=False)
     assert window._watch is None
     assert window._watch_hits([LogEntry("t", "1", "2", "E", "T", "boom")]) == []
+
+
+def test_new_window_is_independent(window):
+    from zlog.ui.main_window import MainWindow
+
+    before = len(MainWindow._open_windows)
+    window._new_window()
+    assert len(MainWindow._open_windows) == before + 1
+    w2 = MainWindow._open_windows[-1]
+    assert w2 is not window
+    assert w2.model is not window.model  # fully independent stack
+    w2.close()
