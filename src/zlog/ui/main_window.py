@@ -61,6 +61,7 @@ from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
+from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.heat_scrollbar import HeatScrollBar
@@ -241,6 +242,8 @@ class MainWindow(QMainWindow):
         self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
 
         self.count_label = QLabel("0 lines")
+        self.spark_label = QLabel("")
+        self.spark_label.setToolTip("Error rate over the last 500 lines")
 
         # Single query bar, parsed into the filters.
         self.query = QLineEdit()
@@ -319,6 +322,7 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.setStatusBar(QStatusBar())
+        self.statusBar().addPermanentWidget(self.spark_label)
         self.statusBar().addPermanentWidget(self.count_label)
 
     def _vsep(self) -> QFrame:
@@ -1296,6 +1300,10 @@ class MainWindow(QMainWindow):
                 self.model.rowCount(), self.model.level_counts(), self.proxy.rowCount()
             )
         )
+        total = self.model.rowCount()
+        start = max(0, total - 500)
+        ranks = [self.model.entry_at(r).rank for r in range(start, total)]
+        self.spark_label.setText(error_rate_sparkline(ranks, LEVEL_RANK["E"]))
 
     # --- detail pane -------------------------------------------------------
     def _update_detail(self, current, previous=None) -> None:

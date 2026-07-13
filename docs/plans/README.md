@@ -102,3 +102,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [remember-splitter.md](remember-splitter.md) | Done | Persist the log/detail splitter position across launches |
 | [scrollbar-heat.md](scrollbar-heat.md) | Done | Error-position ticks on the log scrollbar (debounced, bucketed) |
 | [collapse-repeats.md](collapse-repeats.md) | Done | View toggle: hide consecutive duplicate lines (proxy gate) |
+| [error-sparkline.md](error-sparkline.md) | Done | Status-bar sparkline of error density over the recent tail |
