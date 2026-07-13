@@ -62,8 +62,8 @@ tag; the workflow builds/publishes the exe).
 > passing tests) but **not yet released** — the shipped binary is still the July‑1
 > 1.0.0 build. The immediate next step is to **cut a release** (bump, CHANGELOG,
 > tag). The only roadmap item not built as originally framed is **multiple device
-> *tabs***; concurrent multi-device viewing is delivered instead via **New Window**
-> ([new-window.md](plans/new-window.md)) — tabs remain a deferred UX variant.
+> *tabs*** are now implemented ([device-tabs.md](plans/device-tabs.md)); **New Window**
+> ([new-window.md](plans/new-window.md)) remains as an alternative for separate windows.
 
 ### v1.1 — Finish the current cycle — **DONE (unreleased)**
 Ship the in-flight search/filter polish, then cut the release.
@@ -96,7 +96,7 @@ Turn volume into signal.
 - **Tag/level histogram** panel; **error-rate sparkline** in the status bar.
 - Column reordering (persisted), remember splitter sizes, per-level text color.
 
-### v2.0 — Platform bets — **DONE (unreleased), except device tabs (New Window instead)**
+### v2.0 — Platform bets — **DONE (unreleased)**
 Bigger architectural moves, each with its own design.
 - **Multiple device tabs** (concurrent streams).
 - **Command palette** (Ctrl+K); **watch-pattern desktop notifications**.

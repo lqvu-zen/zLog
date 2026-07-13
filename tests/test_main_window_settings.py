@@ -473,9 +473,10 @@ def test_reconnect_waits_while_device_absent(window, monkeypatch):
 
 
 def test_stream_ended_ignored_after_user_stop(window):
-    window._want_stream = False
-    window._on_stream_ended()  # user stopped: must not start reconnect polling
-    assert window._reconnect_timer.isActive() is False
+    sess = window._active
+    sess.want_stream = False
+    window._on_stream_ended(sess)  # user stopped: must not start reconnect polling
+    assert sess.reconnect_timer.isActive() is False
 
 
 def test_open_recent_tracks_and_dedups(window, tmp_path):
@@ -630,3 +631,38 @@ def test_new_window_is_independent(window):
     assert w2 is not window
     assert w2.model is not window.model  # fully independent stack
     w2.close()
+
+
+def test_tabs_independent_and_concurrent(window):
+    from zlog.core.models import LogEntry
+
+    assert window.tab_bar.count() == 1 and len(window._sessions) == 1
+    s0 = window._sessions[0]
+    window._on_batch(s0, [LogEntry("t", "1", "2", "I", "A", "a")])
+
+    window._new_tab()
+    assert window.tab_bar.count() == 2 and window._active_index == 1
+    s1 = window._sessions[1]
+    assert s1.model is not s0.model  # independent stacks
+
+    # a background tab keeps appending while another is active
+    window._on_batch(s0, [LogEntry("t", "1", "2", "E", "A", "bg")])
+    window._on_batch(s1, [LogEntry("t", "1", "2", "I", "B", "b")])
+    assert s0.model.rowCount() == 2 and s1.model.rowCount() == 1
+    assert window.model is s1.model  # active view is tab 1
+
+    window.tab_bar.setCurrentIndex(0)
+    assert window.model is s0.model  # switching swaps the visible model
+
+
+def test_tab_query_is_per_tab(window):
+    window.query.setText("level:E")
+    window._new_tab()  # saves tab0's query, opens a fresh tab
+    assert window.query.text() == ""  # new tab starts unfiltered
+    window.tab_bar.setCurrentIndex(0)
+    assert window.query.text() == "level:E"  # tab0's query restored
+
+
+def test_cannot_close_last_tab(window):
+    window._close_tab(0)
+    assert window.tab_bar.count() == 1  # the last tab is kept

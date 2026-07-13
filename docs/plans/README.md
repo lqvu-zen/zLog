@@ -108,3 +108,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [diff-captures.md](diff-captures.md) | Done | File → Diff Against File: unified colored diff (normalized keys) |
 | [plugin-colorizers.md](plugin-colorizers.md) | Done | Load user colorize(entry) plugins to tint rows; View → Reload Plugins |
 | [new-window.md](new-window.md) | Done | File → New Window: independent second window for concurrent device streams |
+| [device-tabs.md](device-tabs.md) | Done | Tabbed concurrent device streams (LogSession re-rooting + tab bar) |

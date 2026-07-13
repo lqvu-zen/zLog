@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run *)",
+      "Bash(uv lock *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(powershell -NoProfile -Command \"Stop-Process -Name zlog -Force -ErrorAction SilentlyContinue\")",
+      "Bash(rm -f zlog_stdout.log)",
+      "Bash(powershell -NoProfile -Command \"Compress-Archive -Path 'exe.win-amd64-3.14' -DestinationPath 'zlog-1.0.0-win64.zip' -Force\")",
+      "Bash(gh auth *)",
+      "Bash(gh release *)",
+      "Bash(git mv *)",
+      "Bash(mv assets/report-template.md assets/findings-template.md)"
+    ]
+  }
+}

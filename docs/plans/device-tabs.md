@@ -1,6 +1,6 @@
 # Plan: Tabbed device view (concurrent streams in one window)
 
-- **Status:** In progress
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-11
 - **Related:** ROADMAP v2.0 (multiple device tabs), [new-window.md](new-window.md)

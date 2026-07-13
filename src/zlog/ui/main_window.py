@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSplitter,
     QStatusBar,
+    QTabBar,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
@@ -148,8 +149,84 @@ class MainWindow(QMainWindow):
     # --- active-session re-rooting (tabs) ----------------------------------
     def _make_session(self) -> LogSession:
         sess = LogSession(self)
-        sess.reconnect_timer.timeout.connect(self._try_reconnect)
+        self._wire_session_signals(sess)
         return sess
+
+    def _wire_session_signals(self, sess) -> None:
+        sess.model.rowsInserted.connect(self._update_counts)
+        sess.model.modelReset.connect(self._update_counts)
+        for sig in (
+            sess.proxy.rowsInserted,
+            sess.proxy.rowsRemoved,
+            sess.proxy.modelReset,
+            sess.proxy.layoutChanged,
+        ):
+            sig.connect(self._schedule_heat)
+            sig.connect(self._update_placeholder)
+            sig.connect(self._update_counts)
+        sess.reconnect_timer.timeout.connect(lambda s=sess: self._try_reconnect(s))
+
+    # --- tabs --------------------------------------------------------------
+    def _rebind_selection(self) -> None:
+        self.table.selectionModel().currentChanged.connect(self._update_detail)
+
+    def _save_toolbar(self, sess) -> None:
+        sess.query = self.query.text()
+        sess.serial = self.device_box.currentData() or ""
+        sess.level = self.level_box.currentData()
+        sess.package = self.package_box.currentText()
+
+    def _load_toolbar(self, sess) -> None:
+        di = self.device_box.findData(sess.serial)
+        if di >= 0:
+            self.device_box.setCurrentIndex(di)
+        li = self.level_box.findData(sess.level or "V")
+        if li >= 0:
+            self.level_box.setCurrentIndex(li)
+        self.package_box.setEditText(sess.package)
+        self.query.setText(sess.query)  # -> _apply_query on the now-active proxy
+
+    def _set_tab_label(self, sess) -> None:
+        if sess in self._sessions:
+            i = self._sessions.index(sess)
+            name = sess.serial or "Device"
+            self.tab_bar.setTabText(i, f"\u25cf {name}" if sess.reader is not None else name)
+
+    def _new_tab(self) -> None:
+        self._save_toolbar(self._active)
+        self._sessions.append(self._make_session())
+        idx = self.tab_bar.addTab("Device")
+        self.tab_bar.setCurrentIndex(idx)  # -> _switch_tab
+
+    def _switch_tab(self, index: int) -> None:
+        if index < 0 or index >= len(self._sessions):
+            return
+        if index != self._active_index:
+            self._save_toolbar(self._sessions[self._active_index])
+        self._active_index = index
+        self.table.setModel(self.proxy)
+        self._rebind_selection()
+        self._load_toolbar(self._active)
+        self._update_counts()
+        self._schedule_heat()
+        self._update_placeholder()
+        streaming = self._active.reader is not None
+        self.stop_btn.setEnabled(streaming)
+        self.pause_btn.setEnabled(streaming)
+        self._update_start_enabled()
+
+    def _close_tab(self, index: int) -> None:
+        if len(self._sessions) <= 1:
+            return  # always keep one tab
+        sess = self._sessions[index]
+        sess.want_stream = False
+        sess.reconnect_timer.stop()
+        if sess.reader:
+            sess.reader.stop()
+        self._sessions.pop(index)
+        if self._active_index >= len(self._sessions):
+            self._active_index = len(self._sessions) - 1
+        self.tab_bar.removeTab(index)  # -> _switch_tab(current)
 
     @property
     def _active(self) -> LogSession:
@@ -220,6 +297,11 @@ class MainWindow(QMainWindow):
         """Create the model/proxy/view and every toolbar widget (no layout yet)."""
         self._sessions = [self._make_session()]
         self._active_index = 0
+        self.tab_bar = QTabBar()
+        self.tab_bar.setTabsClosable(True)
+        self.tab_bar.setExpanding(False)
+        self.tab_bar.setDocumentMode(True)
+        self.tab_bar.addTab("Device")
 
         self.table = LogTableView()
         self.table.setModel(self.proxy)
@@ -399,6 +481,7 @@ class MainWindow(QMainWindow):
         filter_row.addWidget(self.query)
 
         layout = QVBoxLayout()
+        layout.addWidget(self.tab_bar)
         layout.addLayout(top_row)
         layout.addLayout(filter_row)
         layout.addWidget(self._splitter)
@@ -422,6 +505,9 @@ class MainWindow(QMainWindow):
         new_window_act = file_menu.addAction("New &Window")
         new_window_act.setShortcut("Ctrl+Shift+N")
         new_window_act.triggered.connect(self._new_window)
+        new_tab_act = file_menu.addAction("New &Tab")
+        new_tab_act.setShortcut("Ctrl+T")
+        new_tab_act.triggered.connect(self._new_tab)
         file_menu.addSeparator()
         open_act = file_menu.addAction("&Open Log…")
         open_act.setShortcut("Ctrl+O")
@@ -594,10 +680,8 @@ class MainWindow(QMainWindow):
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
-        self.proxy.rowsInserted.connect(self._schedule_heat)
-        self.proxy.rowsRemoved.connect(self._schedule_heat)
-        self.proxy.modelReset.connect(self._schedule_heat)
-        self.proxy.layoutChanged.connect(self._schedule_heat)
+        self.tab_bar.currentChanged.connect(self._switch_tab)
+        self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
         self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
@@ -630,15 +714,7 @@ class MainWindow(QMainWindow):
         self.case_check.toggled.connect(self._apply_search)
         self.search_mode_box.currentIndexChanged.connect(self._apply_search)
         self.clear_filters_btn.clicked.connect(self.clear_filters)
-        self.table.selectionModel().currentChanged.connect(self._update_detail)
-        self.model.rowsInserted.connect(self._update_counts)
-        self.model.modelReset.connect(self._update_counts)
-        self.proxy.layoutChanged.connect(self._update_placeholder)
-        self.proxy.modelReset.connect(self._update_placeholder)
-        self.proxy.rowsInserted.connect(self._update_placeholder)
-        self.proxy.rowsRemoved.connect(self._update_placeholder)
-        self.proxy.layoutChanged.connect(self._update_counts)
-        self.proxy.rowsRemoved.connect(self._update_counts)
+        self._rebind_selection()
 
     # --- devices -----------------------------------------------------------
     def _run_adb(self, fn, *, missing_msg, error_prefix, report):
@@ -1790,68 +1866,75 @@ class MainWindow(QMainWindow):
         self._reconnect_serial = self.device_box.currentData()
         self._start_reader(self._reconnect_serial)
 
-    def _start_reader(self, serial, since_time=None) -> None:
+    def _start_reader(self, serial, since_time=None, sess=None) -> None:
+        sess = sess if sess is not None else self._active
         buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
         tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
-        self.reader = AdbReader(
-            serial=serial, buffers=buffers or None, tail=tail, since_time=since_time
-        )
-        self.reader.batch_ready.connect(self.on_batch)
-        self.reader.error.connect(self.on_error)
-        self.reader.stream_ended.connect(self._on_stream_ended)
-        self.reader.start()
-        # Lock device selection while streaming; switching needs Stop first.
-        self.device_box.setEnabled(False)
-        self.refresh_btn.setEnabled(False)
-        self.start_btn.setEnabled(False)
-        self.stop_btn.setEnabled(True)
-        self.pause_btn.setEnabled(True)
-        self.pause_btn.setText("Pause")
-        self._paused = False
-        self._pause_buffer = []
-        self._update_package_enabled()
+        reader = AdbReader(serial=serial, buffers=buffers or None, tail=tail, since_time=since_time)
+        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
+        reader.error.connect(self.on_error)
+        reader.stream_ended.connect(lambda x=sess: self._on_stream_ended(x))
+        reader.start()
+        sess.reader = reader
+        sess.serial = serial or ""
+        sess.paused = False
+        sess.pause_buffer = []
+        self._set_tab_label(sess)
+        if sess is self._active:
+            # Lock device selection while streaming; switching needs Stop first.
+            self.device_box.setEnabled(False)
+            self.refresh_btn.setEnabled(False)
+            self.start_btn.setEnabled(False)
+            self.stop_btn.setEnabled(True)
+            self.pause_btn.setEnabled(True)
+            self.pause_btn.setText("Pause")
+            self._update_package_enabled()
         self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
     def stop(self) -> None:
-        self._want_stream = False
-        self._reconnect_timer.stop()
-        if self.reader:
-            self.reader.stop()
-            self.reader = None
+        sess = self._active
+        sess.want_stream = False
+        sess.reconnect_timer.stop()
+        if sess.reader:
+            sess.reader.stop()
+            sess.reader = None
+        sess.paused = False
+        sess.pause_buffer = []
         self.refresh_btn.setEnabled(True)
         self.device_box.setEnabled(bool(self.devctl.devices))
         self.stop_btn.setEnabled(False)
         self.pause_btn.setEnabled(False)
         self.pause_btn.setText("Pause")
-        self._paused = False
-        self._pause_buffer = []
         self._update_start_enabled()
+        self._set_tab_label(sess)
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:
+        self._on_batch(self._active, entries)  # pause-flush path (active tab)
+
+    def _on_batch(self, sess, entries) -> None:
         for entry in reversed(entries):
-            if entry.time:  # remember the newest real timestamp for reconnect resume
-                self._last_time = entry.time
+            if entry.time:  # newest real timestamp for this tab's reconnect resume
+                sess.last_time = entry.time
                 break
-        self._autosave(entries)  # persist before the pause gate so paused capture is saved too
+        self._autosave(entries)
         hits = self._watch_hits(entries)
         if hits:
             self._notify_watch(hits[-1])
-        if self._paused:
-            # Keep capturing but hold new lines back until Resume flushes them.
-            self._pause_buffer.extend(entries)
-            self.statusBar().showMessage(f"Paused — {len(self._pause_buffer)} line(s) buffered.")
+        active = sess is self._active
+        if sess.paused:
+            sess.pause_buffer.extend(entries)
+            if active:
+                self.statusBar().showMessage(f"Paused — {len(sess.pause_buffer)} line(s) buffered.")
             return
-        # Follow is a stable manual toggle. Tail only when it is on AND the view is
-        # already at the bottom, so scrolling up to read history is never yanked by
-        # incoming logs; scrolling back to the bottom resumes tailing on its own.
-        # Capture "at bottom" before appending, since appending grows the range.
-        sb = self.table.verticalScrollBar()
-        was_at_bottom = sb.value() >= sb.maximum() - 4
-        self.model.append_entries(entries)
-        if self.devctl.filtering:
+        was_at_bottom = False
+        if active:
+            sb = self.table.verticalScrollBar()
+            was_at_bottom = sb.value() >= sb.maximum() - 4
+        sess.model.append_entries(entries)
+        if active and self.devctl.filtering:
             self._track_new_pids(entries)
-        if self.follow_check.isChecked() and was_at_bottom:
+        if active and self.follow_check.isChecked() and was_at_bottom:
             self.table.scrollToBottom()
 
     def _toggle_pause(self) -> None:
@@ -1867,27 +1950,31 @@ class MainWindow(QMainWindow):
                 self.on_batch(buffered)  # flush in arrival order now that we are live
             self.statusBar().showMessage("Resumed.")
 
-    def _on_stream_ended(self) -> None:
+    def _on_stream_ended(self, sess) -> None:
         # The reader ended without a user Stop -> the device dropped. Poll for it to
         # come back and resume from the last timestamp (auto-reconnect).
-        if not self._want_stream:
+        if not sess.want_stream:
             return
-        self.reader = None
-        self.statusBar().showMessage("Device disconnected — waiting to reconnect…")
-        self._reconnect_timer.start()
+        sess.reader = None
+        self._set_tab_label(sess)
+        if sess is self._active:
+            self.statusBar().showMessage("Device disconnected — waiting to reconnect…")
+        sess.reconnect_timer.start()
 
-    def _try_reconnect(self) -> None:
-        if not self._want_stream:
-            self._reconnect_timer.stop()
+    def _try_reconnect(self, sess=None) -> None:
+        sess = sess if sess is not None else self._active
+        if not sess.want_stream:
+            sess.reconnect_timer.stop()
             return
         try:
             devices = list_devices()
         except Exception:
             return  # adb hiccup; keep polling
-        if is_serial_streamable(devices, self._reconnect_serial):
-            self._reconnect_timer.stop()
-            self.statusBar().showMessage("Device back — reconnecting…")
-            self._start_reader(self._reconnect_serial, since_time=self._last_time or None)
+        if is_serial_streamable(devices, sess.reconnect_serial):
+            sess.reconnect_timer.stop()
+            if sess is self._active:
+                self.statusBar().showMessage("Device back — reconnecting…")
+            self._start_reader(sess.reconnect_serial, since_time=sess.last_time or None, sess=sess)
 
     def _track_new_pids(self, entries) -> None:
         """Keep an active package filter live: add PIDs of newly started
