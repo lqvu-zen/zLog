@@ -1,6 +1,12 @@
 """Tests for filter presets — pure, no Qt."""
 
-from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
+from zlog.core.presets import (
+    make_preset,
+    normalize_presets,
+    preset_summary,
+    remove_preset,
+    upsert_preset,
+)
 
 
 def test_make_preset_defaults_and_coercion():
@@ -38,3 +44,21 @@ def test_upsert_adds_sorted_and_replaces_by_name():
 def test_remove_preset():
     ps = [make_preset("A"), make_preset("B")]
     assert [p["name"] for p in remove_preset(ps, "a")] == ["B"]  # case-insensitive
+
+
+def test_preset_summary_show_everything():
+    assert preset_summary(make_preset("all")) == "(show everything)"
+
+
+def test_preset_summary_combines_fields():
+    p = make_preset("x", min_level="E", search="boom", regex=False, case=True, package="com.a")
+    out = preset_summary(p)
+    assert "level:E" in out
+    assert "package:com.a" in out
+    assert "boom" in out
+    assert "(case-sensitive)" in out
+
+
+def test_preset_summary_regex_wraps_slashes():
+    p = make_preset("x", search="a.*b", regex=True)
+    assert "/a.*b/" in preset_summary(p)

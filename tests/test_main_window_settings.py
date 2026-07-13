@@ -707,6 +707,44 @@ def test_add_query_token_quotes_spaces(window):
     assert parse_query(window.query.text()).tag == "My Tag"
 
 
+def test_update_preset_to_current_overwrites(window):
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("p", min_level="V"))
+    window._rebuild_presets_list()
+    window.presets_list.setCurrentRow(0)
+    window.level_box.setCurrentIndex(window.level_box.findData("E"))
+    window.search.setText("boom")
+    window._update_preset_to_current()
+    got = next(x for x in window._presets if x["name"] == "p")
+    assert got["min_level"] == "E"
+    assert got["search"] == "boom"
+
+
+def test_rename_preset(window, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("old", min_level="W"))
+    window._rebuild_presets_list()
+    window.presets_list.setCurrentRow(0)
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("new", True)))
+    window._rename_preset()
+    names = [x["name"] for x in window._presets]
+    assert "new" in names and "old" not in names
+    assert next(x for x in window._presets if x["name"] == "new")["min_level"] == "W"
+
+
+def test_preset_preview_updates_on_selection(window):
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("p", min_level="E"))
+    window._rebuild_presets_list()
+    window.presets_list.setCurrentRow(0)
+    assert "level:E" in window.preset_preview.text()
+
+
 def test_preset_resets_level_floor(window):
     from zlog.core.models import LogEntry
     from zlog.core.presets import make_preset

@@ -73,7 +73,13 @@ from zlog.core.history import normalize_history, push_history
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.palette import match_commands
 from zlog.core.plugins import load_colorizers
-from zlog.core.presets import make_preset, normalize_presets, remove_preset, upsert_preset
+from zlog.core.presets import (
+    make_preset,
+    normalize_presets,
+    preset_summary,
+    remove_preset,
+    upsert_preset,
+)
 from zlog.core.query import parse_query
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
@@ -428,7 +434,14 @@ class MainWindow(QMainWindow):
         self.presets_list = QListWidget()
         self.presets_list.setToolTip("Double-click a saved filter to apply it")
         self.save_filter_btn = QPushButton("Save current filter…")
+        self.update_filter_btn = QPushButton("Update to current")
+        self.update_filter_btn.setToolTip(
+            "Overwrite the selected saved filter with the current filter"
+        )
+        self.rename_filter_btn = QPushButton("Rename")
         self.delete_filter_btn = QPushButton("Delete")
+        self.preset_preview = QLabel("")
+        self.preset_preview.setWordWrap(True)
         self.spark_label = QLabel("")
         self.spark_label.setToolTip("Error rate over the last 500 lines")
 
@@ -522,10 +535,15 @@ class MainWindow(QMainWindow):
         panel_layout.setContentsMargins(6, 6, 6, 6)
         panel_layout.addWidget(QLabel("Saved Filters"))
         panel_layout.addWidget(self.presets_list)
-        btn_row = QHBoxLayout()
-        btn_row.addWidget(self.save_filter_btn)
-        btn_row.addWidget(self.delete_filter_btn)
-        panel_layout.addLayout(btn_row)
+        panel_layout.addWidget(self.preset_preview)
+        row1 = QHBoxLayout()
+        row1.addWidget(self.save_filter_btn)
+        row1.addWidget(self.update_filter_btn)
+        panel_layout.addLayout(row1)
+        row2 = QHBoxLayout()
+        row2.addWidget(self.rename_filter_btn)
+        row2.addWidget(self.delete_filter_btn)
+        panel_layout.addLayout(row2)
         self.presets_dock = QDockWidget("Saved Filters", self)
         self.presets_dock.setObjectName("presetsDock")
         self.presets_dock.setWidget(panel)
@@ -727,7 +745,10 @@ class MainWindow(QMainWindow):
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
         self.save_filter_btn.clicked.connect(self.save_current_preset)
+        self.update_filter_btn.clicked.connect(self._update_preset_to_current)
+        self.rename_filter_btn.clicked.connect(self._rename_preset)
         self.delete_filter_btn.clicked.connect(self._delete_selected_preset)
+        self.presets_list.currentRowChanged.connect(self._update_preset_preview)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
         self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
@@ -954,7 +975,9 @@ class MainWindow(QMainWindow):
         for preset in self._presets:
             item = QListWidgetItem(preset["name"])
             item.setData(Qt.UserRole, preset["name"])
+            item.setToolTip(preset_summary(preset))
             self.presets_list.addItem(item)
+        self._update_preset_preview()
 
     def _on_preset_activated(self, item) -> None:
         name = item.data(Qt.UserRole)
@@ -967,6 +990,56 @@ class MainWindow(QMainWindow):
         item = self.presets_list.currentItem()
         if item is not None:
             self._delete_preset(item.data(Qt.UserRole))
+
+    def _selected_preset(self) -> dict | None:
+        item = self.presets_list.currentItem()
+        if item is None:
+            return None
+        name = item.data(Qt.UserRole)
+        return next((p for p in self._presets if p["name"] == name), None)
+
+    def _update_preset_preview(self, *args) -> None:
+        preset = self._selected_preset()
+        self.preset_preview.setText(preset_summary(preset) if preset else "")
+
+    def _update_preset_to_current(self) -> None:
+        preset = self._selected_preset()
+        if preset is None:
+            self.statusBar().showMessage("Select a saved filter to update.")
+            return
+        updated = make_preset(
+            preset["name"],
+            min_level=self.level_box.currentData(),
+            search=self.search.text(),
+            regex=self.regex_check.isChecked(),
+            case=self.case_check.isChecked(),
+            package=self.package_box.currentText().strip(),
+        )
+        self._presets = upsert_preset(self._presets, updated)
+        self._rebuild_presets_menu()
+        self._save_settings()
+        self.statusBar().showMessage(f"Updated {preset['name']!r} to the current filter.")
+
+    def _rename_preset(self) -> None:
+        preset = self._selected_preset()
+        if preset is None:
+            return
+        name, ok = QInputDialog.getText(self, "Rename Filter", "New name:", text=preset["name"])
+        name = name.strip()
+        if not ok or not name or name == preset["name"]:
+            return
+        renamed = make_preset(
+            name,
+            min_level=preset["min_level"],
+            search=preset["search"],
+            regex=preset["regex"],
+            case=preset["case"],
+            package=preset["package"],
+        )
+        self._presets = upsert_preset(remove_preset(self._presets, preset["name"]), renamed)
+        self._rebuild_presets_menu()
+        self._save_settings()
+        self.statusBar().showMessage(f"Renamed to {name!r}.")
 
     def _apply_search(self) -> None:
         text = self.search.text()

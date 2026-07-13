@@ -65,3 +65,20 @@ def remove_preset(presets: list[dict], name: str) -> list[dict]:
     """Return a new list without the preset of this name (case-insensitive)."""
     key = name.lower()
     return [p for p in presets if p["name"].lower() != key]
+
+
+def preset_summary(preset: dict) -> str:
+    """A short human-readable summary of a preset's filter (for tooltips/preview)."""
+    parts = []
+    level = preset.get("min_level", "V")
+    if level and level != "V":
+        parts.append(f"level:{level}")
+    package = preset.get("package", "")
+    if package:
+        parts.append(f"package:{package}")
+    search = preset.get("search", "")
+    if search:
+        parts.append(f"/{search}/" if preset.get("regex") else search)
+    if preset.get("case"):
+        parts.append("(case-sensitive)")
+    return " ".join(parts) or "(show everything)"
