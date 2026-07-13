@@ -287,6 +287,7 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._pids: set[str] | None = None  # None = no package filter
         self._tag = ""  # tag-contains gate ("" = off)
         self._levels: set[str] | None = None  # exact level set (None = use min-level floor)
+        self._collapse = False  # hide consecutive duplicate lines
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -333,9 +334,19 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._pids = set(pids) if pids is not None else None
         self.invalidate()
 
+    def set_collapse(self, on: bool) -> None:
+        """Hide consecutive duplicate lines (same level/tag/message) when on."""
+        self._collapse = bool(on)
+        self.invalidate()
+
     def filterAcceptsRow(self, source_row, source_parent) -> bool:
         model: LogTableModel = self.sourceModel()
         entry = model.entry_at(source_row)
+        # Collapse: drop a line identical to the one right before it (device spam).
+        if self._collapse and source_row > 0:
+            prev = model.entry_at(source_row - 1)
+            if (entry.level, entry.tag, entry.message) == (prev.level, prev.tag, prev.message):
+                return False
         # Package gate: when active, only rows from those PIDs pass (this hides
         # unparsed/banner lines, whose pid is "").
         if self._pids is not None and entry.pid not in self._pids:

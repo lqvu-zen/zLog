@@ -101,3 +101,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [tag-summary.md](tag-summary.md) | Done | View → Tag Summary dialog (tags by count); double-click to filter |
 | [remember-splitter.md](remember-splitter.md) | Done | Persist the log/detail splitter position across launches |
 | [scrollbar-heat.md](scrollbar-heat.md) | Done | Error-position ticks on the log scrollbar (debounced, bucketed) |
+| [collapse-repeats.md](collapse-repeats.md) | Done | View toggle: hide consecutive duplicate lines (proxy gate) |

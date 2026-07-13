@@ -396,6 +396,10 @@ class MainWindow(QMainWindow):
         prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
         tag_summary_act = view_menu.addAction("&Tag Summary…")
         tag_summary_act.triggered.connect(self._show_tag_summary)
+        self.collapse_action = view_menu.addAction("&Collapse Repeated Lines")
+        self.collapse_action.setCheckable(True)
+        self.collapse_action.setChecked(False)
+        self.collapse_action.toggled.connect(self.proxy.set_collapse)
 
         search_menu = view_menu.addMenu("&Search options")
         self.case_action = search_menu.addAction("Case sensitive")
@@ -1375,6 +1379,10 @@ class MainWindow(QMainWindow):
             self._recent = normalize_history(v, limit=10)
             self._rebuild_recent_menu()
 
+        def set_collapse(v):
+            self.collapse_action.setChecked(bool(v))
+            self.proxy.set_collapse(bool(v))
+
         def set_font_delta(v):
             delta = v if isinstance(v, int) else 0
             self._font_delta = max(-4, min(12, delta))
@@ -1466,6 +1474,7 @@ class MainWindow(QMainWindow):
             ("font_delta", lambda: self._font_delta, set_font_delta),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
+            ("collapse", self.collapse_action.isChecked, set_collapse),
             (
                 "log_buffers",
                 lambda: [n for n, a in self._buffer_actions.items() if a.isChecked()],

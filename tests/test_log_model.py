@@ -334,3 +334,24 @@ def test_max_rows_remaps_bookmarks(qapp):
     model.append_entries([_entry(message="3"), _entry(message="4")])  # 5 rows -> drop 2
     assert model.bookmarked_rows() == [0]  # original row 2 shifted down to 0
     assert model.entry_at(0).message == "2"
+
+
+def test_collapse_hides_consecutive_duplicates(qapp):
+    model, proxy = _wire(qapp)
+    a = _entry(level="I", tag="T", message="same")
+    b = _entry(level="I", tag="T", message="other")
+    model.append_entries([a, a, b, a])  # A A B A
+    assert proxy.rowCount() == 4  # off by default
+    proxy.set_collapse(True)
+    # row1 (dup of row0) folds; row2 (B) and row3 (A, after B) stay
+    assert proxy.rowCount() == 3
+    assert _messages(model, proxy) == ["same", "other", "same"]
+    proxy.set_collapse(False)
+    assert proxy.rowCount() == 4
+
+
+def test_collapse_first_row_always_shows(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="x"), _entry(message="x")])
+    proxy.set_collapse(True)
+    assert proxy.rowCount() == 1  # the very first row is never folded
