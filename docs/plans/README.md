@@ -96,3 +96,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [open-recent.md](open-recent.md) | Done | File → Open Recent list of recently opened/saved logs (persisted) |
 | [reopen-last.md](reopen-last.md) | Done | Opt-in View toggle: reopen the most-recent log on launch |
 | [session-bundles.md](session-bundles.md) | Done | Save/Open a .zsession: log + query + highlights + bookmarks together |
+| [autosave-capture.md](autosave-capture.md) | Done | Opt-in autosave of live capture to disk, size-capped with one .1 rollover |

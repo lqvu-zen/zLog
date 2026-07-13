@@ -11,6 +11,7 @@ Data flow:
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +45,7 @@ from PySide6.QtWidgets import (
 from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.reader import AdbReader
+from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
@@ -94,6 +96,7 @@ class MainWindow(QMainWindow):
         self._query_package = ""  # last package resolved from the query bar
         self._history: list[str] = []  # recent query-bar entries
         self._recent: list[str] = []  # recently opened/saved .log paths
+        self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
         self._paused = False  # Pause freezes the view; new lines buffer until Resume
         self._pause_buffer: list[LogEntry] = []
         self._want_stream = False  # user intends to be streaming (drives auto-reconnect)
@@ -366,6 +369,10 @@ class MainWindow(QMainWindow):
         self.reopen_last_action = view_menu.addAction("Reopen &Last Log on Launch")
         self.reopen_last_action.setCheckable(True)
         self.reopen_last_action.setChecked(False)
+        self.autosave_action = view_menu.addAction("&Autosave Capture")
+        self.autosave_action.setCheckable(True)
+        self.autosave_action.setChecked(False)
+        self.autosave_action.toggled.connect(self._on_autosave_toggled)
 
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
@@ -1112,6 +1119,31 @@ class MainWindow(QMainWindow):
         if self.reopen_last_action.isChecked() and self._recent and self.reader is None:
             self._load_log_file(self._recent[0])
 
+    # --- autosave ----------------------------------------------------------
+    def _autosave_path(self) -> str:
+        base = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        return str(Path(base) / "autosave.log")
+
+    def _on_autosave_toggled(self, checked: bool) -> None:
+        if checked:
+            self.statusBar().showMessage(f"Autosave on \u2192 {self._autosave_path()}")
+
+    def _autosave(self, entries) -> None:
+        if not (entries and self.autosave_action.isChecked()):
+            return
+        path = self._autosave_path()
+        text = entries_to_text(entries)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            size = os.path.getsize(path) if os.path.exists(path) else 0
+            if size and should_rotate(size, len(text.encode("utf-8")), self._autosave_cap):
+                os.replace(path, rotate_path(path))  # keep one .1 backup
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(text)
+        except OSError as exc:
+            self.autosave_action.setChecked(False)  # stop retrying every batch
+            self.statusBar().showMessage(f"Autosave off (write failed): {exc}")
+
     def open_log(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Log", "", "Log files (*.log);;All files (*)"
@@ -1320,6 +1352,11 @@ class MainWindow(QMainWindow):
                 lambda v: self.reopen_last_action.setChecked(bool(v)),
             ),
             (
+                "autosave",
+                self.autosave_action.isChecked,
+                lambda v: self.autosave_action.setChecked(bool(v)),
+            ),
+            (
                 "last_device",
                 lambda: self.device_box.currentData() or self.devctl.preferred_serial or "",
                 set_last_device,
@@ -1426,6 +1463,7 @@ class MainWindow(QMainWindow):
             if entry.time:  # remember the newest real timestamp for reconnect resume
                 self._last_time = entry.time
                 break
+        self._autosave(entries)  # persist before the pause gate so paused capture is saved too
         if self._paused:
             # Keep capturing but hold new lines back until Resume flushes them.
             self._pause_buffer.extend(entries)

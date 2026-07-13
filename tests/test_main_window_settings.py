@@ -536,3 +536,30 @@ def test_session_save_and_restore(window, tmp_path):
     assert w2.model.tag_colors() == {"Boom": "#ff0000"}
     assert w2.model.bookmarked_rows() == [1]
     assert w2.proxy.rowCount() == 1  # level:E restored and applied
+
+
+def test_autosave_writes_and_rotates(window, tmp_path, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    path = tmp_path / "autosave.log"
+    monkeypatch.setattr(window, "_autosave_path", lambda: str(path))
+    window._autosave_cap = 40  # tiny cap to force a rollover
+    window.autosave_action.setChecked(True)
+
+    def batch(msg):
+        window._autosave([LogEntry("06-30 12:00:00.000", "1", "2", "I", "T", msg)])
+
+    batch("first line long enough to pass the tiny cap")
+    assert path.exists()
+    batch("second line also long enough to roll over")
+    assert (tmp_path / "autosave.1.log").exists()  # rotated the first write out
+
+
+def test_autosave_off_writes_nothing(window, tmp_path, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    path = tmp_path / "autosave.log"
+    monkeypatch.setattr(window, "_autosave_path", lambda: str(path))
+    window.autosave_action.setChecked(False)
+    window._autosave([LogEntry("t", "1", "2", "I", "T", "x")])
+    assert not path.exists()
