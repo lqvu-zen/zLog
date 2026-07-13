@@ -192,10 +192,23 @@ class MainWindow(QMainWindow):
             name = sess.serial or "Device"
             self.tab_bar.setTabText(i, f"\u25cf {name}" if sess.reader is not None else name)
 
+    def _update_tab_closability(self) -> None:
+        """Only show a close (x) on a tab when there's another one to fall back
+        to — with one session left, _close_tab is a no-op, so a close button
+        there just invites a click that silently does nothing."""
+        if len(self._sessions) <= 1:
+            self.tab_bar.setTabButton(0, QTabBar.RightSide, None)
+        else:
+            # Re-toggling regenerates the default close button on every tab,
+            # including the one that was hidden while alone.
+            self.tab_bar.setTabsClosable(False)
+            self.tab_bar.setTabsClosable(True)
+
     def _new_tab(self) -> None:
         self._save_toolbar(self._active)
         self._sessions.append(self._make_session())
         idx = self.tab_bar.addTab("Device")
+        self._update_tab_closability()
         self.tab_bar.setCurrentIndex(idx)  # -> _switch_tab
 
     def _switch_tab(self, index: int) -> None:
@@ -227,6 +240,7 @@ class MainWindow(QMainWindow):
         if self._active_index >= len(self._sessions):
             self._active_index = len(self._sessions) - 1
         self.tab_bar.removeTab(index)  # -> _switch_tab(current)
+        self._update_tab_closability()
 
     @property
     def _active(self) -> LogSession:
@@ -302,6 +316,7 @@ class MainWindow(QMainWindow):
         self.tab_bar.setExpanding(False)
         self.tab_bar.setDocumentMode(True)
         self.tab_bar.addTab("Device")
+        self._update_tab_closability()
 
         self.table = LogTableView()
         self.table.setModel(self.proxy)
@@ -456,6 +471,9 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.stop_btn)
         top_row.addWidget(self.pause_btn)
         top_row.addWidget(self.clear_btn)
+        top_row.addSpacing(12)
+        top_row.addWidget(self._vsep())
+        top_row.addSpacing(12)
         top_row.addWidget(self.clear_device_btn)
         top_row.addWidget(self.follow_check)
         top_row.addSpacing(12)
@@ -476,9 +494,13 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.level_box)
         top_row.addStretch(1)
 
-        # Filter bar: the query box on its own full-width row.
+        # Filter bar: the query box on its own full-width row, plus match
+        # navigation (F3/Shift+F3) feedback for the free-text portion of it.
         filter_row = QHBoxLayout()
         filter_row.addWidget(self.query)
+        filter_row.addWidget(self.match_prev_btn)
+        filter_row.addWidget(self.match_next_btn)
+        filter_row.addWidget(self.match_label)
 
         layout = QVBoxLayout()
         layout.addWidget(self.tab_bar)
@@ -611,10 +633,10 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
         next_bm = view_menu.addAction("Next Bookmark")
-        next_bm.setShortcut("F2")
+        next_bm.setShortcut("Ctrl+F2")
         next_bm.triggered.connect(lambda: self._goto_bookmark(1))
         prev_bm = view_menu.addAction("Previous Bookmark")
-        prev_bm.setShortcut("Shift+F2")
+        prev_bm.setShortcut("Ctrl+Shift+F2")
         prev_bm.triggered.connect(lambda: self._goto_bookmark(-1))
         clear_bm = view_menu.addAction("Clear Bookmarks")
         clear_bm.triggered.connect(self._clear_bookmarks)
@@ -1627,12 +1649,13 @@ class MainWindow(QMainWindow):
 
     # --- status counts -----------------------------------------------------
     def _update_counts(self, *args) -> None:
-        self.count_label.setText(
-            format_level_summary(
-                self.model.rowCount(), self.model.level_counts(), self.proxy.rowCount()
-            )
-        )
         total = self.model.rowCount()
+        visible = self.proxy.rowCount()
+        # Once a filter is hiding rows, tally the levels of what's actually shown
+        # instead of the whole buffer — otherwise "Showing X of Y" reads as if the
+        # per-level counts describe X when they'd still describe Y.
+        counts = self.proxy.level_counts() if visible < total else self.model.level_counts()
+        self.count_label.setText(format_level_summary(total, counts, visible))
         start = max(0, total - 500)
         ranks = [self.model.entry_at(r).rank for r in range(start, total)]
         self.spark_label.setText(error_rate_sparkline(ranks, LEVEL_RANK["E"]))

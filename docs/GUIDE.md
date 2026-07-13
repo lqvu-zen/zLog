@@ -85,8 +85,8 @@ Switch between **Light** and **Dark** from **View → Theme**.
 ## Reading, bookmarking, and zoom
 
 - Select a line to see its full, word-wrapped text in the detail pane.
-- **Ctrl+B** bookmarks the selected line (a colored marker appears); **F2 / Shift+F2**
-  jump between bookmarks (**View** menu).
+- **Ctrl+B** bookmarks the selected line (a colored marker appears);
+  **Ctrl+F2 / Ctrl+Shift+F2** jump between bookmarks (**View** menu).
 - **Ctrl+= / Ctrl+- / Ctrl+0** zoom the text in, out, and back to default.
 - **Time display** (**View** menu) switches the timestamp between absolute, elapsed
   since the first line, and delta from the previous line.

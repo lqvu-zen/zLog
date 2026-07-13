@@ -186,6 +186,14 @@ def scenario_no_match(window: MainWindow) -> None:
     _shot(window, "no-match")
 
 
+def scenario_two_tabs(window: MainWindow) -> None:
+    # A single tab can't be closed, so its close (x) button is hidden; opening
+    # a second tab should restore a real close button on both.
+    _seed(window, 4)
+    window._new_tab()
+    _shot(window, "two-tabs")
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -291,6 +299,7 @@ SCENARIOS = {
     "package-filter": scenario_package_filter,
     "regex-search": scenario_regex_search,
     "opened": scenario_opened,
+    "two-tabs": scenario_two_tabs,
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,

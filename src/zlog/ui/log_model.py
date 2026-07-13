@@ -354,6 +354,16 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._collapse = bool(on)
         self.invalidate()
 
+    def level_counts(self) -> dict[str, int]:
+        """Count of currently-accepted rows per level letter (walks filtered rows,
+        unlike LogTableModel.level_counts which is O(1) over the whole buffer)."""
+        model: LogTableModel = self.sourceModel()
+        counts: Counter = Counter()
+        for r in range(self.rowCount()):
+            source_row = self.mapToSource(self.index(r, 0)).row()
+            counts[model.entry_at(source_row).level] += 1
+        return dict(counts)
+
     def filterAcceptsRow(self, source_row, source_parent) -> bool:
         model: LogTableModel = self.sourceModel()
         entry = model.entry_at(source_row)

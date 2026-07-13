@@ -109,3 +109,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [plugin-colorizers.md](plugin-colorizers.md) | Done | Load user colorize(entry) plugins to tint rows; View → Reload Plugins |
 | [new-window.md](new-window.md) | Done | File → New Window: independent second window for concurrent device streams |
 | [device-tabs.md](device-tabs.md) | Done | Tabbed concurrent device streams (LogSession re-rooting + tab bar) |
+| [ui-review-2026-07.md](ui-review-2026-07.md) | Done | Full-app UI review: F2 shortcut collision, misleading status-bar tally, invisible match label, tab-close affordance, Clear button adjacency |
