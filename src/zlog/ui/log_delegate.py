@@ -18,6 +18,28 @@ _TIME_W = 24  # fixed: fits the full 'YYYY-MM-DD HH:MM:SS.mmm' stamp, kept reada
 _PIDTID_W = 12
 _TAG_W = 22
 _PROC_W = 30  # process/package column; longer names elide in the middle
+_MSG_MIN_FRAC = 0.5  # the message keeps at least this share of the row width
+
+
+def plan_tag_proc_widths(usable, cw, show, min_frac=_MSG_MIN_FRAC):
+    """Return (tag_px, proc_px) for the flexible columns.
+
+    Time/PID/Level are fixed and always full; Tag and the optional Process column
+    share what's left so the message keeps at least ``min_frac`` of ``usable``.
+    They use their natural widths when there's room, else shrink proportionally.
+    Pure arithmetic (no Qt) so it's unit-testable.
+    """
+    gap = cw
+    time_w, pid_w, level_w = _TIME_W * cw, _PIDTID_W * cw, 3 * cw
+    nat_tag = _TAG_W * cw
+    nat_proc = _PROC_W * cw if show else 0
+    gaps = gap * (2 if show else 1)
+    fixed_fp = (time_w + gap) + (pid_w + gap) + level_w
+    budget = max(0.0, usable - fixed_fp - min_frac * usable)
+    if nat_tag + nat_proc + gaps > budget and nat_tag + nat_proc > 0:
+        scale = max(0.0, budget - gaps) / (nat_tag + nat_proc)
+        return nat_tag * scale, nat_proc * scale
+    return float(nat_tag), float(nat_proc)
 
 
 class LogItemDelegate(QStyledItemDelegate):
@@ -92,28 +114,32 @@ class LogItemDelegate(QStyledItemDelegate):
             painter.restore()
             return
 
-        def seg(text, width_chars, color, elide=None):
+        def seg(text, width_px, color, elide=None):
             nonlocal x
-            w = width_chars * cw
+            w = int(max(width_px, 0))
             s = text or ""
-            if elide:
+            if elide and w:
                 mode = Qt.ElideMiddle if elide == "middle" else Qt.ElideRight
                 s = fm.elidedText(s, mode, w)
-            painter.setPen(color)
-            painter.drawText(QRect(x, top, w, height), int(Qt.AlignVCenter | Qt.AlignLeft), s)
+            if w:
+                painter.setPen(color)
+                painter.drawText(QRect(x, top, w, height), int(Qt.AlignVCenter | Qt.AlignLeft), s)
             x += w + cw
 
         level = entry.level
         lvl_color = self._level_text.get(level, self._muted)
-        # Fixed column widths; long tag/package values elide in the middle so the
-        # ends stay legible (e.g. 'vendor.xia....0-service').
-        seg(time_str, _TIME_W, base_fg)
-        seg(f"{entry.pid}-{entry.tid}", _PIDTID_W, base_fg)
-        seg(entry.tag, _TAG_W, base_fg, elide="middle")
-        if self.show_process:
-            # Always reserve the column when enabled so the toggle has visible
-            # effect; names fill in as `adb ps` / Start proc lines resolve them.
-            seg(index.data(PROCESS_ROLE) or "", _PROC_W, base_fg, elide="middle")
+        # Time / PID / Level are fixed and always shown in full. Tag and the
+        # (optional) process column share a budget sized so the message keeps at
+        # least _MSG_MIN_FRAC of the row; when there's room they use their natural
+        # widths, otherwise they shrink and middle-elide (ends stay legible).
+        usable = (option.rect.right() - self._pad) - x
+        show = self.show_process
+        tag_w, proc_w = plan_tag_proc_widths(usable, cw, show)
+        seg(time_str, _TIME_W * cw, base_fg)
+        seg(f"{entry.pid}-{entry.tid}", _PIDTID_W * cw, base_fg)
+        seg(entry.tag, tag_w, base_fg, elide="middle")
+        if show:
+            seg(index.data(PROCESS_ROLE) or "", proc_w, base_fg, elide="middle")
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
         # Always the level color — filling it with the (white) selection fg on a
