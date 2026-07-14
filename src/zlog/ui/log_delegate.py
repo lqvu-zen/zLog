@@ -14,28 +14,27 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
 
-_TIME_W = 24  # fixed: fits the full 'YYYY-MM-DD HH:MM:SS.mmm' stamp, kept readable
-_PIDTID_W = 12
-_TAG_W = 22
-_PROC_W = 30  # process/package column; longer names elide in the middle
+_TIME_MIN_W = 8  # Time/PID size to content (model), never below these floors
+_PIDTID_MIN_W = 7
+_TAG_W = 22  # natural width of the Tag column (flexible; middle-elides)
+_PROC_W = 30  # natural width of the Process column (flexible; middle-elides)
 _MSG_MIN_FRAC = 0.5  # the message keeps at least this share of the row width
 
 
-def plan_tag_proc_widths(usable, cw, show, min_frac=_MSG_MIN_FRAC):
+def plan_tag_proc_widths(usable, cw, show, fixed_px, min_frac=_MSG_MIN_FRAC):
     """Return (tag_px, proc_px) for the flexible columns.
 
-    Time/PID/Level are fixed and always full; Tag and the optional Process column
-    share what's left so the message keeps at least ``min_frac`` of ``usable``.
-    They use their natural widths when there's room, else shrink proportionally.
+    ``fixed_px`` is the footprint already taken by the always-full columns
+    (Time + PID + Level, incl. their gaps). Tag and the optional Process column
+    share what's left so the message keeps at least ``min_frac`` of ``usable``;
+    they use their natural widths when there's room, else shrink proportionally.
     Pure arithmetic (no Qt) so it's unit-testable.
     """
     gap = cw
-    time_w, pid_w, level_w = _TIME_W * cw, _PIDTID_W * cw, 3 * cw
     nat_tag = _TAG_W * cw
     nat_proc = _PROC_W * cw if show else 0
     gaps = gap * (2 if show else 1)
-    fixed_fp = (time_w + gap) + (pid_w + gap) + level_w
-    budget = max(0.0, usable - fixed_fp - min_frac * usable)
+    budget = max(0.0, usable - fixed_px - min_frac * usable)
     if nat_tag + nat_proc + gaps > budget and nat_tag + nat_proc > 0:
         scale = max(0.0, budget - gaps) / (nat_tag + nat_proc)
         return nat_tag * scale, nat_proc * scale
@@ -132,11 +131,21 @@ class LogItemDelegate(QStyledItemDelegate):
         # (optional) process column share a budget sized so the message keeps at
         # least _MSG_MIN_FRAC of the row; when there's room they use their natural
         # widths, otherwise they shrink and middle-elide (ends stay legible).
+        src = index.model()
+        src = src.sourceModel() if hasattr(src, "sourceModel") else src
+
+        def cols(getter, floor):
+            fn = getattr(src, getter, None)
+            return max(fn() if fn else 0, floor)
+
+        time_w = cols("time_col_chars", _TIME_MIN_W) * cw
+        pid_w = cols("pidtid_col_chars", _PIDTID_MIN_W) * cw
+        fixed_px = (time_w + cw) + (pid_w + cw) + 3 * cw
         usable = (option.rect.right() - self._pad) - x
         show = self.show_process
-        tag_w, proc_w = plan_tag_proc_widths(usable, cw, show)
-        seg(time_str, _TIME_W * cw, base_fg)
-        seg(f"{entry.pid}-{entry.tid}", _PIDTID_W * cw, base_fg)
+        tag_w, proc_w = plan_tag_proc_widths(usable, cw, show, fixed_px)
+        seg(time_str, time_w, base_fg)
+        seg(f"{entry.pid}-{entry.tid}", pid_w, base_fg)
         seg(entry.tag, tag_w, base_fg, elide="middle")
         if show:
             seg(index.data(PROCESS_ROLE) or "", proc_w, base_fg, elide="middle")

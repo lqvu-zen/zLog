@@ -31,3 +31,10 @@ full) — the flexible columns collapse to 0 first. At normal widths the message
 - [x] `uv run pytest` (240; new `tests/test_log_delegate.py`)
 - [x] ruff clean
 - [x] message ≥50% at 1000/1400/1920px; Tag/Process natural on wide, shrink on narrow.
+
+## Update (2026-07-14)
+
+Time and PID-TID are **content-sized** (full, never truncated) rather than padded to a
+fixed width, removing the dead gap after Time on no-year stamps (18 vs 24). The model
+tracks their max char length (capped 23 / 13); the delegate feeds the measured fixed
+footprint into `plan_tag_proc_widths`. Message still keeps ≥50%.
