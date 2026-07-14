@@ -43,18 +43,35 @@ def test_flexible_columns_shrink_when_narrow():
     assert tag_w >= 0 and proc_w >= 0
 
 
-def test_sizehint_grows_with_wrap_lines(qapp):
-    from PySide6.QtGui import QFont, QFontMetrics
+def test_sizehint_wraps_to_full_message(qapp):
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QStyleOptionViewItem
 
+    from zlog.core.models import LogEntry
     from zlog.ui.log_delegate import LogItemDelegate
+    from zlog.ui.log_model import LogFilterProxy, LogTableModel
 
+    model = LogTableModel()
+    proxy = LogFilterProxy()
+    proxy.setSourceModel(model)
+    model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "short"),
+            LogEntry("t", "1", "1", "I", "T", "word " * 200),  # very long
+        ]
+    )
     d = LogItemDelegate()
     opt = QStyleOptionViewItem()
     opt.font = QFont()
-    one = d.sizeHint(opt, None).height()
+    opt.rect = QRect(0, 0, 320, 20)  # a fixed, narrow column width
+
+    # wrap off: every row is a single line
+    h0 = d.sizeHint(opt, proxy.index(0, 0)).height()
+    h1 = d.sizeHint(opt, proxy.index(1, 0)).height()
+    assert h0 == h1
+
     d.wrap = True
-    d.wrap_lines = 4
-    four = d.sizeHint(opt, None).height()
-    line = QFontMetrics(opt.font).height()
-    assert four >= one + 3 * line  # ~4 lines tall when wrapping
+    short_h = d.sizeHint(opt, proxy.index(0, 0)).height()
+    long_h = d.sizeHint(opt, proxy.index(1, 0)).height()
+    assert long_h > short_h  # the long message wraps to more lines -> taller row

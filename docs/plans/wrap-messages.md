@@ -10,7 +10,7 @@
 Optionally show the full log message wrapped across multiple lines in the log list
 (instead of a single elided line), toggleable on/off with a chosen number of lines.
 
-## Design (virtualization-safe: uniform row height)
+## Design (full variable-height wrap)
 
 Keep the model virtualized and O(1) row sizing by using a **uniform** row height of
 `wrap_lines` text lines when wrap is on (never per-row variable heights, which would
@@ -37,3 +37,11 @@ be O(all rows) in QTableView).
 
 - [ ] `uv run pytest`  - [ ] ruff clean
 - [ ] Toggle wrap in Settings → rows grow to N lines and long messages wrap; off restores single-line.
+
+## Update (2026-07-14)
+
+Changed from a capped uniform N-line height to **true variable per-row height**: the
+delegate's `sizeHint` computes each row's full wrapped height (reading the column
+width from the view), and the table uses `ResizeToContents` when wrap is on. Dropped
+the `wrap_lines` setting — just a single "Wrap messages" toggle now. Cost: sizing
+rows to content is O(rows) when wrap is on (user-accepted; it's optional).

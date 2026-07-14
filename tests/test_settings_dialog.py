@@ -25,7 +25,6 @@ def test_dialog_reflects_initial_values(qapp):
         "collapse": True,
         "show_process": True,
         "wrap": True,
-        "wrap_lines": 6,
         "buffers": {"system"},
         "tail": 500,
         "max_rows": 10000,
@@ -149,22 +148,24 @@ def test_view_menu_decluttered_and_palette_parity(window):
     assert "Absolute" in cmds
 
 
-def test_wrap_setting_applies_and_grows_rows(qapp, tmp_path, monkeypatch):
-    from PySide6.QtGui import QFontMetrics
+def test_wrap_setting_applies_and_persists(qapp, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QHeaderView
 
     from zlog.ui.main_window import MainWindow
 
     monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
     monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+    from zlog.core.models import LogEntry
+
     w = MainWindow()
-    line = QFontMetrics(w.table.font()).height()
-    one = w.table.verticalHeader().defaultSectionSize()
+    w.model.append_entries([LogEntry("t", "1", "1", "I", "T", "hi")])
     v = w._collect_settings()
-    v.update(wrap=True, wrap_lines=5)
+    v["wrap"] = True
     w._apply_settings_values(v)
-    assert w.log_delegate.wrap is True and w.log_delegate.wrap_lines == 5
-    assert w.table.verticalHeader().defaultSectionSize() >= one + 4 * line
+    assert w.log_delegate.wrap is True
+    # wrap sizes rows to their content
+    assert w.table.verticalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
     # persists across relaunch
     w2 = MainWindow()
     w2._load_and_apply_settings()
-    assert w2.log_delegate.wrap is True and w2.log_delegate.wrap_lines == 5
+    assert w2.log_delegate.wrap is True

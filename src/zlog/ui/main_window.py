@@ -351,6 +351,7 @@ class MainWindow(QMainWindow):
             self.table.setColumnHidden(col, True)
         self.log_delegate = LogItemDelegate(self)
         self.table.setItemDelegateForColumn(0, self.log_delegate)
+        self.log_delegate.view = self.table
         # Copy (Ctrl+C) and Select All: keyboard shortcuts via addAction, plus a
         # custom right-click menu that also offers per-tag highlighting.
         self.copy_action = QAction("Copy", self)
@@ -1466,10 +1467,17 @@ class MainWindow(QMainWindow):
         self._apply_row_height()
 
     def _apply_row_height(self) -> None:
-        """Uniform row height: one text line, or wrap_lines lines when wrapping."""
+        """Wrap on: size each row to its full (wrapped) message. Off: uniform one line."""
+        vh = self.table.verticalHeader()
         fm = QFontMetrics(self.table.font())
-        lines = self.log_delegate.wrap_lines if self.log_delegate.wrap else 1
-        self.table.verticalHeader().setDefaultSectionSize(fm.height() * lines + 4)
+        vh.setDefaultSectionSize(fm.height() + 4)
+        if self.log_delegate.wrap:
+            vh.setSectionResizeMode(QHeaderView.ResizeToContents)
+        else:
+            # Back to a uniform single line: switching off ResizeToContents keeps the
+            # previously-grown section sizes, so re-fit rows to the (now one-line) hint.
+            vh.setSectionResizeMode(QHeaderView.Fixed)
+            self.table.resizeRowsToContents()
 
     def _zoom(self, step: int) -> None:
         self._font_delta = max(-4, min(12, self._font_delta + step))
@@ -1505,7 +1513,6 @@ class MainWindow(QMainWindow):
             "reopen_last": self.reopen_last_action.isChecked(),
             "autosave": self.autosave_action.isChecked(),
             "wrap": self.log_delegate.wrap,
-            "wrap_lines": self.log_delegate.wrap_lines,
         }
 
     def _open_settings(self) -> None:
@@ -1556,7 +1563,6 @@ class MainWindow(QMainWindow):
         self.reopen_last_action.setChecked(v["reopen_last"])
         self.autosave_action.setChecked(v["autosave"])
         self.log_delegate.wrap = bool(v["wrap"])
-        self.log_delegate.wrap_lines = max(1, min(50, int(v["wrap_lines"])))
         self._apply_row_height()
         self.table.viewport().update()
         self._save_settings()
@@ -2074,11 +2080,6 @@ class MainWindow(QMainWindow):
             self._apply_row_height()
             self.table.viewport().update()
 
-        def set_wrap_lines(v):
-            self.log_delegate.wrap_lines = max(1, min(50, int(v) if isinstance(v, int) else 3))
-            self._apply_row_height()
-            self.table.viewport().update()
-
         specs = [
             (
                 "geometry",
@@ -2165,7 +2166,6 @@ class MainWindow(QMainWindow):
                 lambda v: self.process_action.setChecked(bool(v)),
             ),
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
-            ("wrap_lines", lambda: self.log_delegate.wrap_lines, set_wrap_lines),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
