@@ -826,4 +826,4 @@ def test_process_column_toggle_and_persist(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
     w2._load_and_apply_settings()
     assert w2.process_action.isChecked() is True
-    assert w2.log_delegate.show_process is True
+    assert w2.log_delegate.show_process is True  # restored on launch
