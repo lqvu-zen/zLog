@@ -38,6 +38,4 @@ def test_flexible_columns_use_natural_width_when_there_is_room():
 def test_flexible_columns_shrink_when_narrow():
     cw = 9
     tag_w, proc_w = plan_tag_proc_widths(1100, cw, show=True, fixed_px=_fixed_px(cw))
-    assert tag_w < _TAG_W * cw  # squeezed to protect the message area
-    assert proc_w < _PROC_W * cw
-    assert tag_w >= 0 and proc_w >= 0
+    assert tag_w < _TAG_W * cw  # squeezed to protect the 

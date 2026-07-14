@@ -186,7 +186,6 @@ class LogTableModel(QAbstractTableModel):
         self._level_counts.clear()
         self._baseline = None
         self._bookmarks.clear()
-        self._pid_names.clear()
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
         self.endResetModel()
@@ -213,6 +212,16 @@ class LogTableModel(QAbstractTableModel):
 
     def process_name(self, pid: str) -> str:
         return self._pid_names.get(pid, "")
+
+    def clear_process_names(self) -> None:
+        """Forget the pid -> name map (used when loading an offline log, whose
+        PIDs belong to a different capture than the live device)."""
+        if self._pid_names:
+            self._pid_names.clear()
+            if self._rows:
+                top = self.index(0, 0)
+                bottom = self.index(len(self._rows) - 1, len(COLUMNS) - 1)
+                self.dataChanged.emit(top, bottom, [PROCESS_ROLE])
 
     def time_col_chars(self) -> int:
         return self._time_col_chars

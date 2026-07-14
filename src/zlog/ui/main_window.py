@@ -1823,6 +1823,7 @@ class MainWindow(QMainWindow):
         self.proxy.set_pids(None)
         entries = text_to_entries(data["log"])
         self.model.clear()
+        self.model.clear_process_names()  # offline: PIDs are from another capture
         self.model.append_entries(entries)
         self.model.clear_tag_colors()
         for tag, color in data["tag_highlights"].items():
@@ -1892,6 +1893,7 @@ class MainWindow(QMainWindow):
         self.proxy.set_pids(None)
         entries = text_to_entries(text)
         self.model.clear()
+        self.model.clear_process_names()  # offline: PIDs are from another capture
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
         self._remember_recent(path)

@@ -395,11 +395,20 @@ def test_merge_process_names_from_snapshot(qapp):
     assert model.data(model.index(0, 0), PROCESS_ROLE) == "com.example.app"
 
 
-def test_clear_resets_process_names(qapp):
+def test_clear_keeps_process_names(qapp):
+    # Clearing the view (e.g. Clear device buffer) must NOT forget the pid->name
+    # map — the processes are still running, so the package column should persist.
     model, proxy = _wire(qapp)
     model.merge_process_names({"1": "init"})
-    assert model.process_name("1") == "init"
     model.clear()
+    assert model.process_name("1") == "init"
+
+
+def test_clear_process_names_forgets_map(qapp):
+    # The offline-load path explicitly drops the map (PIDs are from another capture).
+    model, proxy = _wire(qapp)
+    model.merge_process_names({"1": "init"})
+    model.clear_process_names()
     assert model.process_name("1") == ""
 
 
