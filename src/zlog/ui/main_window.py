@@ -127,6 +127,7 @@ class MainWindow(QMainWindow):
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
+        self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._query_package = ""  # last package resolved from the query bar
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
         self._history: list[str] = []  # recent query-bar entries
@@ -674,22 +675,6 @@ class MainWindow(QMainWindow):
             act.setChecked(count == 0)
             self._tail_group.addAction(act)
             self._tail_actions[count] = act
-
-        self._max_rows_group = QActionGroup(self)
-        self._max_rows_group.setExclusive(True)
-        self._max_rows_actions = {}
-        for cap, label in (
-            (0, "Unlimited"),
-            (10000, "10,000 lines"),
-            (50000, "50,000 lines"),
-            (100000, "100,000 lines"),
-        ):
-            act = QAction(label, self)
-            act.setCheckable(True)
-            act.setChecked(cap == 0)
-            act.triggered.connect(lambda _checked=False, n=cap: self.model.set_max_rows(n))
-            self._max_rows_group.addAction(act)
-            self._max_rows_actions[cap] = act
 
         # --- command / navigation items (these stay in the View menu) ---
         clear_filters_act = view_menu.addAction("Clear F&ilters")
@@ -1282,7 +1267,6 @@ class MainWindow(QMainWindow):
             *self._time_actions.values(),
             *self._buffer_actions.values(),
             *self._tail_actions.values(),
-            *self._max_rows_actions.values(),
         ]
         for act in extra:
             if act.text():
@@ -1494,7 +1478,6 @@ class MainWindow(QMainWindow):
         """Snapshot the current preference state for the Settings dialog."""
         time_mode = next((m for m, a in self._time_actions.items() if a.isChecked()), "absolute")
         tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
-        max_rows = next((c for c, a in self._max_rows_actions.items() if a.isChecked()), 0)
         return {
             "theme": self._theme_name,
             "font_delta": self._font_delta,
@@ -1506,7 +1489,7 @@ class MainWindow(QMainWindow):
             "show_process": self.process_action.isChecked(),
             "buffers": {n for n, a in self._buffer_actions.items() if a.isChecked()},
             "tail": tail,
-            "max_rows": max_rows,
+            "max_rows": self._max_rows,
             "clear_on_start": self.clear_on_start_action.isChecked(),
             "follow": self.follow_check.isChecked(),
             "reopen_last": self.reopen_last_action.isChecked(),
@@ -1527,12 +1510,6 @@ class MainWindow(QMainWindow):
                 ("Last 500", 500),
                 ("Last 1000", 1000),
                 ("Last 5000", 5000),
-            ],
-            max_options=[
-                ("Unlimited", 0),
-                ("10,000 lines", 10000),
-                ("50,000 lines", 50000),
-                ("100,000 lines", 100000),
             ],
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
             parent=self,
@@ -1560,9 +1537,8 @@ class MainWindow(QMainWindow):
             act.setChecked(name in v["buffers"])
         if v["tail"] in self._tail_actions:
             self._tail_actions[v["tail"]].setChecked(True)
-        if v["max_rows"] in self._max_rows_actions:
-            self._max_rows_actions[v["max_rows"]].setChecked(True)
-            self.model.set_max_rows(v["max_rows"])
+        self._max_rows = max(0, int(v["max_rows"]))
+        self.model.set_max_rows(self._max_rows)
         self.clear_on_start_action.setChecked(v["clear_on_start"])
         self.follow_check.setChecked(v["follow"])
         self.reopen_last_action.setChecked(v["reopen_last"])
@@ -2015,9 +1991,8 @@ class MainWindow(QMainWindow):
             self._tail_actions[count].setChecked(True)
 
         def set_max_rows(v):
-            cap = v if v in self._max_rows_actions else 0
-            self._max_rows_actions[cap].setChecked(True)
-            self.model.set_max_rows(cap)
+            self._max_rows = max(0, int(v))
+            self.model.set_max_rows(self._max_rows)
 
         def set_log_buffers(v):
             names = v if isinstance(v, list) else []
@@ -2144,7 +2119,7 @@ class MainWindow(QMainWindow):
             ),
             (
                 "max_rows",
-                lambda: next((c for c, a in self._max_rows_actions.items() if a.isChecked()), 0),
+                lambda: self._max_rows,
                 set_max_rows,
             ),
             (

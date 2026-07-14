@@ -8,7 +8,6 @@ _OPTS = dict(
     themes=["Light", "Dark"],
     time_modes=[("Absolute", "absolute"), ("Since start", "since_start"), ("Delta", "delta")],
     tail_options=[("Whole buffer", 0), ("Last 500", 500)],
-    max_options=[("Unlimited", 0), ("10,000 lines", 10000)],
     buffers=["main", "system", "crash"],
 )
 
@@ -46,6 +45,14 @@ def test_dialog_defaults_when_values_missing(qapp):
     assert got["buffers"] == set() and got["max_rows"] == 0
 
 
+def test_dialog_accepts_a_custom_buffer_limit(qapp):
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    dlg = SettingsDialog({"max_rows": 250}, **_OPTS)
+    dlg.max_spin.setValue(37500)  # any value, not just the old presets
+    assert dlg.get_values()["max_rows"] == 37500
+
+
 @pytest.fixture
 def window(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
@@ -71,9 +78,26 @@ def test_apply_settings_values_drives_state(window):
     assert window.process_action.isChecked() is True
     assert window.collapse_action.isChecked() is True
     assert window._time_actions["delta"].isChecked() is True
-    assert window._max_rows_actions[10000].isChecked() is True
+    assert window._max_rows == 10000
     assert window._font_delta == 2
     assert window.clear_on_start_action.isChecked() is True
+
+
+def test_custom_buffer_limit_applies_and_persists(qapp, tmp_path, monkeypatch):
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+    w1 = MainWindow()
+    v = w1._collect_settings()
+    v["max_rows"] = 12345  # an arbitrary, non-preset value
+    w1._apply_settings_values(v)
+    assert w1._max_rows == 12345
+    assert w1._collect_settings()["max_rows"] == 12345
+
+    w2 = MainWindow()
+    w2._load_and_apply_settings()
+    assert w2._max_rows == 12345  # custom value round-trips across relaunch
 
 
 def test_settings_survive_relaunch_via_apply(qapp, tmp_path, monkeypatch):

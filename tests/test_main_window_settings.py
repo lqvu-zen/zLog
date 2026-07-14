@@ -259,7 +259,7 @@ def test_tail_count_setting(window):
 
 
 def test_max_rows_setting_applies_to_model(window):
-    window._max_rows_actions[50000].setChecked(True)
+    window._max_rows = 50000  # any custom value (no fixed presets anymore)
     keys = {k for k, _, _ in window._settings_specs()}
     assert "max_rows" in keys
     got = next(g for k, g, _ in window._settings_specs() if k == "max_rows")()
@@ -826,4 +826,4 @@ def test_process_column_toggle_and_persist(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
     w2._load_and_apply_settings()
     assert w2.process_action.isChecked() is True
-    assert w2.log_delegate.show_process is True  # restored on launch
+    assert w2.log_delegate.show_process is True

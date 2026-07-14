@@ -30,7 +30,6 @@ class SettingsDialog(QDialog):
         themes,
         time_modes,
         tail_options,
-        max_options,
         buffers,
         parent=None,
     ):
@@ -91,16 +90,19 @@ class SettingsDialog(QDialog):
         for label, data in tail_options:
             self.tail_box.addItem(label, data)
         self._select(self.tail_box, values.get("tail", 0))
-        self.max_box = QComboBox()
-        for label, data in max_options:
-            self.max_box.addItem(label, data)
-        self._select(self.max_box, values.get("max_rows", 0))
+        self.max_spin = QSpinBox()
+        self.max_spin.setRange(0, 100_000_000)
+        self.max_spin.setSingleStep(1000)
+        self.max_spin.setGroupSeparatorShown(True)
+        self.max_spin.setSpecialValueText("Unlimited")  # shown when value == 0
+        self.max_spin.setSuffix(" lines")
+        self.max_spin.setValue(int(values.get("max_rows", 0)))
         self.clear_start_chk = QCheckBox("Clear the view when starting a new stream")
         self.clear_start_chk.setChecked(values.get("clear_on_start", False))
         capture = QFormLayout()
         capture.addRow(buf_box)
         capture.addRow("Start from", self.tail_box)
-        capture.addRow("Buffer limit", self.max_box)
+        capture.addRow("Buffer limit", self.max_spin)
         capture.addRow(self.clear_start_chk)
         tabs.addTab(self._wrap(capture), "Capture")
 
@@ -151,7 +153,7 @@ class SettingsDialog(QDialog):
             "show_process": self.process_chk.isChecked(),
             "buffers": {n for n, c in self.buffer_chks.items() if c.isChecked()},
             "tail": self.tail_box.currentData(),
-            "max_rows": self.max_box.currentData(),
+            "max_rows": self.max_spin.value(),
             "clear_on_start": self.clear_start_chk.isChecked(),
             "follow": self.follow_chk.isChecked(),
             "reopen_last": self.reopen_chk.isChecked(),
