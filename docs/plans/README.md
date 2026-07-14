@@ -119,4 +119,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [message-min-half.md](message-min-half.md) | Done | Message keeps ≥50% of the row; Tag/Process shrink to fit, Time/PID/Level stay full |
 | [settings-dialog.md](settings-dialog.md) | Done | Tabbed Settings dialog (top-bar entry); View menu decluttered to commands only |
 | [quick-filter-pid-package.md](quick-filter-pid-package.md) | Done | Right-click Filter to… PID / Package (pid: and proc: query tokens) |
+| [wrap-messages.md](wrap-messages.md) | Done | Optional multi-line wrap of long messages in the log list (Settings → Log view) |
 | [level-query-

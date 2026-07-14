@@ -38,4 +38,23 @@ def test_flexible_columns_use_natural_width_when_there_is_room():
 def test_flexible_columns_shrink_when_narrow():
     cw = 9
     tag_w, proc_w = plan_tag_proc_widths(1100, cw, show=True, fixed_px=_fixed_px(cw))
-    assert tag_w < _TAG_W * cw  # squeezed to protect the 
+    assert tag_w < _TAG_W * cw  # squeezed to protect the message area
+    assert proc_w < _PROC_W * cw
+    assert tag_w >= 0 and proc_w >= 0
+
+
+def test_sizehint_grows_with_wrap_lines(qapp):
+    from PySide6.QtGui import QFont, QFontMetrics
+    from PySide6.QtWidgets import QStyleOptionViewItem
+
+    from zlog.ui.log_delegate import LogItemDelegate
+
+    d = LogItemDelegate()
+    opt = QStyleOptionViewItem()
+    opt.font = QFont()
+    one = d.sizeHint(opt, None).height()
+    d.wrap = True
+    d.wrap_lines = 4
+    four = d.sizeHint(opt, None).height()
+    line = QFontMetrics(opt.font).height()
+    assert four >= one + 3 * line  # ~4 lines tall when wrapping

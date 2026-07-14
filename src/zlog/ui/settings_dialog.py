@@ -68,12 +68,19 @@ class SettingsDialog(QDialog):
         self.collapse_chk.setChecked(values.get("collapse", False))
         self.process_chk = QCheckBox("Show process / package names")
         self.process_chk.setChecked(values.get("show_process", False))
+        self.wrap_chk = QCheckBox("Wrap long messages across multiple lines")
+        self.wrap_chk.setChecked(values.get("wrap", False))
+        self.wrap_lines_spin = QSpinBox()
+        self.wrap_lines_spin.setRange(1, 50)
+        self.wrap_lines_spin.setValue(int(values.get("wrap_lines", 3)))
         logview = QFormLayout()
         logview.addRow("Time display", self.time_box)
         logview.addRow(self.highlight_chk)
         logview.addRow(self.case_chk)
         logview.addRow(self.collapse_chk)
         logview.addRow(self.process_chk)
+        logview.addRow(self.wrap_chk)
+        logview.addRow("Wrap lines", self.wrap_lines_spin)
         tabs.addTab(self._wrap(logview), "Log view")
 
         # --- Capture ------------------------------------------------------
@@ -150,6 +157,8 @@ class SettingsDialog(QDialog):
             "case": self.case_chk.isChecked(),
             "collapse": self.collapse_chk.isChecked(),
             "show_process": self.process_chk.isChecked(),
+            "wrap": self.wrap_chk.isChecked(),
+            "wrap_lines": self.wrap_lines_spin.value(),
             "buffers": {n for n, c in self.buffer_chks.items() if c.isChecked()},
             "tail": self.tail_box.currentData(),
             "max_rows": self.max_spin.value(),

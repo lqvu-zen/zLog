@@ -53,6 +53,8 @@ class LogItemDelegate(QStyledItemDelegate):
         self._hover_bg = QColor("#dbe9fb")
         self._pad = 6
         self.show_process = False  # paint the process/package column
+        self.wrap = False  # wrap long messages across multiple lines
+        self.wrap_lines = 3  # row height (in text lines) when wrap is on
 
     def set_theme(
         self,
@@ -73,7 +75,8 @@ class LogItemDelegate(QStyledItemDelegate):
         self._hover_bg = QColor(row_hover_bg)
 
     def sizeHint(self, option, index):
-        return QSize(0, QFontMetrics(option.font).height() + 4)
+        lines = self.wrap_lines if self.wrap else 1
+        return QSize(0, QFontMetrics(option.font).height() * lines + 4)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -92,6 +95,9 @@ class LogItemDelegate(QStyledItemDelegate):
         cw = fm.horizontalAdvance("M") or 8
         top, height = option.rect.top(), option.rect.height()
         x = option.rect.left() + self._pad
+        # In wrap mode metadata sits on the first line (band); the message wraps
+        # into the full row height. Otherwise everything is one vertically-centered line.
+        band = (fm.height() + 4) if self.wrap else height
         painter.setFont(option.font)
 
         deco = index.data(Qt.DecorationRole)
@@ -105,10 +111,12 @@ class LogItemDelegate(QStyledItemDelegate):
         if entry is None or not entry.level:
             painter.setPen(base_fg)
             text = time_str if entry is None else entry.message
+            if self.wrap:
+                flags = Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap
+            else:
+                flags = Qt.AlignVCenter | Qt.AlignLeft
             painter.drawText(
-                QRect(x, top, option.rect.right() - x - self._pad, height),
-                int(Qt.AlignVCenter | Qt.AlignLeft),
-                text,
+                QRect(x, top, option.rect.right() - x - self._pad, height), int(flags), text
             )
             painter.restore()
             return
@@ -122,7 +130,7 @@ class LogItemDelegate(QStyledItemDelegate):
                 s = fm.elidedText(s, mode, w)
             if w:
                 painter.setPen(color)
-                painter.drawText(QRect(x, top, w, height), int(Qt.AlignVCenter | Qt.AlignLeft), s)
+                painter.drawText(QRect(x, top, w, band), int(Qt.AlignVCenter | Qt.AlignLeft), s)
             x += w + cw
 
         level = entry.level
@@ -150,7 +158,7 @@ class LogItemDelegate(QStyledItemDelegate):
         if show:
             seg(index.data(PROCESS_ROLE) or "", proc_w, base_fg, elide="middle")
 
-        chip = QRect(x, top + 2, 2 * cw, height - 4)
+        chip = QRect(x, top + 2, 2 * cw, band - 4)
         # Always the level color — filling it with the (white) selection fg on a
         # selected row would put the white chip letter on white and hide it.
         painter.fillRect(chip, lvl_color)
@@ -161,9 +169,12 @@ class LogItemDelegate(QStyledItemDelegate):
         msg_color = self._sel_fg if selected else lvl_color
         painter.setPen(msg_color)
         mr = QRect(x, top, option.rect.right() - x - self._pad, height)
-        painter.drawText(
-            mr,
-            int(Qt.AlignVCenter | Qt.AlignLeft),
-            fm.elidedText(entry.message, Qt.ElideRight, mr.width()),
-        )
+        if self.wrap:
+            painter.drawText(mr, int(Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap), entry.message)
+        else:
+            painter.drawText(
+                mr,
+                int(Qt.AlignVCenter | Qt.AlignLeft),
+                fm.elidedText(entry.message, Qt.ElideRight, mr.width()),
+            )
         painter.restore()

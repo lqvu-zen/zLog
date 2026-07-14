@@ -24,6 +24,8 @@ def test_dialog_reflects_initial_values(qapp):
         "case": True,
         "collapse": True,
         "show_process": True,
+        "wrap": True,
+        "wrap_lines": 6,
         "buffers": {"system"},
         "tail": 500,
         "max_rows": 10000,
@@ -145,3 +147,24 @@ def test_view_menu_decluttered_and_palette_parity(window):
     assert "Settings" in cmds
     assert "Collapse Repeated Lines" in cmds
     assert "Absolute" in cmds
+
+
+def test_wrap_setting_applies_and_grows_rows(qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QFontMetrics
+
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+    w = MainWindow()
+    line = QFontMetrics(w.table.font()).height()
+    one = w.table.verticalHeader().defaultSectionSize()
+    v = w._collect_settings()
+    v.update(wrap=True, wrap_lines=5)
+    w._apply_settings_values(v)
+    assert w.log_delegate.wrap is True and w.log_delegate.wrap_lines == 5
+    assert w.table.verticalHeader().defaultSectionSize() >= one + 4 * line
+    # persists across relaunch
+    w2 = MainWindow()
+    w2._load_and_apply_settings()
+    assert w2.log_delegate.wrap is True and w2.log_delegate.wrap_lines == 5

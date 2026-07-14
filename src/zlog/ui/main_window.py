@@ -1463,8 +1463,13 @@ class MainWindow(QMainWindow):
             font = widget.font()
             font.setPointSize(size)
             widget.setFont(font)
+        self._apply_row_height()
+
+    def _apply_row_height(self) -> None:
+        """Uniform row height: one text line, or wrap_lines lines when wrapping."""
         fm = QFontMetrics(self.table.font())
-        self.table.verticalHeader().setDefaultSectionSize(fm.height() + 4)
+        lines = self.log_delegate.wrap_lines if self.log_delegate.wrap else 1
+        self.table.verticalHeader().setDefaultSectionSize(fm.height() * lines + 4)
 
     def _zoom(self, step: int) -> None:
         self._font_delta = max(-4, min(12, self._font_delta + step))
@@ -1499,6 +1504,8 @@ class MainWindow(QMainWindow):
             "follow": self.follow_check.isChecked(),
             "reopen_last": self.reopen_last_action.isChecked(),
             "autosave": self.autosave_action.isChecked(),
+            "wrap": self.log_delegate.wrap,
+            "wrap_lines": self.log_delegate.wrap_lines,
         }
 
     def _open_settings(self) -> None:
@@ -1548,6 +1555,10 @@ class MainWindow(QMainWindow):
         self.follow_check.setChecked(v["follow"])
         self.reopen_last_action.setChecked(v["reopen_last"])
         self.autosave_action.setChecked(v["autosave"])
+        self.log_delegate.wrap = bool(v["wrap"])
+        self.log_delegate.wrap_lines = max(1, min(50, int(v["wrap_lines"])))
+        self._apply_row_height()
+        self.table.viewport().update()
         self._save_settings()
 
     def _clear_device_buffer(self) -> None:
@@ -2058,6 +2069,16 @@ class MainWindow(QMainWindow):
                 if idx >= 0:
                     self.device_box.setCurrentIndex(idx)
 
+        def set_wrap(v):
+            self.log_delegate.wrap = bool(v)
+            self._apply_row_height()
+            self.table.viewport().update()
+
+        def set_wrap_lines(v):
+            self.log_delegate.wrap_lines = max(1, min(50, int(v) if isinstance(v, int) else 3))
+            self._apply_row_height()
+            self.table.viewport().update()
+
         specs = [
             (
                 "geometry",
@@ -2143,6 +2164,8 @@ class MainWindow(QMainWindow):
                 self.process_action.isChecked,
                 lambda v: self.process_action.setChecked(bool(v)),
             ),
+            ("wrap", lambda: self.log_delegate.wrap, set_wrap),
+            ("wrap_lines", lambda: self.log_delegate.wrap_lines, set_wrap_lines),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
