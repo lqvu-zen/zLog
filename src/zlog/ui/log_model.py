@@ -36,7 +36,7 @@ COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
 HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
 PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
-_TIME_MAX_CHARS = 23  # cap the (content-sized) Time column; full stamp fits in 23
+_TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
 
