@@ -402,3 +402,21 @@ def test_clear_resets_process_names(qapp):
     model.clear()
     assert model.process_name("1") == ""
 
+
+def test_query_pid_gate(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(pid="100", message="a"), _entry(pid="200", message="b")])
+    proxy.set_query_pids({"100"})
+    assert _messages(model, proxy) == ["a"]
+    proxy.set_query_pids(None)
+    assert _messages(model, proxy) == ["a", "b"]
+
+
+def test_proc_name_gate(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(pid="100", message="sysui"), _entry(pid="200", message="other")])
+    model.merge_process_names({"100": "com.android.systemui"})
+    proxy.set_proc("systemui")
+    assert _messages(model, proxy) == ["sysui"]  # only PID 100's resolved name matches
+    proxy.set_proc("")
+    assert _messages(model, proxy) == ["sysui", "other"]

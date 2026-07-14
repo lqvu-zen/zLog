@@ -346,6 +346,8 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._tag = ""  # tag-contains gate ("" = off)
         self._levels: set[str] | None = None  # exact level set (None = use min-level floor)
         self._collapse = False  # hide consecutive duplicate lines
+        self._query_pids: set[str] | None = None  # exact PID gate (pid: token)
+        self._proc = ""  # process/package-name contains gate (proc: token)
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -397,6 +399,16 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._collapse = bool(on)
         self.invalidate()
 
+    def set_query_pids(self, pids) -> None:
+        """Keep only these exact PID strings (pid: token), or None to clear."""
+        self._query_pids = set(pids) if pids else None
+        self.invalidate()
+
+    def set_proc(self, text: str) -> None:
+        """Keep rows whose resolved process/package name contains this text."""
+        self._proc = text.lower()
+        self.invalidate()
+
     def level_counts(self) -> dict[str, int]:
         """Count of currently-accepted rows per level letter (walks filtered rows,
         unlike LogTableModel.level_counts which is O(1) over the whole buffer)."""
@@ -418,6 +430,13 @@ class LogFilterProxy(QSortFilterProxyModel):
         # Package gate: when active, only rows from those PIDs pass (this hides
         # unparsed/banner lines, whose pid is "").
         if self._pids is not None and entry.pid not in self._pids:
+            return False
+        # Quick-filter PID gate (pid: token) — exact match on this line's PID.
+        if self._query_pids is not None and entry.pid not in self._query_pids:
+            return False
+        # Quick-filter process gate (proc: token) — the row's resolved
+        # process/package name must contain the text.
+        if self._proc and self._proc not in model.process_name(entry.pid).lower():
             return False
         # Level gate: an exact set if one is active, else the min-level floor
         # (unparsed lines, level "", always pass either way).

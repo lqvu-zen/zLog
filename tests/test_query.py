@@ -47,3 +47,20 @@ def test_level_set():
 def test_level_single_is_floor():
     q = parse_query("level:E")
     assert q.level == "E" and q.levels == ()
+
+
+def test_parse_pid_single_and_set():
+    assert parse_query("pid:4921").pids == ("4921",)
+    assert parse_query("pid:100,200,100").pids == ("100", "200")  # deduped, order kept
+    assert parse_query("pid:abc").pids == ()  # non-numeric ignored
+
+
+def test_parse_proc_name():
+    assert parse_query("proc:com.miui.securitycenter:ui").process == "com.miui.securitycenter:ui"
+    assert parse_query("process:com.foo").process == "com.foo"
+
+
+def test_pid_and_proc_coexist_with_search():
+    spec = parse_query("pid:5 proc:com.x tag:Act boom")
+    assert spec.pids == ("5",) and spec.process == "com.x"
+    assert spec.tag == "Act" and spec.search == "boom"

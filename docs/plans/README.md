@@ -118,4 +118,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [fixed-columns-middle-elide.md](fixed-columns-middle-elide.md) | Done | Fixed column widths; Tag/Process middle-elide; Time kept full width |
 | [message-min-half.md](message-min-half.md) | Done | Message keeps ≥50% of the row; Tag/Process shrink to fit, Time/PID/Level stay full |
 | [settings-dialog.md](settings-dialog.md) | Done | Tabbed Settings dialog (top-bar entry); View menu decluttered to commands only |
+| [quick-filter-pid-package.md](quick-filter-pid-package.md) | Done | Right-click Filter to… PID / Package (pid: and proc: query tokens) |
 | [level-query-

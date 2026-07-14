@@ -1096,6 +1096,8 @@ class MainWindow(QMainWindow):
             self._set_level_box(level)  # mirror into the dropdown (guarded)
             self.proxy.set_min_level(level)
         self.proxy.set_tag(spec.tag)
+        self.proxy.set_query_pids(set(spec.pids) if spec.pids else None)
+        self.proxy.set_proc(spec.process)
         ex_pat = "|".join(re.escape(t) for t in spec.excludes)
         ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
         self.regex_check.setChecked(spec.regex)  # -> _apply_search
@@ -1674,7 +1676,16 @@ class MainWindow(QMainWindow):
                 act.triggered.connect(
                     lambda _c=False, tg=entry.tag: self._add_query_token(f"tag:{tg}")
                 )
-            filt.setEnabled(bool(entry.level or entry.tag))
+            if entry.pid:
+                act = filt.addAction(f"PID: {entry.pid}")
+                act.triggered.connect(
+                    lambda _c=False, pid=entry.pid: self._add_query_token(f"pid:{pid}")
+                )
+            proc = self.model.process_name(entry.pid) if entry.pid else ""
+            if proc:
+                act = filt.addAction(f"Package: {proc}")
+                act.triggered.connect(lambda _c=False, pr=proc: self._add_query_token(f"proc:{pr}"))
+            filt.setEnabled(bool(entry.level or entry.tag or entry.pid))
             excl = menu.addMenu("Exclude…")
             ex_tag = excl.addAction(f"Tag: {entry.tag}" if entry.tag else "Tag")
             ex_tag.setEnabled(bool(entry.tag))

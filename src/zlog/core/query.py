@@ -4,6 +4,8 @@ Syntax (space-separated tokens; quote to include spaces):
     level:E            minimum level (V D I W E F, case-insensitive)
     tag:Activity       tag contains this text
     package:com.x      package (also `pkg:` / `app:`)
+    pid:1234           only this PID (comma-set: pid:100,200)
+    proc:com.x         resolved process/package name contains this (also `process:`)
     -noise             exclude lines matching this text (repeatable)
     /re.*gex/          regex search over tag+message
     plain words        substring search over tag+message
@@ -18,6 +20,7 @@ from dataclasses import dataclass, field
 
 _LEVELS = {"V", "D", "I", "W", "E", "F"}
 _PACKAGE_KEYS = {"package", "pkg", "app"}
+_PROC_KEYS = {"proc", "process"}
 
 
 @dataclass(frozen=True)
@@ -29,6 +32,8 @@ class QuerySpec:
     regex: bool = False
     excludes: tuple[str, ...] = field(default_factory=tuple)
     levels: tuple[str, ...] = field(default_factory=tuple)  # exact set (level:W,E)
+    pids: tuple[str, ...] = field(default_factory=tuple)  # exact PID set (pid:100,200)
+    process: str = ""  # process/package-name contains (proc:com.foo)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -43,6 +48,8 @@ def parse_query(text: str) -> QuerySpec:
     levels: list[str] = []
     tag = ""
     package = ""
+    process = ""
+    pids: list[str] = []
     regex = False
     regex_body: str | None = None
     words: list[str] = []
@@ -75,6 +82,15 @@ def parse_query(text: str) -> QuerySpec:
             if key in _PACKAGE_KEYS and val:
                 package = val
                 continue
+            if key in _PROC_KEYS and val:
+                process = val
+                continue
+            if key == "pid" and val:
+                for part in val.split(","):
+                    part = part.strip()
+                    if part.isdigit():
+                        pids.append(part)
+                continue
         words.append(tok)
 
     search = regex_body if regex_body is not None else " ".join(words)
@@ -86,4 +102,6 @@ def parse_query(text: str) -> QuerySpec:
         regex=regex,
         excludes=tuple(excludes),
         levels=tuple(levels),
+        pids=tuple(dict.fromkeys(pids)),
+        process=process,
     )
