@@ -95,14 +95,13 @@ class SettingsDialog(QDialog):
         self.max_spin.setSingleStep(1000)
         self.max_spin.setGroupSeparatorShown(True)
         self.max_spin.setSpecialValueText("Unlimited")  # shown when value == 0
-        self.max_spin.setSuffix(" lines")
         self.max_spin.setValue(int(values.get("max_rows", 0)))
         self.clear_start_chk = QCheckBox("Clear the view when starting a new stream")
         self.clear_start_chk.setChecked(values.get("clear_on_start", False))
         capture = QFormLayout()
         capture.addRow(buf_box)
         capture.addRow("Start from", self.tail_box)
-        capture.addRow("Buffer limit", self.max_spin)
+        capture.addRow("Buffer limit (lines)", self.max_spin)
         capture.addRow(self.clear_start_chk)
         tabs.addTab(self._wrap(capture), "Capture")
 
