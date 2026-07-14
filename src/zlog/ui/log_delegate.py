@@ -4,6 +4,9 @@ Keeps the model virtualized: the view calls this only for visible rows, so a
 million-line capture still renders cheaply. Segments are laid out at fixed
 monospace offsets (a table-like alignment without a grid), with the message
 tinted per level and a small colored level chip.
+
+When ``wrap`` is on, each row grows to fit its full (word-wrapped) message —
+``sizeHint`` computes the exact height, and the view sizes rows to content.
 """
 
 from __future__ import annotations
@@ -53,8 +56,8 @@ class LogItemDelegate(QStyledItemDelegate):
         self._hover_bg = QColor("#dbe9fb")
         self._pad = 6
         self.show_process = False  # paint the process/package column
-        self.wrap = False  # wrap long messages across multiple lines
-        self.wrap_lines = 3  # row height (in text lines) when wrap is on
+        self.wrap = False  # wrap long messages across as many lines as needed
+        self.view = None  # set by MainWindow; used to read the column width in sizeHint
 
     def set_theme(
         self,
@@ -74,9 +77,53 @@ class LogItemDelegate(QStyledItemDelegate):
         self._sel_fg = QColor(selection_text)
         self._hover_bg = QColor(row_hover_bg)
 
+    def _col_widths(self, left, right, cw, src):
+        """Pixel widths of the (content-sized) Time/PID and (flexible) Tag/Process
+        columns — shared by paint and sizeHint so their layouts agree."""
+
+        def cols(getter, floor):
+            fn = getattr(src, getter, None)
+            return max(fn() if fn else 0, floor)
+
+        time_w = cols("time_col_chars", _TIME_MIN_W) * cw
+        pid_w = cols("pidtid_col_chars", _PIDTID_MIN_W) * cw
+        fixed_px = (time_w + cw) + (pid_w + cw) + 3 * cw
+        x0 = left + self._pad
+        usable = (right - self._pad) - x0
+        tag_w, proc_w = plan_tag_proc_widths(usable, cw, self.show_process, fixed_px)
+        return time_w, pid_w, tag_w, proc_w
+
+    def _msg_left(self, left, time_w, pid_w, tag_w, proc_w, cw):
+        """The x where the message starts (after Time/PID/Tag/[Process]/level chip)."""
+        x = left + self._pad + (time_w + cw) + (pid_w + cw) + (tag_w + cw)
+        if self.show_process:
+            x += proc_w + cw
+        return x + 3 * cw
+
     def sizeHint(self, option, index):
-        lines = self.wrap_lines if self.wrap else 1
-        return QSize(0, QFontMetrics(option.font).height() * lines + 4)
+        fm = QFontMetrics(option.font)
+        line_h = fm.height()
+        if not self.wrap or index is None or not index.isValid():
+            return QSize(0, line_h + 4)
+        entry = index.data(Qt.UserRole)
+        message = entry.message if entry is not None else (index.data(Qt.DisplayRole) or "")
+        # sizeHintForRow doesn't give the column width in option.rect, so read it
+        # from the view (a single stretched column == the viewport width).
+        width = option.rect.width()
+        if width <= 0 and self.view is not None:
+            width = self.view.viewport().width()
+        width = width if width > 0 else 800
+        cw = fm.horizontalAdvance("M") or 8
+        if entry is None or not entry.level:
+            avail = width - 2 * self._pad
+        else:
+            src = index.model()
+            src = src.sourceModel() if hasattr(src, "sourceModel") else src
+            time_w, pid_w, tag_w, proc_w = self._col_widths(0, width, cw, src)
+            avail = (width - self._pad) - self._msg_left(0, time_w, pid_w, tag_w, proc_w, cw)
+        avail = max(int(avail), cw * 4)
+        rect = fm.boundingRect(0, 0, avail, 1_000_000, int(Qt.TextWordWrap), message)
+        return QSize(0, max(line_h, rect.height()) + 4)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -135,23 +182,12 @@ class LogItemDelegate(QStyledItemDelegate):
 
         level = entry.level
         lvl_color = self._level_text.get(level, self._muted)
-        # Time / PID / Level are fixed and always shown in full. Tag and the
-        # (optional) process column share a budget sized so the message keeps at
-        # least _MSG_MIN_FRAC of the row; when there's room they use their natural
-        # widths, otherwise they shrink and middle-elide (ends stay legible).
         src = index.model()
         src = src.sourceModel() if hasattr(src, "sourceModel") else src
-
-        def cols(getter, floor):
-            fn = getattr(src, getter, None)
-            return max(fn() if fn else 0, floor)
-
-        time_w = cols("time_col_chars", _TIME_MIN_W) * cw
-        pid_w = cols("pidtid_col_chars", _PIDTID_MIN_W) * cw
-        fixed_px = (time_w + cw) + (pid_w + cw) + 3 * cw
-        usable = (option.rect.right() - self._pad) - x
         show = self.show_process
-        tag_w, proc_w = plan_tag_proc_widths(usable, cw, show, fixed_px)
+        time_w, pid_w, tag_w, proc_w = self._col_widths(
+            option.rect.left(), option.rect.right(), cw, src
+        )
         seg(time_str, time_w, base_fg)
         seg(f"{entry.pid}-{entry.tid}", pid_w, base_fg)
         seg(entry.tag, tag_w, base_fg, elide="middle")
