@@ -355,6 +355,9 @@ class MainWindow(QMainWindow):
         # custom right-click menu that also offers per-tag highlighting.
         self.copy_action = QAction("Copy", self)
         self.copy_action.setShortcut(QKeySequence.Copy)
+        # Only handle Ctrl+C when the table (or a child) has focus, so a selection
+        # in the detail pane copies its own text instead of the whole log line.
+        self.copy_action.setShortcutContext(Qt.WidgetWithChildrenShortcut)
         self.copy_action.triggered.connect(self.copy_selection)
         self.select_all_action = QAction("Select All", self)
         self.select_all_action.triggered.connect(self.table.selectAll)

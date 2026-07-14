@@ -827,3 +827,12 @@ def test_process_column_toggle_and_persist(qapp, tmp_path, monkeypatch):
     w2._load_and_apply_settings()
     assert w2.process_action.isChecked() is True
     assert w2.log_delegate.show_process is True
+
+def test_copy_shortcut_scoped_to_table(window):
+    from PySide6.QtCore import Qt
+
+    # Ctrl+C is scoped to the table so a selection in the detail pane copies its
+    # own text (QPlainTextEdit) instead of triggering the whole-line table copy.
+    assert window.copy_action.shortcutContext() == Qt.WidgetWithChildrenShortcut
+    assert window.copy_action in window.table.actions()
+    assert window.detail.textInteractionFlags() & Qt.TextSelectableByMouse
