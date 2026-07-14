@@ -383,7 +383,6 @@ def test_process_role_and_start_proc_merge(qapp):
     # so every row from that PID resolves the name via PROCESS_ROLE.
     idx = model.index(1, 0)
     assert model.data(idx, PROCESS_ROLE) == "com.android.systemui"
-    assert model.process_col_chars() == len("com.android.systemui")
 
 
 def test_merge_process_names_from_snapshot(qapp):
@@ -399,20 +398,7 @@ def test_merge_process_names_from_snapshot(qapp):
 def test_clear_resets_process_names(qapp):
     model, proxy = _wire(qapp)
     model.merge_process_names({"1": "init"})
+    assert model.process_name("1") == "init"
     model.clear()
-    assert model.process_col_chars() == 0
     assert model.process_name("1") == ""
 
-
-def test_metadata_columns_autosize(qapp):
-    model, proxy = _wire(qapp)
-    model.append_entries([_entry(tag="GC", pid="12", message="x")])
-    assert model.tag_col_chars() == 2  # sized to the short tag
-    assert model.pidtid_col_chars() == len("12-200")
-    model.append_entries([_entry(tag="ActivityManagerService", pid="12", message="y")])
-    assert model.tag_col_chars() == 22  # grew to the longer tag
-    # capped: an absurdly long tag can't blow the column past the cap
-    model.append_entries([_entry(tag="X" * 80, message="z")])
-    assert model.tag_col_chars() == 24
-    model.clear()
-    assert model.tag_col_chars() == 0 and model.time_col_chars() == 0

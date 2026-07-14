@@ -14,10 +14,10 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
 
-_TIME_MIN_W = 12  # floors so a column never collapses before data arrives
-_PIDTID_MIN_W = 7
-_TAG_MIN_W = 6
-_PROC_MIN_W = 14  # keep the process column visible even before names resolve
+_TIME_W = 24  # fixed: fits the full 'YYYY-MM-DD HH:MM:SS.mmm' stamp, kept readable
+_PIDTID_W = 12
+_TAG_W = 22
+_PROC_W = 30  # process/package column; longer names elide in the middle
 
 
 class LogItemDelegate(QStyledItemDelegate):
@@ -92,35 +92,28 @@ class LogItemDelegate(QStyledItemDelegate):
             painter.restore()
             return
 
-        def seg(text, width_chars, color, elide=False):
+        def seg(text, width_chars, color, elide=None):
             nonlocal x
             w = width_chars * cw
             s = text or ""
             if elide:
-                s = fm.elidedText(s, Qt.ElideRight, w)
+                mode = Qt.ElideMiddle if elide == "middle" else Qt.ElideRight
+                s = fm.elidedText(s, mode, w)
             painter.setPen(color)
             painter.drawText(QRect(x, top, w, height), int(Qt.AlignVCenter | Qt.AlignLeft), s)
             x += w + cw
 
         level = entry.level
         lvl_color = self._level_text.get(level, self._muted)
-        # Auto-size each metadata column to the widest value seen (capped in the
-        # model), so short stamps/tags leave more room for the message.
-        src = index.model()
-        src = src.sourceModel() if hasattr(src, "sourceModel") else src
-
-        def col(getter, floor):
-            fn = getattr(src, getter, None)
-            return max(fn() if fn else 0, floor)
-
-        seg(time_str, col("time_col_chars", _TIME_MIN_W), base_fg)
-        seg(f"{entry.pid}-{entry.tid}", col("pidtid_col_chars", _PIDTID_MIN_W), base_fg)
-        seg(entry.tag, col("tag_col_chars", _TAG_MIN_W), base_fg, elide=True)
+        # Fixed column widths; long tag/package values elide in the middle so the
+        # ends stay legible (e.g. 'vendor.xia....0-service').
+        seg(time_str, _TIME_W, base_fg)
+        seg(f"{entry.pid}-{entry.tid}", _PIDTID_W, base_fg)
+        seg(entry.tag, _TAG_W, base_fg, elide="middle")
         if self.show_process:
             # Always reserve the column when enabled so the toggle has visible
             # effect; names fill in as `adb ps` / Start proc lines resolve them.
-            width = max(col("process_col_chars", 0), _PROC_MIN_W)
-            seg(index.data(PROCESS_ROLE) or "", width, base_fg, elide=True)
+            seg(index.data(PROCESS_ROLE) or "", _PROC_W, base_fg, elide="middle")
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
         # Always the level color — filling it with the (white) selection fg on a

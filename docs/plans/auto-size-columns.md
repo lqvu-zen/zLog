@@ -1,6 +1,6 @@
 # Plan: Auto-size the metadata columns to maximize the message area
 
-- **Status:** Done
+- **Status:** Superseded by [fixed-columns-middle-elide.md](fixed-columns-middle-elide.md)
 - **Owner:** unassigned
 - **Created:** 2026-07-14
 - **Related:** [ui-column-polish.md](ui-column-polish.md), [process-name-column.md](process-name-column.md), [logcat-style-ui.md](logcat-style-ui.md)

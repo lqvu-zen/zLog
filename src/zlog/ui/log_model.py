@@ -36,10 +36,6 @@ COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
 HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
 PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
-_PROC_MAX_CHARS = 40  # cap the process column width; longer names are elided
-_TIME_MAX_CHARS = 23  # full 'YYYY-MM-DD HH:MM:SS.mmm'; shorter stamps size tighter
-_PIDTID_MAX_CHARS = 13
-_TAG_MAX_CHARS = 24
 
 
 class LogTableModel(QAbstractTableModel):
@@ -58,10 +54,6 @@ class LogTableModel(QAbstractTableModel):
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
-        self._proc_col_chars = 0  # dynamic width of the process column (0 = none)
-        self._time_col_chars = 0  # auto-sized metadata column widths (only grow)
-        self._pidtid_col_chars = 0
-        self._tag_col_chars = 0
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -139,27 +131,15 @@ class LogTableModel(QAbstractTableModel):
         last = first + len(entries) - 1
         self.beginInsertRows(QModelIndex(), first, last)
         self._rows.extend(entries)
-        changed = False
         for entry in entries:
             self._level_counts[entry.level] += 1
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
-            if len(entry.time) > self._time_col_chars:
-                self._time_col_chars = min(len(entry.time), _TIME_MAX_CHARS)
-            ptl = len(entry.pid) + len(entry.tid) + 1
-            if ptl > self._pidtid_col_chars:
-                self._pidtid_col_chars = min(ptl, _PIDTID_MAX_CHARS)
-            if len(entry.tag) > self._tag_col_chars:
-                self._tag_col_chars = min(len(entry.tag), _TAG_MAX_CHARS)
             hit = parse_proc_start(entry.message)
             if hit is not None:
                 pid, name = hit
-                if self._pid_names.get(pid) != name:
-                    self._pid_names[pid] = name
-                    changed = True
+                self._pid_names[pid] = name
         self.endInsertRows()
-        if changed:
-            self._recompute_proc_width()
         self._enforce_cap()
 
     def set_max_rows(self, n: int) -> None:
@@ -198,10 +178,6 @@ class LogTableModel(QAbstractTableModel):
         self._baseline = None
         self._bookmarks.clear()
         self._pid_names.clear()
-        self._proc_col_chars = 0
-        self._time_col_chars = 0
-        self._pidtid_col_chars = 0
-        self._tag_col_chars = 0
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -219,32 +195,13 @@ class LogTableModel(QAbstractTableModel):
             if name and self._pid_names.get(str(pid)) != str(name):
                 self._pid_names[str(pid)] = str(name)
                 changed = True
-        if changed:
-            self._recompute_proc_width()
-            if self._rows:
-                top = self.index(0, 0)
-                bottom = self.index(len(self._rows) - 1, len(COLUMNS) - 1)
-                self.dataChanged.emit(top, bottom, [PROCESS_ROLE])
+        if changed and self._rows:
+            top = self.index(0, 0)
+            bottom = self.index(len(self._rows) - 1, len(COLUMNS) - 1)
+            self.dataChanged.emit(top, bottom, [PROCESS_ROLE])
 
     def process_name(self, pid: str) -> str:
         return self._pid_names.get(pid, "")
-
-    def process_col_chars(self) -> int:
-        """Width (in characters) the process column needs, capped; 0 = no names."""
-        return self._proc_col_chars
-
-    def time_col_chars(self) -> int:
-        return self._time_col_chars
-
-    def pidtid_col_chars(self) -> int:
-        return self._pidtid_col_chars
-
-    def tag_col_chars(self) -> int:
-        return self._tag_col_chars
-
-    def _recompute_proc_width(self) -> None:
-        longest = max((len(n) for n in self._pid_names.values()), default=0)
-        self._proc_col_chars = min(longest, _PROC_MAX_CHARS)
 
     def set_level_colors(self, hexmap: dict[str, str]) -> None:
         """Set per-level row tints from a theme's hex values (W/E/F)."""
