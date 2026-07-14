@@ -367,3 +367,38 @@ def test_colorizer_tints_row(qapp):
     model.set_colorizers([lambda e: "#123456" if e.level == "E" else None])
     color = model.data(model.index(0, 0), HIGHLIGHT_ROLE)
     assert isinstance(color, QColor) and color.name() == "#123456"
+
+
+def test_process_role_and_start_proc_merge(qapp):
+    from zlog.ui.log_model import PROCESS_ROLE
+
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [
+            _entry(message="Start proc 4921:com.android.systemui/u0a1 for x", pid="4921"),
+            _entry(message="onExpansionChanged", pid="4921"),
+        ]
+    )
+    # The Start proc line taught the model that PID 4921 -> com.android.systemui,
+    # so every row from that PID resolves the name via PROCESS_ROLE.
+    idx = model.index(1, 0)
+    assert model.data(idx, PROCESS_ROLE) == "com.android.systemui"
+    assert model.process_col_chars() == len("com.android.systemui")
+
+
+def test_merge_process_names_from_snapshot(qapp):
+    from zlog.ui.log_model import PROCESS_ROLE
+
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(pid="777")])
+    assert model.data(model.index(0, 0), PROCESS_ROLE) == ""  # unknown yet
+    model.merge_process_names({"777": "com.example.app"})
+    assert model.data(model.index(0, 0), PROCESS_ROLE) == "com.example.app"
+
+
+def test_clear_resets_process_names(qapp):
+    model, proxy = _wire(qapp)
+    model.merge_process_names({"1": "init"})
+    model.clear()
+    assert model.process_col_chars() == 0
+    assert model.process_name("1") == ""

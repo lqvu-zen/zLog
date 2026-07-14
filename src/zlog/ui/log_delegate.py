@@ -12,7 +12,7 @@ from PySide6.QtCore import QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFontMetrics
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from zlog.ui.log_model import HIGHLIGHT_ROLE
+from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
 
 _TIME_W = 24  # "2026-07-09 00:12:01.363" + pad
 _PIDTID_W = 12
@@ -30,6 +30,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._sel_fg = QColor("#ffffff")
         self._hover_bg = QColor("#dbe9fb")
         self._pad = 6
+        self.show_process = False  # paint the process/package column
 
     def set_theme(
         self,
@@ -105,6 +106,12 @@ class LogItemDelegate(QStyledItemDelegate):
         seg(time_str, _TIME_W, base_fg)
         seg(f"{entry.pid}-{entry.tid}", _PIDTID_W, base_fg)
         seg(entry.tag, _TAG_W, base_fg, elide=True)
+        if self.show_process:
+            src = index.model()
+            src = src.sourceModel() if hasattr(src, "sourceModel") else src
+            width = src.process_col_chars() if hasattr(src, "process_col_chars") else 0
+            if width > 0:
+                seg(index.data(PROCESS_ROLE) or "", width, base_fg, elide=True)
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
         # Always the level color — filling it with the (white) selection fg on a

@@ -62,6 +62,7 @@ from PySide6.QtWidgets import (
 
 from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
+from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
@@ -625,6 +626,13 @@ class MainWindow(QMainWindow):
         self.autosave_action.setCheckable(True)
         self.autosave_action.setChecked(False)
         self.autosave_action.toggled.connect(self._on_autosave_toggled)
+        self.process_action = view_menu.addAction("Show &Process Names")
+        self.process_action.setCheckable(True)
+        self.process_action.setChecked(False)
+        self.process_action.setToolTip(
+            "Resolve each PID to its process/package name (like Android Studio)"
+        )
+        self.process_action.toggled.connect(self._on_process_toggled)
 
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
@@ -2041,6 +2049,11 @@ class MainWindow(QMainWindow):
                 lambda: next((c for c, a in self._max_rows_actions.items() if a.isChecked()), 0),
                 set_max_rows,
             ),
+            (
+                "show_process",
+                self.process_action.isChecked,
+                lambda v: self.process_action.setChecked(bool(v)),
+            ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
@@ -2072,6 +2085,8 @@ class MainWindow(QMainWindow):
         self._last_time = ""
         self._reconnect_serial = self.device_box.currentData()
         self._start_reader(self._reconnect_serial)
+        if self.process_action.isChecked():
+            self._refresh_process_map()
 
     def _start_reader(self, serial, since_time=None, sess=None) -> None:
         sess = sess if sess is not None else self._active
@@ -2118,6 +2133,30 @@ class MainWindow(QMainWindow):
 
     def on_batch(self, entries) -> None:
         self._on_batch(self._active, entries)  # pause-flush path (active tab)
+
+    def _on_process_toggled(self, checked: bool) -> None:
+        """Show/hide the process-name column; refresh the PID->name map when on.
+        (Persisted on close, like the other View toggles — no save here so it is
+        safe to fire during settings load.)"""
+        self.log_delegate.show_process = bool(checked)
+        self.table.viewport().update()
+        if checked:
+            self._refresh_process_map()
+
+    def _refresh_process_map(self) -> None:
+        """One-shot `adb shell ps` snapshot for the active device, merged into the
+        model so already-running processes get named (new ones come from the log)."""
+        serial = self._current_serial()
+        if serial is None:
+            return
+        names = self._run_adb(
+            lambda: list_process_map(serial),
+            missing_msg="adb not found.",
+            error_prefix="Could not read process list",
+            report=self.statusBar().showMessage,
+        )
+        if names:
+            self.model.merge_process_names(names)
 
     def _on_batch(self, sess, entries) -> None:
         for entry in reversed(entries):

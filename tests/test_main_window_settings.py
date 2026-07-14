@@ -806,3 +806,24 @@ def test_legacy_preset_without_query_still_applies(window):
     window._apply_preset(legacy)
     text = window.query.text()
     assert "boom" in text and "package:com.x" in text
+
+
+def test_process_column_toggle_and_persist(qapp, tmp_path, monkeypatch):
+    from zlog.ui.main_window import MainWindow
+
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: path)
+    # avoid any adb call when the toggle turns on
+    monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+
+    w1 = MainWindow()
+    assert w1.log_delegate.show_process is False
+    w1.process_action.setChecked(True)
+    assert w1.log_delegate.show_process is True  # toggle flips the delegate
+    w1._save_settings()
+
+    w2 = MainWindow()
+    monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+    w2._load_and_apply_settings()
+    assert w2.process_action.isChecked() is True
+    assert w2.log_delegate.show_process is True  # restored on launch

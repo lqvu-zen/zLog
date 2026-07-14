@@ -27,6 +27,7 @@ from PySide6.QtGui import QColor
 
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
+from zlog.core.proc import parse_proc_start
 from zlog.core.search import compile_matcher
 from zlog.core.timefmt import format_delta, parse_logcat_time
 from zlog.ui.theme import LIGHT
@@ -34,6 +35,8 @@ from zlog.ui.theme import LIGHT
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
 HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
+PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
+_PROC_MAX_CHARS = 40  # cap the process column width; longer names are elided
 
 
 class LogTableModel(QAbstractTableModel):
@@ -51,6 +54,8 @@ class LogTableModel(QAbstractTableModel):
         self._bookmark_color = QColor(LIGHT.bookmark)
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
+        self._pid_names: dict[str, str] = {}  # pid -> process/package name
+        self._proc_col_chars = 0  # dynamic width of the process column (0 = none)
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -88,6 +93,8 @@ class LogTableModel(QAbstractTableModel):
             return self._level_colors.get(entry.level)
         if role == Qt.UserRole:
             return entry
+        if role == PROCESS_ROLE:
+            return self._pid_names.get(entry.pid, "")
         if role == HIGHLIGHT_ROLE:
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
@@ -126,11 +133,20 @@ class LogTableModel(QAbstractTableModel):
         last = first + len(entries) - 1
         self.beginInsertRows(QModelIndex(), first, last)
         self._rows.extend(entries)
+        changed = False
         for entry in entries:
             self._level_counts[entry.level] += 1
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
+            hit = parse_proc_start(entry.message)
+            if hit is not None:
+                pid, name = hit
+                if self._pid_names.get(pid) != name:
+                    self._pid_names[pid] = name
+                    changed = True
         self.endInsertRows()
+        if changed:
+            self._recompute_proc_width()
         self._enforce_cap()
 
     def set_max_rows(self, n: int) -> None:
@@ -168,6 +184,8 @@ class LogTableModel(QAbstractTableModel):
         self._level_counts.clear()
         self._baseline = None
         self._bookmarks.clear()
+        self._pid_names.clear()
+        self._proc_col_chars = 0
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -176,6 +194,32 @@ class LogTableModel(QAbstractTableModel):
     def all_entries(self) -> list[LogEntry]:
         """A copy of the full master list (used by Save Log)."""
         return list(self._rows)
+
+    def merge_process_names(self, mapping) -> None:
+        """Merge a pid -> name map (e.g. from an `adb shell ps` snapshot) and
+        repaint the process column. Existing names are overwritten by newer ones."""
+        changed = False
+        for pid, name in dict(mapping).items():
+            if name and self._pid_names.get(str(pid)) != str(name):
+                self._pid_names[str(pid)] = str(name)
+                changed = True
+        if changed:
+            self._recompute_proc_width()
+            if self._rows:
+                top = self.index(0, 0)
+                bottom = self.index(len(self._rows) - 1, len(COLUMNS) - 1)
+                self.dataChanged.emit(top, bottom, [PROCESS_ROLE])
+
+    def process_name(self, pid: str) -> str:
+        return self._pid_names.get(pid, "")
+
+    def process_col_chars(self) -> int:
+        """Width (in characters) the process column needs, capped; 0 = no names."""
+        return self._proc_col_chars
+
+    def _recompute_proc_width(self) -> None:
+        longest = max((len(n) for n in self._pid_names.values()), default=0)
+        self._proc_col_chars = min(longest, _PROC_MAX_CHARS)
 
     def set_level_colors(self, hexmap: dict[str, str]) -> None:
         """Set per-level row tints from a theme's hex values (W/E/F)."""

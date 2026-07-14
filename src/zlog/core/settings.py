@@ -37,6 +37,7 @@ DEFAULTS: dict = {
     "splitter_state": "",  # base64 QSplitter.saveState() for the log/detail divider
     "collapse": False,  # hide consecutive duplicate lines
     "watch": "",  # substring; notify when a captured line matches
+    "show_process": False,  # show the resolved process/package-name column
 }
 
 
