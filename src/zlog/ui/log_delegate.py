@@ -17,6 +17,7 @@ from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
 _TIME_W = 24  # "2026-07-09 00:12:01.363" + pad
 _PIDTID_W = 12
 _TAG_W = 22
+_PROC_MIN_W = 14  # keep the process column visible even before names resolve
 
 
 class LogItemDelegate(QStyledItemDelegate):
@@ -109,9 +110,11 @@ class LogItemDelegate(QStyledItemDelegate):
         if self.show_process:
             src = index.model()
             src = src.sourceModel() if hasattr(src, "sourceModel") else src
-            width = src.process_col_chars() if hasattr(src, "process_col_chars") else 0
-            if width > 0:
-                seg(index.data(PROCESS_ROLE) or "", width, base_fg, elide=True)
+            resolved = src.process_col_chars() if hasattr(src, "process_col_chars") else 0
+            # Always reserve the column when enabled so the toggle has visible
+            # effect; names fill in as `adb ps` / Start proc lines resolve them.
+            width = max(resolved, _PROC_MIN_W)
+            seg(index.data(PROCESS_ROLE) or "", width, base_fg, elide=True)
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
         # Always the level color — filling it with the (white) selection fg on a
