@@ -114,4 +114,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [preset-save-full-query.md](preset-save-full-query.md) | Done | Presets store the raw query text so tag:/-exclude tokens survive save/apply |
 | [level-query-sync.md](level-query-sync.md) | Done | Level dropdown ↔ query level: token stay in sync both ways |
 | [process-name-column.md](process-name-column.md) | Done | Optional PID→process/package name column (adb ps + Start proc), like Android Studio |
+| [auto-size-columns.md](auto-size-columns.md) | Done | Auto-size Time/PID/Tag/Process columns to content so the message gets the rest |
 | [level-query-

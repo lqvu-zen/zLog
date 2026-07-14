@@ -14,9 +14,9 @@ from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
 from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
 
-_TIME_W = 24  # "2026-07-09 00:12:01.363" + pad
-_PIDTID_W = 12
-_TAG_W = 22
+_TIME_MIN_W = 12  # floors so a column never collapses before data arrives
+_PIDTID_MIN_W = 7
+_TAG_MIN_W = 6
 _PROC_MIN_W = 14  # keep the process column visible even before names resolve
 
 
@@ -104,16 +104,22 @@ class LogItemDelegate(QStyledItemDelegate):
 
         level = entry.level
         lvl_color = self._level_text.get(level, self._muted)
-        seg(time_str, _TIME_W, base_fg)
-        seg(f"{entry.pid}-{entry.tid}", _PIDTID_W, base_fg)
-        seg(entry.tag, _TAG_W, base_fg, elide=True)
+        # Auto-size each metadata column to the widest value seen (capped in the
+        # model), so short stamps/tags leave more room for the message.
+        src = index.model()
+        src = src.sourceModel() if hasattr(src, "sourceModel") else src
+
+        def col(getter, floor):
+            fn = getattr(src, getter, None)
+            return max(fn() if fn else 0, floor)
+
+        seg(time_str, col("time_col_chars", _TIME_MIN_W), base_fg)
+        seg(f"{entry.pid}-{entry.tid}", col("pidtid_col_chars", _PIDTID_MIN_W), base_fg)
+        seg(entry.tag, col("tag_col_chars", _TAG_MIN_W), base_fg, elide=True)
         if self.show_process:
-            src = index.model()
-            src = src.sourceModel() if hasattr(src, "sourceModel") else src
-            resolved = src.process_col_chars() if hasattr(src, "process_col_chars") else 0
             # Always reserve the column when enabled so the toggle has visible
             # effect; names fill in as `adb ps` / Start proc lines resolve them.
-            width = max(resolved, _PROC_MIN_W)
+            width = max(col("process_col_chars", 0), _PROC_MIN_W)
             seg(index.data(PROCESS_ROLE) or "", width, base_fg, elide=True)
 
         chip = QRect(x, top + 2, 2 * cw, height - 4)
