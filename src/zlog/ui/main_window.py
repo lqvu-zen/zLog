@@ -92,6 +92,7 @@ from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
+from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
@@ -744,6 +745,9 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _checked=False, n=cap: self.model.set_max_rows(n))
             self._max_rows_group.addAction(act)
             self._max_rows_actions[cap] = act
+
+        settings_act = self.menuBar().addAction("&Settings…")
+        settings_act.triggered.connect(self._open_settings)
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -1470,6 +1474,90 @@ class MainWindow(QMainWindow):
     def _reset_zoom(self) -> None:
         self._font_delta = 0
         self._apply_font()
+
+    def _set_font_delta(self, n: int) -> None:
+        self._font_delta = max(-4, min(12, int(n)))
+        self._apply_font()
+
+    # --- settings dialog ---------------------------------------------------
+    def _collect_settings(self) -> dict:
+        """Snapshot the current preference state for the Settings dialog."""
+        time_mode = next((m for m, a in self._time_actions.items() if a.isChecked()), "absolute")
+        tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
+        max_rows = next((c for c, a in self._max_rows_actions.items() if a.isChecked()), 0)
+        return {
+            "theme": self._theme_name,
+            "font_delta": self._font_delta,
+            "show_details": self.details_action.isChecked(),
+            "time_mode": time_mode,
+            "highlight": self.highlight_action.isChecked(),
+            "case": self.case_action.isChecked(),
+            "collapse": self.collapse_action.isChecked(),
+            "show_process": self.process_action.isChecked(),
+            "buffers": {n for n, a in self._buffer_actions.items() if a.isChecked()},
+            "tail": tail,
+            "max_rows": max_rows,
+            "clear_on_start": self.clear_on_start_action.isChecked(),
+            "follow": self.follow_check.isChecked(),
+            "reopen_last": self.reopen_last_action.isChecked(),
+            "autosave": self.autosave_action.isChecked(),
+        }
+
+    def _open_settings(self) -> None:
+        dlg = SettingsDialog(
+            self._collect_settings(),
+            themes=list(THEMES),
+            time_modes=[
+                ("Absolute", "absolute"),
+                ("Since start", "since_start"),
+                ("Delta", "delta"),
+            ],
+            tail_options=[
+                ("Whole buffer", 0),
+                ("Last 500", 500),
+                ("Last 1000", 1000),
+                ("Last 5000", 5000),
+            ],
+            max_options=[
+                ("Unlimited", 0),
+                ("10,000 lines", 10000),
+                ("50,000 lines", 50000),
+                ("100,000 lines", 100000),
+            ],
+            buffers=["main", "system", "crash", "radio", "events", "kernel"],
+            parent=self,
+        )
+        if dlg.exec():
+            self._apply_settings_values(dlg.get_values())
+            self.statusBar().showMessage("Settings applied.")
+
+    def _apply_settings_values(self, v: dict) -> None:
+        """Drive the existing backing actions/widgets from the dialog's values."""
+        self.apply_theme(v["theme"])
+        for act in self._theme_group.actions():
+            act.setChecked(act.text() == v["theme"])
+        self._set_font_delta(v["font_delta"])
+        self.details_action.setChecked(v["show_details"])
+        mode = v["time_mode"]
+        if mode in self._time_actions:
+            self._time_actions[mode].setChecked(True)
+            self.model.set_time_mode(mode)
+        self.highlight_action.setChecked(v["highlight"])
+        self.case_action.setChecked(v["case"])
+        self.collapse_action.setChecked(v["collapse"])
+        self.process_action.setChecked(v["show_process"])
+        for name, act in self._buffer_actions.items():
+            act.setChecked(name in v["buffers"])
+        if v["tail"] in self._tail_actions:
+            self._tail_actions[v["tail"]].setChecked(True)
+        if v["max_rows"] in self._max_rows_actions:
+            self._max_rows_actions[v["max_rows"]].setChecked(True)
+            self.model.set_max_rows(v["max_rows"])
+        self.clear_on_start_action.setChecked(v["clear_on_start"])
+        self.follow_check.setChecked(v["follow"])
+        self.reopen_last_action.setChecked(v["reopen_last"])
+        self.autosave_action.setChecked(v["autosave"])
+        self._save_settings()
 
     def _clear_device_buffer(self) -> None:
         """Wipe the device's on-device logcat ring buffer (adb logcat -c)."""
