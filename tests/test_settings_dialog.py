@@ -90,3 +90,34 @@ def test_settings_survive_relaunch_via_apply(qapp, tmp_path, monkeypatch):
     w2._load_and_apply_settings()
     assert w2._theme_name == "Dark"
     assert w2.process_action.isChecked() is True
+
+
+def _menu_walk_labels(menu):
+    """All labels reachable by walking a menu (materialize lists to keep the
+    PySide QAction/QMenu wrappers alive during traversal)."""
+    labels = []
+    for act in list(menu.actions()):
+        sub = act.menu()
+        if sub is not None:
+            labels += _menu_walk_labels(sub)
+        elif act.text():
+            labels.append(act.text())
+    return labels
+
+
+def test_view_menu_decluttered_and_palette_parity(window):
+    mb_actions = list(window.menuBar().actions())
+    view = next(a.menu() for a in mb_actions if a.text() == "&View")
+    view_labels = _menu_walk_labels(view)
+    # Preference toggles were moved into the Settings dialog — not in the View menu.
+    for gone in ("Show Process Names", "Collapse Repeated Lines", "Absolute", "Case sensitive"):
+        assert gone not in view_labels, gone
+    # Commands stay in the View menu.
+    assert any("Clear F" in t for t in view_labels)  # Clear Filters
+    assert any("Tag Summary" in t for t in view_labels)
+    # Top-bar Settings entry after File/View, plus command-palette parity.
+    assert "&Settings…" in [a.text() for a in mb_actions]
+    cmds = [label for label, _ in window._all_commands()]
+    assert "Settings" in cmds
+    assert "Collapse Repeated Lines" in cmds
+    assert "Absolute" in cmds

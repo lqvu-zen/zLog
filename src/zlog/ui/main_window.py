@@ -602,39 +602,96 @@ class MainWindow(QMainWindow):
             )
 
         view_menu = self.menuBar().addMenu("&View")
-        theme_menu = view_menu.addMenu("&Theme")
+
+        # Preference actions are created here as standalone objects (the state the
+        # Settings dialog reads/writes) but are NOT put in the View menu — the View
+        # menu keeps only commands + navigation. See _build_menus / settings_dialog.
         self._theme_group = QActionGroup(self)
         self._theme_group.setExclusive(True)
         for name in THEMES:
-            act = theme_menu.addAction(name)
+            act = QAction(name, self)
             act.setCheckable(True)
             act.setChecked(name == "Light")
             self._theme_group.addAction(act)
             act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
 
-        self.details_action = view_menu.addAction("Show &Details")
+        self.details_action = QAction("Show Details", self)
         self.details_action.setCheckable(True)
         self.details_action.setChecked(True)
         self.details_action.toggled.connect(self.detail.setVisible)
-
-        self.clear_on_start_action = view_menu.addAction("Clear on &Start")
+        self.clear_on_start_action = QAction("Clear on Start", self)
         self.clear_on_start_action.setCheckable(True)
-        self.clear_on_start_action.setChecked(False)
-        self.reopen_last_action = view_menu.addAction("Reopen &Last Log on Launch")
+        self.reopen_last_action = QAction("Reopen Last Log on Launch", self)
         self.reopen_last_action.setCheckable(True)
-        self.reopen_last_action.setChecked(False)
-        self.autosave_action = view_menu.addAction("&Autosave Capture")
+        self.autosave_action = QAction("Autosave Capture", self)
         self.autosave_action.setCheckable(True)
-        self.autosave_action.setChecked(False)
         self.autosave_action.toggled.connect(self._on_autosave_toggled)
-        self.process_action = view_menu.addAction("Show &Process Names")
+        self.process_action = QAction("Show Process Names", self)
         self.process_action.setCheckable(True)
-        self.process_action.setChecked(False)
-        self.process_action.setToolTip(
-            "Resolve each PID to its process/package name (like Android Studio)"
-        )
         self.process_action.toggled.connect(self._on_process_toggled)
+        self.collapse_action = QAction("Collapse Repeated Lines", self)
+        self.collapse_action.setCheckable(True)
+        self.collapse_action.toggled.connect(self.proxy.set_collapse)
+        self.case_action = QAction("Case sensitive", self)
+        self.case_action.setCheckable(True)
+        self.case_action.toggled.connect(self._on_case_toggled)
+        self.highlight_action = QAction("Highlight matches", self)
+        self.highlight_action.setCheckable(True)
+        self.highlight_action.toggled.connect(self._on_highlight_toggled)
 
+        self._time_group = QActionGroup(self)
+        self._time_group.setExclusive(True)
+        self._time_actions = {}
+        for mode, label in (
+            ("absolute", "Absolute"),
+            ("since_start", "Since start"),
+            ("delta", "Delta"),
+        ):
+            act = QAction(label, self)
+            act.setCheckable(True)
+            act.setChecked(mode == "absolute")
+            self._time_group.addAction(act)
+            act.triggered.connect(lambda _c=False, m=mode: self.model.set_time_mode(m))
+            self._time_actions[mode] = act
+
+        self._buffer_actions = {}
+        for name in ("main", "system", "crash", "radio", "events", "kernel"):
+            act = QAction(name, self)
+            act.setCheckable(True)
+            self._buffer_actions[name] = act
+
+        self._tail_group = QActionGroup(self)
+        self._tail_group.setExclusive(True)
+        self._tail_actions = {}
+        for count, label in (
+            (0, "Whole buffer"),
+            (500, "Last 500"),
+            (1000, "Last 1000"),
+            (5000, "Last 5000"),
+        ):
+            act = QAction(label, self)
+            act.setCheckable(True)
+            act.setChecked(count == 0)
+            self._tail_group.addAction(act)
+            self._tail_actions[count] = act
+
+        self._max_rows_group = QActionGroup(self)
+        self._max_rows_group.setExclusive(True)
+        self._max_rows_actions = {}
+        for cap, label in (
+            (0, "Unlimited"),
+            (10000, "10,000 lines"),
+            (50000, "50,000 lines"),
+            (100000, "100,000 lines"),
+        ):
+            act = QAction(label, self)
+            act.setCheckable(True)
+            act.setChecked(cap == 0)
+            act.triggered.connect(lambda _checked=False, n=cap: self.model.set_max_rows(n))
+            self._max_rows_group.addAction(act)
+            self._max_rows_actions[cap] = act
+
+        # --- command / navigation items (these stay in the View menu) ---
         clear_filters_act = view_menu.addAction("Clear F&ilters")
         clear_filters_act.triggered.connect(self.clear_filters)
         next_problem_act = view_menu.addAction("Next Problem")
@@ -650,34 +707,8 @@ class MainWindow(QMainWindow):
         reload_plugins_act = view_menu.addAction("Reload &Plugins")
         reload_plugins_act.triggered.connect(self._load_plugins)
         view_menu.addAction(self.presets_dock.toggleViewAction())
-        self.collapse_action = view_menu.addAction("&Collapse Repeated Lines")
-        self.collapse_action.setCheckable(True)
-        self.collapse_action.setChecked(False)
-        self.collapse_action.toggled.connect(self.proxy.set_collapse)
-
-        search_menu = view_menu.addMenu("&Search options")
-        self.case_action = search_menu.addAction("Case sensitive")
-        self.case_action.setCheckable(True)
-        self.case_action.toggled.connect(self._on_case_toggled)
-        self.highlight_action = search_menu.addAction("Highlight matches (don't hide)")
-        self.highlight_action.setCheckable(True)
-        self.highlight_action.toggled.connect(self._on_highlight_toggled)
-
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
-
-        time_menu = view_menu.addMenu("&Time display")
-        self._time_group = QActionGroup(self)
-        self._time_group.setExclusive(True)
-        self._time_actions = {}
-        time_modes = (("absolute", "Absolute"), ("since_start", "Since start"), ("delta", "Delta"))
-        for mode, label in time_modes:
-            act = time_menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(mode == "absolute")
-            self._time_group.addAction(act)
-            act.triggered.connect(lambda _c=False, m=mode: self.model.set_time_mode(m))
-            self._time_actions[mode] = act
 
         view_menu.addSeparator()
         next_bm = view_menu.addAction("Next Bookmark")
@@ -700,54 +731,11 @@ class MainWindow(QMainWindow):
         zoom_reset.setShortcut("Ctrl+0")
         zoom_reset.triggered.connect(self._reset_zoom)
 
-        buffers_menu = view_menu.addMenu("Log &buffers")
-        self._buffer_actions = {}
-        for name in ("main", "system", "crash", "radio", "events", "kernel"):
-            act = buffers_menu.addAction(name)
-            act.setCheckable(True)
-            self._buffer_actions[name] = act
-        buffers_menu.addSeparator()
-        buffers_hint = buffers_menu.addAction("(applies on next Start)")
-        buffers_hint.setEnabled(False)
-
         clear_buf_act = view_menu.addAction("Clear device log &buffer")
         clear_buf_act.triggered.connect(self._clear_device_buffer)
 
-        tail_menu = view_menu.addMenu("&Start from")
-        self._tail_group = QActionGroup(self)
-        self._tail_group.setExclusive(True)
-        self._tail_actions = {}
-        for count, label in (
-            (0, "Whole buffer"),
-            (500, "Last 500"),
-            (1000, "Last 1000"),
-            (5000, "Last 5000"),
-        ):
-            act = tail_menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(count == 0)
-            self._tail_group.addAction(act)
-            self._tail_actions[count] = act
-
-        cap_menu = view_menu.addMenu("Buffer &limit")
-        self._max_rows_group = QActionGroup(self)
-        self._max_rows_group.setExclusive(True)
-        self._max_rows_actions = {}
-        for cap, label in (
-            (0, "Unlimited"),
-            (10000, "10,000 lines"),
-            (50000, "50,000 lines"),
-            (100000, "100,000 lines"),
-        ):
-            act = cap_menu.addAction(label)
-            act.setCheckable(True)
-            act.setChecked(cap == 0)
-            act.triggered.connect(lambda _checked=False, n=cap: self.model.set_max_rows(n))
-            self._max_rows_group.addAction(act)
-            self._max_rows_actions[cap] = act
-
-        settings_act = self.menuBar().addAction("&Settings…")
-        settings_act.triggered.connect(self._open_settings)
+        self._settings_act = self.menuBar().addAction("&Settings…")
+        self._settings_act.triggered.connect(self._open_settings)
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -1278,6 +1266,28 @@ class MainWindow(QMainWindow):
         for act in self.menuBar().actions():
             if act.menu() is not None:
                 walk(act.menu())
+        # Preference toggles live in the Settings dialog (not a menu) but stay
+        # reachable from the command palette.
+        extra = [
+            self._settings_act,
+            self.details_action,
+            self.clear_on_start_action,
+            self.reopen_last_action,
+            self.autosave_action,
+            self.process_action,
+            self.collapse_action,
+            self.case_action,
+            self.highlight_action,
+            *self._theme_group.actions(),
+            *self._time_actions.values(),
+            *self._buffer_actions.values(),
+            *self._tail_actions.values(),
+            *self._max_rows_actions.values(),
+        ]
+        for act in extra:
+            if act.text():
+                label = act.text().replace("&", "").replace("\u2026", "").strip()
+                out.append((label, act))
         return out
 
     def _open_command_palette(self) -> None:

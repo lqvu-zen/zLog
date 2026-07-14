@@ -1,6 +1,6 @@
 # Plan: A proper Settings/Preferences dialog
 
-- **Status:** Approved
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-14
 - **Related:** [settings-persistence.md](settings-persistence.md), [menu-bar.md](menu-bar.md)
