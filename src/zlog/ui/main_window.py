@@ -172,6 +172,10 @@ class MainWindow(QMainWindow):
         self._scroll_timer.setSingleShot(True)
         self._scroll_timer.setInterval(80)
         self._scroll_timer.timeout.connect(self._do_follow_scroll)
+        # Set right before a selection change's own "scroll the row into view"
+        # side effect, so that scroll isn't mistaken for the user manually
+        # scrolling back to the tail (see _maybe_resume_follow_on_scroll).
+        self._suppress_next_scroll_clear = False
         # Wrap mode sizes only the on-screen rows to their content (O(visible)); a
         # short timer coalesces inserts/scrolls so a fast dump never re-measures
         # the whole model (that was O(n^2) with ResizeToContents and froze Start).
@@ -218,6 +222,8 @@ class MainWindow(QMainWindow):
     # --- tabs --------------------------------------------------------------
     def _rebind_selection(self) -> None:
         self.table.selectionModel().currentChanged.connect(self._update_detail)
+        self.table.selectionModel().currentChanged.connect(self._arm_scroll_clear_suppression)
+        self.table.selectionModel().selectionChanged.connect(self._arm_scroll_clear_suppression)
 
     def _save_toolbar(self, sess) -> None:
         sess.query = self.query.text()
@@ -793,7 +799,8 @@ class MainWindow(QMainWindow):
         self.delete_filter_btn.clicked.connect(self._delete_selected_preset)
         self.presets_list.currentRowChanged.connect(self._update_preset_preview)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
-        self.to_latest_btn.clicked.connect(self.table.scrollToBottom)
+        self.to_latest_btn.clicked.connect(self._jump_to_latest)
+        self.table.verticalScrollBar().valueChanged.connect(self._maybe_resume_follow_on_scroll)
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
@@ -2126,6 +2133,37 @@ class MainWindow(QMainWindow):
         if self.log_delegate.wrap:
             self._fit_visible_rows()
             self.table.scrollToBottom()
+
+    def _jump_to_latest(self) -> None:
+        """Explicit "go to now" — let go of any selection so Follow's
+        auto-scroll gate (`not hasSelection()`) resumes tailing on the next batch."""
+        self.table.clearSelection()
+        self.table.scrollToBottom()
+
+    def _arm_scroll_clear_suppression(self, *_args) -> None:
+        self._suppress_next_scroll_clear = True
+        # Selecting a row that's already fully visible triggers no scroll at
+        # all, so there'd be nothing to consume this flag — self-disarm on
+        # the next event-loop turn so it can't linger and wrongly swallow a
+        # later, genuinely independent user scroll.
+        QTimer.singleShot(0, self._disarm_scroll_clear_suppression)
+
+    def _disarm_scroll_clear_suppression(self) -> None:
+        self._suppress_next_scroll_clear = False
+
+    def _maybe_resume_follow_on_scroll(self, value: int) -> None:
+        """If the user scrolls all the way back to the newest line themselves
+        (not as a side effect of selecting a row, which auto-scrolls the row
+        into view), let go of any stale selection so Follow's auto-scroll gate
+        can resume tailing on the next batch — otherwise a selection made
+        while reading history would block Follow forever, even after
+        returning to the tail."""
+        if self._suppress_next_scroll_clear:
+            self._suppress_next_scroll_clear = False
+            return
+        sb = self.table.verticalScrollBar()
+        if value >= sb.maximum() - 4 and self.table.selectionModel().hasSelection():
+            self.table.clearSelection()
 
     def _update_counts(self, *args) -> None:
         total = self.model.rowCount()

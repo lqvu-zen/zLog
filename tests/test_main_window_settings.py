@@ -530,6 +530,50 @@ def test_follow_pauses_while_a_row_is_selected(window, qapp):
     assert sb.value() >= sb.maximum() - 4
 
 
+def test_follow_resumes_on_scroll_to_bottom_without_manually_deselecting(window, qapp):
+    """Regression: scrolling back to the newest line should let go of a stale
+    selection itself — the user shouldn't have to deselect by hand for Follow
+    to resume."""
+    from PySide6.QtTest import QTest
+
+    from zlog.core.models import LogEntry
+
+    window.resize(1100, 700)
+    window.show()
+    qapp.processEvents()
+
+    def batch(n):
+        window.on_batch(
+            [
+                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
+                for i in range(n)
+            ]
+        )
+
+    window.follow_check.setChecked(True)
+    for _ in range(20):
+        batch(50)
+    QTest.qWait(150)
+    sb = window.table.verticalScrollBar()
+
+    # select the last row while it's already fully visible (no scroll induced —
+    # the case that broke the naive "consume on next scroll" suppression)
+    window.table.selectRow(window.proxy.rowCount() - 1)
+    assert window.table.selectionModel().hasSelection()
+
+    batch(50)  # must not yank while selected
+    QTest.qWait(150)
+
+    # user scrolls back to the bottom themselves, without touching the selection
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    assert not window.table.selectionModel().hasSelection()  # auto-cleared
+
+    batch(50)
+    QTest.qWait(150)
+    assert sb.value() >= sb.maximum() - 4  # tailing resumed
+
+
 def test_min_level_dropdown_and_query_stay_in_sync(window):
     from zlog.core.models import LogEntry
 

@@ -37,10 +37,12 @@ remaining case the user hit.
   re-check `hasSelection()` fresh each time, exactly like the existing scrollbar
   check.
 - **Out:** distinguishing "selected the newest row" as a special case that keeps
-  tailing (adds complexity for a marginal case); auto-clearing the selection from
-  any button (Latest, Clear, etc.) — resuming still requires the user to scroll
-  back to the bottom themselves (or clear the selection and be at the bottom),
-  matching the existing pattern for scroll-based pause/resume.
+  tailing (adds complexity for a marginal case).
+
+**Revised after shipping:** the first cut left resuming broken — once a row was
+selected, `hasSelection()` stayed true forever, so scrolling back to the bottom
+never resumed tailing until the user *also* manually deselected. See "Update"
+below.
 
 ## Design
 
@@ -78,3 +80,30 @@ remaining case the user hit.
 ## Open questions
 
 - None blocking.
+
+## Update: auto-clear the selection on resume (2026-07-15)
+
+**Bug:** scrolling back to the newest line still left Follow paused, because
+nothing ever cleared a lingering selection — `hasSelection()` stayed true
+indefinitely, so the `not hasSelection()` gate never passed again.
+
+**Fix:** the user manually scrolling back to the bottom is itself treated as
+"resume tailing," which now clears the stale selection so the existing gate
+naturally reopens on the next batch.
+
+| File | Layer | Change |
+|---|---|---|
+| `src/zlog/ui/main_window.py` | ui | `to_latest_btn` now calls a new `_jump_to_latest()` (clears the selection, then `scrollToBottom()`) instead of `scrollToBottom` directly — an explicit "go to now." For a plain manual scroll (dragging the scrollbar, wheel, keyboard), `verticalScrollBar().valueChanged` is wired to `_maybe_resume_follow_on_scroll`: if the value reaches the bottom *and* a row is selected, it clears the selection. |
+| `src/zlog/ui/main_window.py` | ui | The tricky part is telling a genuine user scroll apart from the scrollbar's own "scroll the row into view" side effect of a selection change (click, or F3/Ctrl+G/bookmark-next) — that side-effect scroll must *not* immediately clear the selection it was triggered by. `_rebind_selection` connects `currentChanged`/`selectionChanged` to `_arm_scroll_clear_suppression`, which sets `_suppress_next_scroll_clear = True` and self-disarms via `QTimer.singleShot(0, ...)`. A selection that needs no scroll (already fully visible — the common case) never emits `valueChanged` at all, so the self-disarm (not a "consume on next scroll") is what keeps the flag from lingering and wrongly swallowing a later, unrelated scroll. |
+
+**Risk covered:** a selection made on a row that's already fully on-screen
+induces no scroll to consume the suppression flag — verified by
+`test_follow_resumes_on_scroll_to_bottom_without_manually_deselecting`, which
+selects the last (already visible) row specifically to exercise that path.
+
+**Verification (update):**
+- [x] `uv run pytest` (new: scrolling to the bottom without manually
+      deselecting resumes tailing; existing pause/resume-by-clearing test still
+      passes)
+- [x] `uv run ruff check .` / `format --check .`
+- [x] Headless smoke: app renders with no regressions
