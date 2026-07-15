@@ -1998,7 +1998,14 @@ class MainWindow(QMainWindow):
         self._counts_timer.start()  # coalesces a burst of row signals into one recompute
 
     def _do_follow_scroll(self) -> None:
-        if self.follow_check.isChecked():
+        if not self.follow_check.isChecked():
+            return
+        self.table.scrollToBottom()
+        # In wrap mode the rows just scrolled into view are still one line tall until
+        # fitted, so the first scrollToBottom stops short of the true bottom. Grow the
+        # now-visible rows, then re-pin — otherwise Follow visibly lags behind.
+        if self.log_delegate.wrap:
+            self._fit_visible_rows()
             self.table.scrollToBottom()
 
     def _update_counts(self, *args) -> None:
