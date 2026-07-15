@@ -27,3 +27,16 @@ Coalesce both, mirroring the existing debounced heat-mark recompute:
 - [x] `uv run pytest` (261) incl. the coalesced-scroll follow test + a counts-debounce test.
 - [x] ruff clean.
 - [x] Bench: 100k lines / 2000 batches with a filter active → 0.22 s (was multi-minute).
+
+## Update (2026-07-14) — real root cause
+
+The debounce alone didn't fix it: the freeze was the **reader flooding the event
+loop** with a cross-thread `batch_ready` signal every 50 lines during the initial
+buffer dump (thousands of queued signals → the loop can't repaint → "Not
+Responding"). Fixes:
+- **Reader coalescing**: emit at most every `_BATCH_SIZE=2000` lines OR every
+  `_FLUSH_INTERVAL=0.1s` (pure `should_flush`, unit-tested). ~40x fewer signals on a
+  300k-line dump; live-tail latency stays ~100ms. Windows-safe (no select on pipes).
+- **Default Start = last 10,000 lines** (`tail_count` default 0 → 10000; new "Last
+  10,000" option) so a giant device buffer never floods at all. Existing saved
+  settings keep their choice — pick Settings → Capture → Start from to change it.
