@@ -163,9 +163,29 @@ def test_wrap_setting_applies_and_persists(qapp, tmp_path, monkeypatch):
     v["wrap"] = True
     w._apply_settings_values(v)
     assert w.log_delegate.wrap is True
-    # wrap sizes rows to their content
-    assert w.table.verticalHeader().sectionResizeMode(0) == QHeaderView.ResizeToContents
+    # rows stay Fixed (never ResizeToContents, which was O(n^2) on streaming); only
+    # the on-screen rows are grown to content via _fit_visible_rows.
+    assert w.table.verticalHeader().sectionResizeMode(0) == QHeaderView.Fixed
     # persists across relaunch
     w2 = MainWindow()
     w2._load_and_apply_settings()
     assert w2.log_delegate.wrap is True
+
+
+def test_wrap_fits_only_visible_rows_fast(qapp, tmp_path, monkeypatch):
+    from zlog.core.models import LogEntry
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    monkeypatch.setattr(MainWindow, "_refresh_process_map", lambda self: None)
+    w = MainWindow()
+    w.resize(900, 600)
+    w.show()
+    qapp.processEvents()
+    v = w._collect_settings()
+    v["wrap"] = True
+    w._apply_settings_values(v)
+    w.model.append_entries([LogEntry("t", "1", "1", "I", "Tg", "word " * 80)])
+    w._fit_visible_rows()
+    line = w.table.fontMetrics().height()
+    assert w.table.rowHeight(0) > line + 4  # the long visible row grew past one line

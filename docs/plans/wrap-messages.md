@@ -45,3 +45,16 @@ delegate's `sizeHint` computes each row's full wrapped height (reading the colum
 width from the view), and the table uses `ResizeToContents` when wrap is on. Dropped
 the `wrap_lines` setting — just a single "Wrap messages" toggle now. Cost: sizing
 rows to content is O(rows) when wrap is on (user-accepted; it's optional).
+
+## Follow-up: wrap froze Start on a busy device (2026-07-15)
+
+The first full-wrap implementation set the table's vertical header to
+`QHeaderView.ResizeToContents`, which re-measures **every** row on every insert —
+O(n²) during a fast dump. Benchmark: loading 60k lines took **39.81 s** with wrap
+on vs **0.18 s** off, freezing the app on Start.
+
+Fix: the header now stays `QHeaderView.Fixed` at all times; when wrap is on, only
+the rows currently in the viewport are grown to their content via
+`_fit_visible_rows()` (O(visible)), coalesced behind a 60 ms `_wrap_timer` on
+inserts and on vertical-scrollbar movement. Result: 60k lines now load in **0.19 s**
+with wrap on, matching wrap off, and it stays O(visible) at any buffer size.

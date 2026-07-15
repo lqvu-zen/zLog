@@ -156,6 +156,13 @@ class MainWindow(QMainWindow):
         self._scroll_timer.setSingleShot(True)
         self._scroll_timer.setInterval(80)
         self._scroll_timer.timeout.connect(self._do_follow_scroll)
+        # Wrap mode sizes only the on-screen rows to their content (O(visible)); a
+        # short timer coalesces inserts/scrolls so a fast dump never re-measures
+        # the whole model (that was O(n^2) with ResizeToContents and froze Start).
+        self._wrap_timer = QTimer(self)
+        self._wrap_timer.setSingleShot(True)
+        self._wrap_timer.setInterval(60)
+        self._wrap_timer.timeout.connect(self._fit_visible_rows)
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -189,6 +196,7 @@ class MainWindow(QMainWindow):
             sig.connect(self._schedule_heat)
             sig.connect(self._update_placeholder)
             sig.connect(self._schedule_counts)
+            sig.connect(self._schedule_wrap_fit)
         sess.reconnect_timer.timeout.connect(lambda s=sess: self._try_reconnect(s))
 
     # --- tabs --------------------------------------------------------------
@@ -744,6 +752,7 @@ class MainWindow(QMainWindow):
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
+        self.table.verticalScrollBar().valueChanged.connect(self._schedule_wrap_fit)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
@@ -1481,17 +1490,38 @@ class MainWindow(QMainWindow):
         self._apply_row_height()
 
     def _apply_row_height(self) -> None:
-        """Wrap on: size each row to its full (wrapped) message. Off: uniform one line."""
+        """Uniform one-line rows; when wrap is on, only the on-screen rows are grown
+        to their full message (see _fit_visible_rows) so streaming never gets slow."""
         vh = self.table.verticalHeader()
+        vh.setSectionResizeMode(QHeaderView.Fixed)  # never ResizeToContents (O(n^2) on stream)
         fm = QFontMetrics(self.table.font())
         vh.setDefaultSectionSize(fm.height() + 4)
         if self.log_delegate.wrap:
-            vh.setSectionResizeMode(QHeaderView.ResizeToContents)
+            self._fit_visible_rows()  # grow the visible rows now
         else:
-            # Back to a uniform single line: switching off ResizeToContents keeps the
-            # previously-grown section sizes, so re-fit rows to the (now one-line) hint.
-            vh.setSectionResizeMode(QHeaderView.Fixed)
+            # Reset any rows we grew back to one line (cheap: sizeHint is one line now).
             self.table.resizeRowsToContents()
+
+    def _schedule_wrap_fit(self, *args) -> None:
+        if self.log_delegate.wrap:
+            self._wrap_timer.start()
+
+    def _fit_visible_rows(self) -> None:
+        """Size only the rows currently in the viewport to their content (O(visible))."""
+        if not self.log_delegate.wrap:
+            return
+        n = self.proxy.rowCount()
+        if n == 0:
+            return
+        vp_h = self.table.viewport().height()
+        first = self.table.rowAt(0)
+        last = self.table.rowAt(max(0, vp_h - 1))
+        if first < 0:
+            first = 0
+        if last < 0:
+            last = n - 1
+        for r in range(max(0, first - 2), min(n, last + 3)):
+            self.table.resizeRowToContents(r)
 
     def _zoom(self, step: int) -> None:
         self._font_delta = max(-4, min(12, self._font_delta + step))
