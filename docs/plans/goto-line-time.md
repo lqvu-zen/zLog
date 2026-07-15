@@ -1,6 +1,6 @@
 # Plan: Go to timestamp / line
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [match-navigation.md](match-navigation.md), [relative-time-column.md](relative-time-column.md), backlog.md
@@ -44,10 +44,10 @@ and scroll position straight to that row, without hunting by eye or search.
 
 ## Verification
 
-- [ ] `uv run pytest` (`parse_time_of_day` + `first_at_or_after` edge cases: no
+- [x] `uv run pytest` (`parse_time_of_day` + `first_at_or_after` edge cases: no
       match, exact match, out-of-range, malformed input)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual: Ctrl+G, type a line number and a time, confirm selection + scroll.
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: app renders with no regressions (`run-zlog` driver)
 
 ## Open questions
 

@@ -8,9 +8,11 @@ mis-order — acceptable for a log session and documented here.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, time, timedelta
 
 _FMT = "%m-%d %H:%M:%S.%f"
+_DATE_PREFIX = re.compile(r"\d{2}-\d{2}")
 
 
 def parse_logcat_time(s: str) -> datetime | None:
@@ -21,6 +23,36 @@ def parse_logcat_time(s: str) -> datetime | None:
         return datetime.strptime(s, _FMT)
     except ValueError:
         return None
+
+
+def parse_time_of_day(s: str) -> time | None:
+    """Parse a time-of-day like "HH:MM:SS" or "HH:MM:SS.mmm", or None if it
+    doesn't match. Tolerates (and discards) a leading "MM-DD " date prefix —
+    comparison is time-of-day only, consistent with this module's single-day
+    -capture assumption."""
+    s = s.strip()
+    if not s:
+        return None
+    head, sep, rest = s.partition(" ")
+    if sep and _DATE_PREFIX.fullmatch(head):
+        s = rest
+    for fmt in ("%H:%M:%S.%f", "%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def first_at_or_after(times: list[str], target: time) -> int | None:
+    """Index of the first entry (in `times`, raw threadtime stamps) whose
+    time-of-day is at or after `target`. None if every entry is before it (or
+    unparseable) — the caller then jumps to the last row instead."""
+    for i, s in enumerate(times):
+        dt = parse_logcat_time(s)
+        if dt is not None and dt.time() >= target:
+            return i
+    return None
 
 
 def format_delta(td: timedelta) -> str:

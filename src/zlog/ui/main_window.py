@@ -99,6 +99,7 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
+from zlog.core.timefmt import first_at_or_after, parse_time_of_day
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.log_delegate import LogItemDelegate
@@ -818,6 +819,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("F3"), self, activated=lambda: self._goto_match(1))
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self._open_command_palette)
         QShortcut(QKeySequence("Shift+F3"), self, activated=lambda: self._goto_match(-1))
+        QShortcut(QKeySequence("Ctrl+G"), self, activated=self._open_goto)
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
         self.search_mode_box.currentIndexChanged.connect(self._apply_search)
@@ -1246,6 +1248,39 @@ class MainWindow(QMainWindow):
             return
         n = len(self._match_rows())
         self.match_label.setText(f"{n} match" if n == 1 else f"{n} matches")
+
+    def _select_proxy_row(self, row: int) -> None:
+        """Select and scroll to a row by its visible (proxy) index."""
+        index = self.proxy.index(row, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(row)
+        self.table.scrollTo(index)
+
+    def _open_goto(self) -> None:
+        """Ctrl+G: jump to a line number (1-based, into the visible rows) or a
+        time-of-day (HH:MM:SS[.mmm], optionally prefixed "MM-DD ")."""
+        total = self.proxy.rowCount()
+        if total == 0:
+            self.statusBar().showMessage("Nothing to jump to.")
+            return
+        text, ok = QInputDialog.getText(self, "Go to", "Line number, or time HH:MM:SS:")
+        text = text.strip()
+        if not ok or not text:
+            return
+        if text.isdigit():
+            row = max(0, min(int(text), total) - 1)
+            self._select_proxy_row(row)
+            return
+        target = parse_time_of_day(text)
+        if target is None:
+            self.statusBar().showMessage(f"Couldn't parse {text!r} as a line number or time.")
+            return
+        times = [
+            self.model.entry_at(self.proxy.mapToSource(self.proxy.index(r, 0)).row()).time
+            for r in range(total)
+        ]
+        row = first_at_or_after(times, target)
+        self._select_proxy_row(row if row is not None else total - 1)
 
     def _goto_match(self, step: int) -> None:
         rows = self._match_rows()

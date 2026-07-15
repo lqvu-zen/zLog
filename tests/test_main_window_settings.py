@@ -285,6 +285,89 @@ def test_adb_path_setting_overrides_default(window):
     assert window._adb_path_setting == "" and window._adb_path() == "adb"
 
 
+def test_goto_line_number(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("06-30 10:00:00.000", "1", "1", "I", "T", "a"),
+            LogEntry("06-30 10:00:05.000", "1", "1", "I", "T", "b"),
+            LogEntry("06-30 10:00:10.000", "1", "1", "I", "T", "c"),
+        ]
+    )
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText", staticmethod(lambda *a, **k: ("2", True))
+    )
+    window._open_goto()
+    assert window.table.currentIndex().row() == 1  # 1-based line 2
+
+
+def test_goto_line_number_clamps_out_of_range(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("06-30 10:00:00.000", "1", "1", "I", "T", "a")])
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText", staticmethod(lambda *a, **k: ("999", True))
+    )
+    window._open_goto()
+    assert window.table.currentIndex().row() == 0  # clamped to the last row
+
+
+def test_goto_time(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("06-30 10:00:00.000", "1", "1", "I", "T", "a"),
+            LogEntry("06-30 10:00:05.000", "1", "1", "I", "T", "b"),
+            LogEntry("06-30 10:00:10.000", "1", "1", "I", "T", "c"),
+        ]
+    )
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText",
+        staticmethod(lambda *a, **k: ("10:00:06", True)),
+    )
+    window._open_goto()
+    assert window.table.currentIndex().row() == 2  # first row at/after 10:00:06
+
+
+def test_goto_time_past_the_end_selects_last_row(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("06-30 10:00:00.000", "1", "1", "I", "T", "a"),
+            LogEntry("06-30 10:00:05.000", "1", "1", "I", "T", "b"),
+        ]
+    )
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText",
+        staticmethod(lambda *a, **k: ("23:59:59", True)),
+    )
+    window._open_goto()
+    assert window.table.currentIndex().row() == 1
+
+
+def test_goto_invalid_input_no_op(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("06-30 10:00:00.000", "1", "1", "I", "T", "a")])
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText",
+        staticmethod(lambda *a, **k: ("not a line or time", True)),
+    )
+    window._open_goto()
+    assert window.table.currentIndex().row() == -1  # no selection made
+
+
+def test_goto_empty_table_no_op(window, monkeypatch):
+    monkeypatch.setattr(
+        "zlog.ui.main_window.QInputDialog.getText", staticmethod(lambda *a, **k: ("1", True))
+    )
+    window._open_goto()  # no rows: must not raise
+    assert window.table.currentIndex().row() == -1
+
+
 def test_clear_device_button_no_device(window):
     # The dedicated device-buffer button exists and, with no device selected,
     # routes through the guarded path (status message, no crash).
