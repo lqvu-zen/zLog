@@ -32,6 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
+| [debounce-query-filter.md](debounce-query-filter.md) | Done | Fix typing lag: debounce the query bar + collapse ~9 proxy invalidates into 1 |
 | [pause-follow-on-selection.md](pause-follow-on-selection.md) | Done | Auto-scroll only fires when at the bottom AND no row is selected |
 | [inline-match-highlight.md](inline-match-highlight.md) | Done | Highlight the matched substring inside a row, not just the row tint (Highlight mode) |
 | [goto-line-time.md](goto-line-time.md) | Done | Ctrl+G jumps to a line number or a timestamp |

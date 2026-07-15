@@ -22,6 +22,15 @@ def window(qapp, tmp_path, monkeypatch):
     return MainWindow()
 
 
+def set_query(window, text: str) -> None:
+    """Set the query bar's text and flush the debounce immediately. Real
+    typing is intentionally debounced (see debounce-query-filter.md) so tests
+    that simulate a keystroke this way need to force the apply rather than
+    wait out the real timer."""
+    window.query.setText(text)
+    window._apply_query()
+
+
 def test_specs_cover_exactly_defaults(window):
     keys = {key for key, _get, _set in window._settings_specs()}
     assert keys == set(DEFAULTS)
@@ -96,7 +105,7 @@ def test_exclude_hides_lines(window):
             LogEntry("t", "1", "1", "I", "T", "spammy noise"),
         ]
     )
-    window.query.setText("-spammy")  # exclude via the query bar
+    set_query(window, "-spammy")  # exclude via the query bar
     assert window.proxy.rowCount() == 1
 
 
@@ -182,16 +191,52 @@ def test_query_bar_drives_filters(window):
             LogEntry("t", "1", "1", "E", "Other", "boom elsewhere"),
         ]
     )
-    window.query.setText("level:E tag:Activity boom")
+    set_query(window, "level:E tag:Activity boom")
     assert window.proxy.rowCount() == 1  # E + tag Activity + "boom"
     # The query bar is the single source of truth: clearing it also drops the level
     # floor (the dropdown mirrors the query), so every row returns.
-    window.query.clear()
+    set_query(window, "")
     assert window.level_box.currentData() == "V"
     assert window.proxy.rowCount() == 3
     # Clear Filters is the same full reset.
     window.clear_filters()
     assert window.proxy.rowCount() == 3
+
+
+def test_typing_in_query_bar_is_debounced(window, qapp):
+    """Real keystrokes (plain query.textChanged, not the set_query test helper)
+    must not re-filter synchronously — that's the fix for the reported typing
+    lag. The filter applies only after the debounce timer fires."""
+    from PySide6.QtTest import QTest
+
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "E", "Activity", "boom error"),
+            LogEntry("t", "1", "1", "I", "Activity", "quiet info"),
+        ]
+    )
+    for ch in "level:E":  # simulate keystrokes one at a time
+        window.query.setText(window.query.text() + ch)
+    assert window.proxy.rowCount() == 2  # not applied yet — still debounced
+    QTest.qWait(250)  # past the debounce interval
+    assert window.proxy.rowCount() == 1  # now applied
+
+
+def test_query_bar_debounce_flushes_immediately_on_enter(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "E", "Activity", "boom error"),
+            LogEntry("t", "1", "1", "I", "Activity", "quiet info"),
+        ]
+    )
+    window.query.setText("level:E")
+    assert window.proxy.rowCount() == 2  # not applied yet
+    window.query.returnPressed.emit()  # Enter -> _commit_query_history flushes
+    assert window.proxy.rowCount() == 1  # applied immediately, no wait needed
 
 
 def test_mute_tag(window):
@@ -212,9 +257,9 @@ def test_mute_tag(window):
 
 
 def test_query_history(window):
-    window.query.setText("level:E boom")
+    set_query(window, "level:E boom")
     window._commit_query_history()
-    window.query.setText("tag:Activity")
+    set_query(window, "tag:Activity")
     window._commit_query_history()
     assert window._history[:2] == ["tag:Activity", "level:E boom"]
     assert window._history_model.stringList()[0] == "tag:Activity"
@@ -231,9 +276,9 @@ def test_level_multiselect(window):
             LogEntry("t", "1", "1", "I", "T", "i"),
         ]
     )
-    window.query.setText("level:W,E")
+    set_query(window, "level:W,E")
     assert window.proxy.rowCount() == 2  # only W and E
-    window.query.setText("level:E")  # floor -> E and above (just E here)
+    set_query(window, "level:E")  # floor -> E and above (just E here)
     assert window.proxy.rowCount() == 1
 
 
@@ -589,13 +634,13 @@ def test_min_level_dropdown_and_query_stay_in_sync(window):
     assert window.proxy.rowCount() == 1
 
     # typing a level: token drives the dropdown the other way
-    window.query.setText("level:V")
+    set_query(window, "level:V")
     assert window.level_box.currentData() == "V"
     assert window.proxy.rowCount() == 2
 
     # a query with no level token means floor V — the two stay in sync
     window.level_box.setCurrentIndex(window.level_box.findData("E"))
-    window.query.setText("error")
+    set_query(window, "error")
     assert window.level_box.currentData() == "V"
 
     # Clear Filters returns the floor to V and shows everything
@@ -610,7 +655,7 @@ def test_level_dropdown_mirrors_query(window):
     window.level_box.setCurrentIndex(window.level_box.findData("W"))
     assert window.query.text().startswith("level:W")
     # changing it replaces the old token, keeping other tokens
-    window.query.setText("level:W boom")
+    set_query(window, "level:W boom")
     window.level_box.setCurrentIndex(window.level_box.findData("E"))
     assert "level:E" in window.query.text()
     assert "level:W" not in window.query.text()
@@ -730,7 +775,7 @@ def test_session_save_and_restore(window, tmp_path):
     )
     window.model.set_tag_color("Boom", "#ff0000")
     window.model.toggle_bookmark(1)
-    window.query.setText("level:E")
+    set_query(window, "level:E")
     path = str(tmp_path / "s.zsession")
     window._write_session(path)
 
@@ -860,7 +905,7 @@ def test_tabs_independent_and_concurrent(window):
 
 
 def test_tab_query_is_per_tab(window):
-    window.query.setText("level:E")
+    set_query(window, "level:E")
     window._new_tab()  # saves tab0's query, opens a fresh tab
     assert window.query.text() == ""  # new tab starts unfiltered
     window.tab_bar.setCurrentIndex(0)
@@ -891,7 +936,7 @@ def test_saved_filters_sidebar(window):
 def test_add_query_token_filter(window):
     from zlog.core.query import parse_query
 
-    window.query.setText("boom")
+    set_query(window, "boom")
     window._add_query_token("level:E")
     assert "level:E" in window.query.text() and "boom" in window.query.text()
 
@@ -906,7 +951,7 @@ def test_add_query_token_filter(window):
 def test_add_query_token_quotes_spaces(window):
     from zlog.core.query import parse_query
 
-    window.query.setText("")
+    set_query(window, "")
     window._add_query_token("tag:My Tag")  # spaced value must round-trip
     assert parse_query(window.query.text()).tag == "My Tag"
 
@@ -969,13 +1014,13 @@ def test_preset_resets_level_floor(window):
 def test_preset_saves_and_applies_full_query(window, monkeypatch):
     from PySide6.QtWidgets import QInputDialog
 
-    window.query.setText("tag:ActivityManager -spam")
+    set_query(window, "tag:ActivityManager -spam")
     monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("mine", True)))
     window.save_current_preset()
     preset = next(x for x in window._presets if x["name"] == "mine")
     assert preset["query"] == "tag:ActivityManager -spam"
     # Clear, then re-apply: the query bar comes back intact.
-    window.query.setText("")
+    set_query(window, "")
     window._apply_preset(preset)
     assert window.query.text() == "tag:ActivityManager -spam"
 

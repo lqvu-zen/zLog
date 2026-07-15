@@ -176,6 +176,12 @@ class MainWindow(QMainWindow):
         # side effect, so that scroll isn't mistaken for the user manually
         # scrolling back to the tail (see _maybe_resume_follow_on_scroll).
         self._suppress_next_scroll_clear = False
+        # Coalesce query-bar typing onto one apply per pause instead of one
+        # full re-filter per keystroke (see debounce-query-filter.md).
+        self._query_timer = QTimer(self)
+        self._query_timer.setSingleShot(True)
+        self._query_timer.setInterval(150)
+        self._query_timer.timeout.connect(self._apply_query)
         # Wrap mode sizes only the on-screen rows to their content (O(visible)); a
         # short timer coalesces inserts/scrolls so a fast dump never re-measures
         # the whole model (that was O(n^2) with ResizeToContents and froze Start).
@@ -238,7 +244,7 @@ class MainWindow(QMainWindow):
         self.package_box.setEditText(sess.package)
         # The session query carries the level: token, so it drives the dropdown +
         # proxy via _apply_query — no separate level_box set needed.
-        self.query.setText(sess.query)
+        self._set_query_text(sess.query)
 
     def _set_tab_label(self, sess) -> None:
         if sess in self._sessions:
@@ -818,7 +824,7 @@ class MainWindow(QMainWindow):
         self.package_box.lineEdit().returnPressed.connect(self.apply_package_filter)
         self.level_box.currentIndexChanged.connect(self._on_level_box_changed)
         self.search.textChanged.connect(self._apply_search)
-        self.query.textChanged.connect(self._apply_query)
+        self.query.textChanged.connect(self._schedule_query_apply)
         self.query.returnPressed.connect(self._commit_query_history)
         self.exclude.textChanged.connect(self._apply_search)
         self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
@@ -976,7 +982,7 @@ class MainWindow(QMainWindow):
         """Reset every filter to 'show everything' without touching the log."""
         # The query bar owns every filter incl. the level floor, so clearing it
         # (via _apply_query) resets level/tag/search/exclude/package together.
-        self.query.clear()
+        self._set_query_text("")
         self.statusBar().showMessage("Filters cleared.")
 
     def _on_level_box_changed(self) -> None:
@@ -999,7 +1005,7 @@ class MainWindow(QMainWindow):
             kept.insert(0, f"level:{letter}")
         new_text = " ".join(shlex.quote(t) if any(ch.isspace() for ch in t) else t for t in kept)
         if new_text != self.query.text():
-            self.query.setText(new_text)  # -> _apply_query
+            self._set_query_text(new_text)
 
     def _set_level_box(self, letter: str) -> None:
         """Reflect a level into the dropdown without triggering the query mirror."""
@@ -1069,7 +1075,7 @@ class MainWindow(QMainWindow):
         # in sync (unless a level: token is already present).
         if level and level != "V" and "level:" not in text.lower():
             text = f"level:{level} {text}".strip()
-        self.query.setText(text)  # -> _apply_query drives the dropdown + proxy
+        self._set_query_text(text)  # drives the dropdown + proxy
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
     def _delete_preset(self, name: str) -> None:
@@ -1174,27 +1180,49 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Invalid regex — showing previous match.")
         self._update_match_label()
 
+    def _set_query_text(self, text: str) -> None:
+        """Set the query bar's text and apply the filter immediately, bypassing
+        the typing debounce — for discrete actions (settings restore, presets,
+        context-menu tokens, level-dropdown sync, tab switches), not keystrokes.
+        `query.textChanged` would otherwise only schedule a debounced apply,
+        the same as if the user had typed it."""
+        self.query.blockSignals(True)
+        self.query.setText(text)
+        self.query.blockSignals(False)
+        self._apply_query()
+
     def _apply_query(self) -> None:
         """Parse the single query bar and drive the (hidden) filter widgets +
         proxy gates. This is the one place filtering is applied in the new UI."""
+        self._query_timer.stop()  # in case this was called directly, not via the timer
         spec = parse_query(self.query.text())
         case = self.case_check.isChecked()
-        if spec.levels:
-            self.proxy.set_levels(set(spec.levels))  # exact level set
-        else:
-            self.proxy.set_levels(None)
-            level = spec.level or "V"  # query is the source of truth; no token = V
-            self._set_level_box(level)  # mirror into the dropdown (guarded)
-            self.proxy.set_min_level(level)
-        self.proxy.set_tag(spec.tag)
-        self.proxy.set_query_pids(set(spec.pids) if spec.pids else None)
-        self.proxy.set_proc(spec.process)
-        self.proxy.set_exclude_pids(set(spec.exclude_pids) if spec.exclude_pids else None)
-        self.proxy.set_exclude_proc(spec.exclude_process)
-        ex_pat = "|".join(re.escape(t) for t in spec.excludes)
-        ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
-        self.regex_check.setChecked(spec.regex)  # -> _apply_search
-        self.search.setText(spec.search)  # -> _apply_search (search + highlight)
+        # ~9 proxy setters below each carry their own invalidate() — batching
+        # them collapses what would be 9 full re-filter passes into 1 per apply.
+        with self.proxy.batch_update():
+            if spec.levels:
+                self.proxy.set_levels(set(spec.levels))  # exact level set
+            else:
+                self.proxy.set_levels(None)
+                level = spec.level or "V"  # query is the source of truth; no token = V
+                self._set_level_box(level)  # mirror into the dropdown (guarded)
+                self.proxy.set_min_level(level)
+            self.proxy.set_tag(spec.tag)
+            self.proxy.set_query_pids(set(spec.pids) if spec.pids else None)
+            self.proxy.set_proc(spec.process)
+            self.proxy.set_exclude_pids(set(spec.exclude_pids) if spec.exclude_pids else None)
+            self.proxy.set_exclude_proc(spec.exclude_process)
+            ex_pat = "|".join(re.escape(t) for t in spec.excludes)
+            ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
+            self.regex_check.setChecked(spec.regex)  # -> _apply_search
+            self.search.setText(spec.search)  # -> _apply_search (search + highlight)
+            if spec.package != self._query_package:
+                self._query_package = spec.package
+                self.package_box.setEditText(spec.package)
+                if spec.package:
+                    self.apply_package_filter()
+                else:
+                    self.clear_package_filter()
         search_ok = True
         try:
             compile_matcher(spec.search, spec.regex, case)
@@ -1204,16 +1232,15 @@ class MainWindow(QMainWindow):
         self.query.setStyleSheet(
             "" if good else f"QLineEdit {{ background-color: {self._search_error_color}; }}"
         )
-        if spec.package != self._query_package:
-            self._query_package = spec.package
-            self.package_box.setEditText(spec.package)
-            if spec.package:
-                self.apply_package_filter()
-            else:
-                self.clear_package_filter()
+
+    def _schedule_query_apply(self, *_args) -> None:
+        """Coalesce query-bar typing onto a short timer instead of re-filtering
+        on every keystroke — see debounce-query-filter.md."""
+        self._query_timer.start()
 
     def _commit_query_history(self) -> None:
         """Remember the current query (on Enter) for the completer; persist it."""
+        self._apply_query()  # flush a pending debounce so Enter never feels delayed
         text = self.query.text().strip()
         if not text:
             return
@@ -1559,7 +1586,7 @@ class MainWindow(QMainWindow):
         table.horizontalHeader().setStretchLastSection(True)
 
         def use(row: int, _col: int) -> None:
-            self.query.setText(f"tag:{rows[row][0]}")  # -> _apply_query
+            self._set_query_text(f"tag:{rows[row][0]}")
             dlg.accept()
 
         table.cellDoubleClicked.connect(use)
@@ -1821,7 +1848,7 @@ class MainWindow(QMainWindow):
             tokens = self.query.text().split()
         kept = [t for t in tokens if not t.startswith(key + ":")]
         kept.append(token)
-        self.query.setText(
+        self._set_query_text(
             " ".join(shlex.quote(t) if any(ch.isspace() for ch in t) else t for t in kept)
         )
         self.statusBar().showMessage(f"Filter \u2192 {token}")
@@ -1910,7 +1937,7 @@ class MainWindow(QMainWindow):
         token = f"-{tag}"
         if token in self.query.text().split():
             return
-        self.query.setText((self.query.text() + " " + token).strip())
+        self._set_query_text((self.query.text() + " " + token).strip())
         self.table.viewport().update()
         self.statusBar().showMessage("Cleared tag highlights.")
 
@@ -2018,7 +2045,7 @@ class MainWindow(QMainWindow):
         for tag, color in data["tag_highlights"].items():
             self.model.set_tag_color(tag, color)
         self.model.set_bookmarks(data["bookmarks"])
-        self.query.setText(data["query"])  # -> _apply_query
+        self._set_query_text(data["query"])
         self.table.viewport().update()
         self.statusBar().showMessage(f"Loaded session from {Path(path).name}.")
 

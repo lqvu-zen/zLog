@@ -29,6 +29,48 @@ def _messages(model, proxy):
     ]
 
 
+def test_batch_update_collapses_invalidates_to_one(qapp):
+    _, proxy = _wire(qapp)
+    calls = []
+    real_invalidate = proxy.invalidate
+    proxy.invalidate = lambda: (calls.append(1), real_invalidate())[-1]
+    with proxy.batch_update():
+        proxy.set_min_level("W")
+        proxy.set_tag("Foo")
+        proxy.set_query_pids({"100"})
+        proxy.set_proc("com.x")
+        proxy.set_exclude_pids({"200"})
+        proxy.set_exclude_proc("com.y")
+        proxy.set_levels(["W", "E"])
+        proxy.set_collapse(True)
+        proxy.set_search("boom", regex=False)
+    assert calls == [1]  # 9 setters, exactly 1 real invalidate
+
+
+def test_batch_update_invalidates_once_even_on_exception(qapp):
+    _, proxy = _wire(qapp)
+    calls = []
+    real_invalidate = proxy.invalidate
+    proxy.invalidate = lambda: (calls.append(1), real_invalidate())[-1]
+    try:
+        with proxy.batch_update():
+            proxy.set_tag("Foo")
+            raise RuntimeError("boom")
+    except RuntimeError:
+        pass
+    assert calls == [1]  # still invalidated once via the finally block
+
+
+def test_setters_invalidate_normally_outside_batch_update(qapp):
+    _, proxy = _wire(qapp)
+    calls = []
+    real_invalidate = proxy.invalidate
+    proxy.invalidate = lambda: (calls.append(1), real_invalidate())[-1]
+    proxy.set_tag("Foo")
+    proxy.set_min_level("W")
+    assert calls == [1, 1]  # each standalone setter still invalidates on its own
+
+
 def test_append_and_count(qapp):
     model, proxy = _wire(qapp)
     model.append_entries([_entry(), _entry()])
