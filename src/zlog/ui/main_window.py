@@ -144,6 +144,18 @@ class MainWindow(QMainWindow):
         self._heat_timer.setSingleShot(True)
         self._heat_timer.setInterval(400)
         self._heat_timer.timeout.connect(self._recompute_heat)
+        # Debounce the status-bar counts/sparkline recompute: a fast buffer dump
+        # fires row signals thousands of times, and level_counts() is O(visible)
+        # when filtered — recomputing per batch would be O(n^2) and freeze the UI.
+        self._counts_timer = QTimer(self)
+        self._counts_timer.setSingleShot(True)
+        self._counts_timer.setInterval(150)
+        self._counts_timer.timeout.connect(self._update_counts)
+        # Coalesce the follow auto-scroll to once per burst instead of per batch.
+        self._scroll_timer = QTimer(self)
+        self._scroll_timer.setSingleShot(True)
+        self._scroll_timer.setInterval(80)
+        self._scroll_timer.timeout.connect(self._do_follow_scroll)
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
@@ -166,8 +178,8 @@ class MainWindow(QMainWindow):
         return sess
 
     def _wire_session_signals(self, sess) -> None:
-        sess.model.rowsInserted.connect(self._update_counts)
-        sess.model.modelReset.connect(self._update_counts)
+        sess.model.rowsInserted.connect(self._schedule_counts)
+        sess.model.modelReset.connect(self._schedule_counts)
         for sig in (
             sess.proxy.rowsInserted,
             sess.proxy.rowsRemoved,
@@ -176,7 +188,7 @@ class MainWindow(QMainWindow):
         ):
             sig.connect(self._schedule_heat)
             sig.connect(self._update_placeholder)
-            sig.connect(self._update_counts)
+            sig.connect(self._schedule_counts)
         sess.reconnect_timer.timeout.connect(lambda s=sess: self._try_reconnect(s))
 
     # --- tabs --------------------------------------------------------------
@@ -1950,6 +1962,13 @@ class MainWindow(QMainWindow):
         self._recent_menu.addAction("Clear Recent").triggered.connect(self._clear_recent)
 
     # --- status counts -----------------------------------------------------
+    def _schedule_counts(self, *args) -> None:
+        self._counts_timer.start()  # coalesces a burst of row signals into one recompute
+
+    def _do_follow_scroll(self) -> None:
+        if self.follow_check.isChecked():
+            self.table.scrollToBottom()
+
     def _update_counts(self, *args) -> None:
         total = self.model.rowCount()
         visible = self.proxy.rowCount()
@@ -2293,8 +2312,11 @@ class MainWindow(QMainWindow):
         sess.model.append_entries(entries)
         if active and self.devctl.filtering:
             self._track_new_pids(entries)
-        if active and self.follow_check.isChecked() and was_at_bottom:
-            self.table.scrollToBottom()
+        if active:
+            if self.follow_check.isChecked() and was_at_bottom:
+                self._scroll_timer.start()  # coalesced follow scroll
+            else:
+                self._scroll_timer.stop()  # user scrolled up (or off): cancel pending scroll
 
     def _toggle_pause(self) -> None:
         self._paused = not self._paused

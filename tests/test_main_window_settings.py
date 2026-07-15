@@ -349,6 +349,8 @@ def test_log_font_readable(window):
 
 
 def test_follow_stays_manual_and_never_yanks(window, qapp):
+    from PySide6.QtTest import QTest
+
     from zlog.core.models import LogEntry
 
     window.resize(1100, 700)
@@ -366,7 +368,7 @@ def test_follow_stays_manual_and_never_yanks(window, qapp):
     window.follow_check.setChecked(True)
     for _ in range(20):
         batch(50)
-    qapp.processEvents()
+    QTest.qWait(150)  # the follow scroll is coalesced onto a short timer
     sb = window.table.verticalScrollBar()
     assert sb.maximum() > 0 and sb.value() == sb.maximum()  # tailing at the bottom
 
@@ -376,14 +378,14 @@ def test_follow_stays_manual_and_never_yanks(window, qapp):
     assert window.follow_check.isChecked() is True
     # ...and incoming logs must NOT yank the viewport back down
     batch(50)
-    qapp.processEvents()
+    QTest.qWait(150)
     assert sb.value() == 0
 
     # scroll back to the bottom and tailing resumes on the next batch
     sb.setValue(sb.maximum())
     qapp.processEvents()
     batch(50)
-    qapp.processEvents()
+    QTest.qWait(150)
     assert sb.value() == sb.maximum()
 
 
@@ -836,3 +838,17 @@ def test_copy_shortcut_scoped_to_table(window):
     assert window.copy_action.shortcutContext() == Qt.WidgetWithChildrenShortcut
     assert window.copy_action in window.table.actions()
     assert window.detail.textInteractionFlags() & Qt.TextSelectableByMouse
+
+
+def test_counts_recompute_is_debounced(window):
+    from zlog.core.models import LogEntry
+
+    # A burst of appends must not recompute counts synchronously each time (that was
+    # O(n^2) when filtered and froze the UI on Start); it schedules a single recompute.
+    window._counts_timer.stop()
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", f"x{i}") for i in range(5)])
+    assert window._counts_timer.isActive()  # coalesced, not run per row
+    # firing the debounce still produces the summary
+    window._counts_timer.stop()
+    window._update_counts()
+    assert window.count_label.text()
