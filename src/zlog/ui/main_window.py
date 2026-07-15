@@ -142,6 +142,7 @@ class MainWindow(QMainWindow):
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
+        self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
         self._query_package = ""  # last package resolved from the query bar
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
         self._history: list[str] = []  # recent query-bar entries
@@ -819,6 +820,11 @@ class MainWindow(QMainWindow):
         self._rebind_selection()
 
     # --- devices -----------------------------------------------------------
+    def _adb_path(self) -> str:
+        """The adb executable to invoke — the Settings override, or plain "adb"
+        (resolved via PATH) when unset."""
+        return self._adb_path_setting or "adb"
+
     def _run_adb(self, fn, *, missing_msg, error_prefix, report):
         """Run an adb-backed call, routing a missing `adb` and any other failure
         through `report`. Returns the call's result, or None on failure."""
@@ -832,7 +838,7 @@ class MainWindow(QMainWindow):
 
     def refresh_devices(self) -> None:
         devices = self._run_adb(
-            list_devices,
+            lambda: list_devices(self._adb_path()),
             missing_msg="adb not found — install Android platform-tools and add it to PATH.",
             error_prefix="Could not list devices",
             report=self._show_device_error,
@@ -895,7 +901,7 @@ class MainWindow(QMainWindow):
         if serial is None:
             return
         pkgs = self._run_adb(
-            lambda: list_packages(serial),
+            lambda: list_packages(serial, self._adb_path()),
             missing_msg="adb not found.",
             error_prefix="Could not list packages",
             report=self.statusBar().showMessage,
@@ -914,7 +920,7 @@ class MainWindow(QMainWindow):
         if serial is None or not package:
             return
         pids = self._run_adb(
-            lambda: resolve_pids(serial, package),
+            lambda: resolve_pids(serial, package, self._adb_path()),
             missing_msg="adb not found.",
             error_prefix="Could not resolve PIDs",
             report=self.statusBar().showMessage,
@@ -1582,6 +1588,7 @@ class MainWindow(QMainWindow):
             "reopen_last": self.reopen_last_action.isChecked(),
             "autosave": self.autosave_action.isChecked(),
             "wrap": self.log_delegate.wrap,
+            "adb_path": self._adb_path_setting,
         }
 
     def _open_settings(self) -> None:
@@ -1635,6 +1642,7 @@ class MainWindow(QMainWindow):
         self.log_delegate.wrap = bool(v["wrap"])
         self._apply_row_height()
         self.table.viewport().update()
+        self._adb_path_setting = v["adb_path"]
         self._save_settings()
 
     def _clear_device_buffer(self) -> None:
@@ -1644,7 +1652,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Select a device first.")
             return
         ok = self._run_adb(
-            lambda: clear_logcat(serial),
+            lambda: clear_logcat(serial, self._adb_path()),
             missing_msg="adb not found.",
             error_prefix="Could not clear the device buffer",
             report=self.statusBar().showMessage,
@@ -2176,6 +2184,9 @@ class MainWindow(QMainWindow):
             self._apply_row_height()
             self.table.viewport().update()
 
+        def set_adb_path(v):
+            self._adb_path_setting = str(v) if v else ""
+
         specs = [
             (
                 "geometry",
@@ -2262,6 +2273,7 @@ class MainWindow(QMainWindow):
                 lambda v: self.process_action.setChecked(bool(v)),
             ),
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
+            ("adb_path", lambda: self._adb_path_setting, set_adb_path),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
@@ -2301,7 +2313,13 @@ class MainWindow(QMainWindow):
         sess = sess if sess is not None else self._active
         buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
         tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
-        reader = AdbReader(serial=serial, buffers=buffers or None, tail=tail, since_time=since_time)
+        reader = AdbReader(
+            serial=serial,
+            adb_path=self._adb_path(),
+            buffers=buffers or None,
+            tail=tail,
+            since_time=since_time,
+        )
         reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
         reader.error.connect(self.on_error)
         reader.stream_ended.connect(lambda x=sess: self._on_stream_ended(x))
@@ -2426,7 +2444,7 @@ class MainWindow(QMainWindow):
             sess.reconnect_timer.stop()
             return
         try:
-            devices = list_devices()
+            devices = list_devices(self._adb_path())
         except Exception:
             return  # adb hiccup; keep polling
         if is_serial_streamable(devices, sess.reconnect_serial):

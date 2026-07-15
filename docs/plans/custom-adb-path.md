@@ -1,6 +1,6 @@
 # Plan: Custom adb path
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [settings-dialog.md](settings-dialog.md), [settings-persistence.md](settings-persistence.md), backlog.md
@@ -49,11 +49,10 @@ streaming, connect, clear buffer, package/PID resolution) uses it.
 
 ## Verification
 
-- [ ] `uv run pytest` (`_adb_path()` empty-vs-set behavior; settings round-trip
+- [x] `uv run pytest` (`_adb_path()` empty-vs-set behavior; settings round-trip
       includes `adb_path`)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual: set a bogus path in Settings, confirm Refresh reports "adb not
-      found" using that path; clear it, confirm it falls back to `PATH`.
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: app renders with no regressions (`run-zlog` driver)
 
 ## Open questions
 

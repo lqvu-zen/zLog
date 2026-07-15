@@ -29,6 +29,7 @@ def test_dialog_reflects_initial_values(qapp):
         "tail": 500,
         "max_rows": 10000,
         "clear_on_start": True,
+        "adb_path": "/opt/platform-tools/adb",
         "follow": False,
         "reopen_last": True,
         "autosave": True,

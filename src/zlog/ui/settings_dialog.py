@@ -13,8 +13,12 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -101,11 +105,19 @@ class SettingsDialog(QDialog):
         self.max_spin.setValue(int(values.get("max_rows", 0)))
         self.clear_start_chk = QCheckBox("Clear the view when starting a new stream")
         self.clear_start_chk.setChecked(values.get("clear_on_start", False))
+        self.adb_path_edit = QLineEdit(values.get("adb_path", ""))
+        self.adb_path_edit.setPlaceholderText("adb (from PATH)")
+        adb_browse = QPushButton("Browse…")
+        adb_browse.clicked.connect(self._browse_adb_path)
+        adb_path_row = QHBoxLayout()
+        adb_path_row.addWidget(self.adb_path_edit)
+        adb_path_row.addWidget(adb_browse)
         capture = QFormLayout()
         capture.addRow(buf_box)
         capture.addRow("Start from", self.tail_box)
         capture.addRow("Buffer limit (lines)", self.max_spin)
         capture.addRow(self.clear_start_chk)
+        capture.addRow("adb path", adb_path_row)
         tabs.addTab(self._wrap(capture), "Capture")
 
         # --- Behavior -----------------------------------------------------
@@ -143,6 +155,11 @@ class SettingsDialog(QDialog):
         if i >= 0:
             box.setCurrentIndex(i)
 
+    def _browse_adb_path(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Locate adb executable")
+        if path:
+            self.adb_path_edit.setText(path)
+
     def get_values(self) -> dict:
         return {
             "theme": self.theme_box.currentData(),
@@ -158,6 +175,7 @@ class SettingsDialog(QDialog):
             "tail": self.tail_box.currentData(),
             "max_rows": self.max_spin.value(),
             "clear_on_start": self.clear_start_chk.isChecked(),
+            "adb_path": self.adb_path_edit.text().strip(),
             "follow": self.follow_chk.isChecked(),
             "reopen_last": self.reopen_chk.isChecked(),
             "autosave": self.autosave_chk.isChecked(),

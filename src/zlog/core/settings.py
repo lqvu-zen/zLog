@@ -39,6 +39,7 @@ DEFAULTS: dict = {
     "watch": "",  # substring; notify when a captured line matches
     "show_process": False,  # show the resolved process/package-name column
     "wrap": True,  # wrap long messages across as many lines as needed
+    "adb_path": "",  # explicit adb executable path ("" = use "adb" from PATH)
 }
 
 

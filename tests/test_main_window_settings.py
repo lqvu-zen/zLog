@@ -270,6 +270,21 @@ def test_max_rows_setting_applies_to_model(window):
     assert window.model._max_rows == 10000
 
 
+def test_adb_path_defaults_to_plain_adb(window):
+    assert window._adb_path_setting == ""
+    assert window._adb_path() == "adb"
+
+
+def test_adb_path_setting_overrides_default(window):
+    window._adb_path_setting = "/opt/platform-tools/adb"
+    assert window._adb_path() == "/opt/platform-tools/adb"
+    got = next(g for k, g, _ in window._settings_specs() if k == "adb_path")()
+    assert got == "/opt/platform-tools/adb"
+    setter = next(s for k, _, s in window._settings_specs() if k == "adb_path")
+    setter("")
+    assert window._adb_path_setting == "" and window._adb_path() == "adb"
+
+
 def test_clear_device_button_no_device(window):
     # The dedicated device-buffer button exists and, with no device selected,
     # routes through the guarded path (status message, no crash).
