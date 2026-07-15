@@ -77,7 +77,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._sel_fg = QColor(selection_text)
         self._hover_bg = QColor(row_hover_bg)
 
-    def _col_widths(self, left, right, cw, src):
+    def _col_widths(self, left, right, cw, src, fm):
         """Pixel widths of the (content-sized) Time/PID and (flexible) Tag/Process
         columns — shared by paint and sizeHint so their layouts agree."""
 
@@ -85,8 +85,12 @@ class LogItemDelegate(QStyledItemDelegate):
             fn = getattr(src, getter, None)
             return max(fn() if fn else 0, floor)
 
-        time_w = cols("time_col_chars", _TIME_MIN_W) * cw
-        pid_w = cols("pidtid_col_chars", _PIDTID_MIN_W) * cw
+        # Measure the actual glyph run (not char_count * M-width): per-character
+        # advance rounding otherwise makes the box a few px too narrow and clips the
+        # last digit of the timestamp. Both stamps are digits/punctuation, so a run of
+        # "0"s gives the true — and, for non-monospace fallbacks, safely padded — width.
+        time_w = fm.horizontalAdvance("0" * cols("time_col_chars", _TIME_MIN_W))
+        pid_w = fm.horizontalAdvance("0" * cols("pidtid_col_chars", _PIDTID_MIN_W))
         fixed_px = (time_w + cw) + (pid_w + cw) + 3 * cw
         x0 = left + self._pad
         usable = (right - self._pad) - x0
@@ -119,7 +123,7 @@ class LogItemDelegate(QStyledItemDelegate):
         else:
             src = index.model()
             src = src.sourceModel() if hasattr(src, "sourceModel") else src
-            time_w, pid_w, tag_w, proc_w = self._col_widths(0, width, cw, src)
+            time_w, pid_w, tag_w, proc_w = self._col_widths(0, width, cw, src, fm)
             avail = (width - self._pad) - self._msg_left(0, time_w, pid_w, tag_w, proc_w, cw)
         avail = max(int(avail), cw * 4)
         rect = fm.boundingRect(0, 0, avail, 1_000_000, int(Qt.TextWordWrap), message)
@@ -186,7 +190,7 @@ class LogItemDelegate(QStyledItemDelegate):
         src = src.sourceModel() if hasattr(src, "sourceModel") else src
         show = self.show_process
         time_w, pid_w, tag_w, proc_w = self._col_widths(
-            option.rect.left(), option.rect.right(), cw, src
+            option.rect.left(), option.rect.right(), cw, src, fm
         )
         seg(time_str, time_w, base_fg)
         seg(f"{entry.pid}-{entry.tid}", pid_w, base_fg)

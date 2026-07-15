@@ -58,3 +58,16 @@ the rows currently in the viewport are grown to their content via
 `_fit_visible_rows()` (O(visible)), coalesced behind a 60 ms `_wrap_timer` on
 inserts and on vertical-scrollbar movement. Result: 60k lines now load in **0.19 s**
 with wrap on, matching wrap off, and it stays O(visible) at any buffer size.
+
+## Follow-up: default-on, Follow lag, and clipped Time stamp (2026-07-15)
+
+- Wrap is now **on by default** (`settings.DEFAULTS["wrap"] = True`).
+- **Follow stopped keeping up in wrap mode.** `scrollToBottom()` ran before the rows
+  it just revealed were grown, so it stopped short of the true bottom; the next
+  batch's "were we at the bottom?" check then read false and Follow never resumed.
+  `_do_follow_scroll` now scrolls, fits the now-visible rows, and re-pins to the
+  bottom.
+- **Last digit of the Time stamp was clipped.** The Time box was sized as
+  `char_count * M-width`; per-character advance rounding left it a few px short.
+  `_col_widths` now measures the actual glyph run (`fm.horizontalAdvance("0"*n)`),
+  which fits the full `MM-DD HH:MM:SS.mmm` stamp on any font.

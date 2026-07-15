@@ -38,7 +38,7 @@ DEFAULTS: dict = {
     "collapse": False,  # hide consecutive duplicate lines
     "watch": "",  # substring; notify when a captured line matches
     "show_process": False,  # show the resolved process/package-name column
-    "wrap": False,  # wrap long messages across as many lines as needed
+    "wrap": True,  # wrap long messages across as many lines as needed
 }
 
 
