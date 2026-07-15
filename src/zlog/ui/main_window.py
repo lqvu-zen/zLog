@@ -21,6 +21,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QByteArray,
     QEvent,
+    QMimeData,
     QStandardPaths,
     QStringListModel,
     Qt,
@@ -1723,6 +1724,16 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(to_messages(entries))
         self.statusBar().showMessage(f"Copied {len(entries)} message(s).")
 
+    def _copy_html(self) -> None:
+        entries = self._selected_entries()
+        if not entries:
+            return
+        mime = QMimeData()
+        mime.setHtml(to_html(entries))
+        mime.setText(to_messages(entries))  # plain-text fallback for non-rich targets
+        QApplication.clipboard().setMimeData(mime)
+        self.statusBar().showMessage(f"Copied {len(entries)} line(s) as HTML.")
+
     def _add_query_token(self, token: str) -> None:
         """Add `token` (key:value) to the query bar, replacing any token with the
         same key; values with spaces are quoted so parse_query reads them back."""
@@ -1745,6 +1756,8 @@ class MainWindow(QMainWindow):
         copy_md.triggered.connect(self._copy_markdown)
         copy_msg = menu.addAction("Copy message only")
         copy_msg.triggered.connect(self._copy_messages)
+        copy_html = menu.addAction("Copy as HTML")
+        copy_html.triggered.connect(self._copy_html)
         menu.addAction(self.select_all_action)
         menu.addAction(self.bookmark_action)
         menu.addSeparator()

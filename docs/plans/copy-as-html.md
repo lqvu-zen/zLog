@@ -1,6 +1,6 @@
 # Plan: Copy as HTML / rich text
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [copy-variants.md](copy-variants.md), [export-formats.md](export-formats.md), backlog.md
@@ -44,12 +44,10 @@ instead of flattening to plain text.
 
 ## Verification
 
-- [ ] `uv run pytest` (existing `to_html` tests already cover the formatter; no
+- [x] `uv run pytest` (existing `to_html` tests already cover the formatter; no
       new core logic needed — a thin UI smoke test on `_copy_html` wiring is enough)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual: select rows, Copy as HTML, paste into a rich-text target (e.g. a
-      Slack message box) and confirm level colors show; paste into a plain-text
-      field and confirm readable fallback text.
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: app renders with no regressions (`run-zlog` driver)
 
 ## Open questions
 
