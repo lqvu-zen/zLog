@@ -32,6 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
+| [pause-follow-on-selection.md](pause-follow-on-selection.md) | Done | Auto-scroll only fires when at the bottom AND no row is selected |
 | [inline-match-highlight.md](inline-match-highlight.md) | Done | Highlight the matched substring inside a row, not just the row tint (Highlight mode) |
 | [goto-line-time.md](goto-line-time.md) | Done | Ctrl+G jumps to a line number or a timestamp |
 | [exclude-pid-proc.md](exclude-pid-proc.md) | Done | `-pid:`/`-proc:` query negatives + right-click "Exclude PID/package" |

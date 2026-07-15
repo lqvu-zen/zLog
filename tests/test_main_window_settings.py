@@ -487,6 +487,49 @@ def test_follow_stays_manual_and_never_yanks(window, qapp):
     assert sb.value() == sb.maximum()
 
 
+def test_follow_pauses_while_a_row_is_selected(window, qapp):
+    from PySide6.QtTest import QTest
+
+    from zlog.core.models import LogEntry
+
+    window.resize(1100, 700)
+    window.show()
+    qapp.processEvents()
+
+    def batch(n):
+        window.on_batch(
+            [
+                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
+                for i in range(n)
+            ]
+        )
+
+    window.follow_check.setChecked(True)
+    for _ in range(20):
+        batch(50)
+    QTest.qWait(150)
+    sb = window.table.verticalScrollBar()
+    assert sb.value() >= sb.maximum() - 4  # tailing at the bottom (same tolerance as the gate)
+
+    # select a row while still at the bottom (a click doesn't move the scrollbar)
+    window.table.selectRow(window.proxy.rowCount() - 1)
+    assert window.table.selectionModel().hasSelection()
+    stuck_at = sb.value()
+
+    # the next batch must not yank the view away from the selected row
+    batch(50)
+    QTest.qWait(150)
+    assert sb.value() == stuck_at
+
+    # clearing the selection and returning to the bottom resumes tailing
+    window.table.clearSelection()
+    sb.setValue(sb.maximum())
+    qapp.processEvents()
+    batch(50)
+    QTest.qWait(150)
+    assert sb.value() >= sb.maximum() - 4
+
+
 def test_min_level_dropdown_and_query_stay_in_sync(window):
     from zlog.core.models import LogEntry
 

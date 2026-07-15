@@ -2117,6 +2117,8 @@ class MainWindow(QMainWindow):
     def _do_follow_scroll(self) -> None:
         if not self.follow_check.isChecked():
             return
+        if self.table.selectionModel().hasSelection():
+            return  # selected between the batch arming this timer and it firing
         self.table.scrollToBottom()
         # In wrap mode the rows just scrolled into view are still one line tall until
         # fitted, so the first scrollToBottom stops short of the true bottom. Grow the
@@ -2476,7 +2478,13 @@ class MainWindow(QMainWindow):
         was_at_bottom = False
         if active:
             sb = self.table.verticalScrollBar()
-            was_at_bottom = sb.value() >= sb.maximum() - 4
+            # Selecting a row (a click, or F3/Ctrl+G/bookmark-next) doesn't move the
+            # scrollbar, so without this check a batch right after selecting an
+            # older row would still see "at the bottom" and yank the view away from
+            # what the user just selected — treat an active selection like being
+            # scrolled away from the bottom.
+            at_bottom = sb.value() >= sb.maximum() - 4
+            was_at_bottom = at_bottom and not self.table.selectionModel().hasSelection()
         sess.model.append_entries(entries)
         if active and self.devctl.filtering:
             self._track_new_pids(entries)
