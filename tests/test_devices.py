@@ -51,6 +51,17 @@ def test_choose_device_index():
     assert choose_device_index([Device("CCC", "offline")], None) == -1
 
 
+def test_is_connect_ok():
+    from zlog.core.devices import is_connect_ok
+
+    assert is_connect_ok("connected to 192.168.1.5:5555") is True
+    assert is_connect_ok("already connected to 192.168.1.5:5555") is True
+    assert is_connect_ok("failed to connect to 192.168.1.5:5555") is False
+    assert is_connect_ok("unable to connect to 1.2.3.4:5555") is False
+    assert is_connect_ok("cannot connect to unix:...") is False
+    assert is_connect_ok("") is False
+
+
 def test_is_serial_streamable():
     from zlog.core.devices import Device, is_serial_streamable
 

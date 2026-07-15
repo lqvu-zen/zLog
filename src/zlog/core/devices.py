@@ -59,6 +59,18 @@ def choose_device_index(devices: list[Device], preferred_serial: str | None) -> 
     return first
 
 
+def is_connect_ok(message: str) -> bool:
+    """True if `adb connect`'s reply indicates success.
+
+    adb's own wording: ``"connected to <addr>"`` / ``"already connected to
+    <addr>"`` on success; anything else (``"failed to connect..."``,
+    ``"cannot connect..."``, ``"unable to connect..."``, a timeout message)
+    is a failure.
+    """
+    text = message.strip().lower()
+    return text.startswith("connected to") or text.startswith("already connected to")
+
+
 def is_serial_streamable(devices: list[Device], serial: str | None) -> bool:
     """True if we can (re)start a stream for `serial`. A falsy serial means the
     single default device, so any streamable device qualifies; otherwise the named

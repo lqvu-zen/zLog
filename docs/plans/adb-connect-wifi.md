@@ -1,6 +1,6 @@
 # Plan: adb over Wi-Fi / connect by IP
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [device-picker.md](device-picker.md), backlog.md
@@ -44,11 +44,11 @@ the device list — no need to drop to a terminal to pair a wireless device/emul
 
 ## Verification
 
-- [ ] `uv run pytest` (`is_connect_ok` cases for adb's known reply strings;
+- [x] `uv run pytest` (`is_connect_ok` cases for adb's known reply strings;
       `connect()` argv via a monkeypatched `subprocess.run`)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual (or reasoning if no Wi-Fi-debug device available): Connect… with a
-      bad address shows a failure message and doesn't crash.
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: Connect… button renders next to Refresh, no crash
+      (reasoning-only for the live-connect path — no Wi-Fi-debug device available)
 
 ## Open questions
 

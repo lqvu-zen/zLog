@@ -70,6 +70,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from zlog.adb.connect import connect as adb_connect
 from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.processes import list_process_map
@@ -77,7 +78,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
-from zlog.core.devices import Device, is_serial_streamable
+from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
 from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
@@ -416,6 +417,8 @@ class MainWindow(QMainWindow):
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(180)
         self.refresh_btn = QPushButton("Refresh")
+        self.connect_btn = QPushButton("Connect…")
+        self.connect_btn.setToolTip("adb connect host:port — pair a Wi-Fi device/emulator")
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.pause_btn = QPushButton("Pause")
@@ -527,6 +530,7 @@ class MainWindow(QMainWindow):
         top_row.addWidget(QLabel("Device:"))
         top_row.addWidget(self.device_box)
         top_row.addWidget(self.refresh_btn)
+        top_row.addWidget(self.connect_btn)
         top_row.addSpacing(12)
         top_row.addWidget(self.start_btn)
         top_row.addWidget(self.stop_btn)
@@ -794,6 +798,7 @@ class MainWindow(QMainWindow):
         self.stop_btn.clicked.connect(self.stop)
         self.clear_btn.clicked.connect(self.model.clear)
         self.clear_device_btn.clicked.connect(self._clear_device_buffer)
+        self.connect_btn.clicked.connect(self._connect_over_wifi)
         self.pause_btn.clicked.connect(self._toggle_pause)
         # Ctrl+wheel over the log or detail zooms (handled in eventFilter);
         # filter the viewports, since that is where wheel events are delivered.
@@ -846,6 +851,25 @@ class MainWindow(QMainWindow):
         if devices is None:
             return
         self._populate_devices(devices)
+
+    def _connect_over_wifi(self) -> None:
+        host_port, ok = QInputDialog.getText(
+            self, "Connect over Wi-Fi", "Device address (host or host:port):"
+        )
+        host_port = host_port.strip()
+        if not ok or not host_port:
+            return
+        message = self._run_adb(
+            lambda: adb_connect(host_port, self._adb_path()),
+            missing_msg="adb not found — install Android platform-tools and add it to PATH.",
+            error_prefix="Could not connect",
+            report=self.statusBar().showMessage,
+        )
+        if message is None:
+            return
+        self.statusBar().showMessage(message)
+        if is_connect_ok(message):
+            self.refresh_devices()
 
     def _populate_devices(self, devices: list[Device]) -> None:
         """Fill the picker from a device list (also called by the run-zlog driver
