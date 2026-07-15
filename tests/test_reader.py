@@ -63,3 +63,13 @@ def test_since_time_wins_over_tail():
     # only the timestamp form is present, not the count
     assert cmd.count("-T") == 1
     assert cmd[cmd.index("-T") + 1] == "06-30 12:00:00.000"
+
+
+def test_should_flush_by_size_and_time():
+    from zlog.adb.reader import _BATCH_SIZE, _FLUSH_INTERVAL, should_flush
+
+    assert should_flush(0, 999) is False  # nothing buffered -> never
+    assert should_flush(1, 0.0) is False  # small batch, no time elapsed -> hold
+    assert should_flush(_BATCH_SIZE, 0.0) is True  # size cap
+    assert should_flush(1, _FLUSH_INTERVAL) is True  # time cap keeps live latency low
+    assert _BATCH_SIZE >= 1000  # coalesced so the initial dump doesn't flood the UI

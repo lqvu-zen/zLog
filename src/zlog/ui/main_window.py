@@ -686,6 +686,7 @@ class MainWindow(QMainWindow):
             (500, "Last 500"),
             (1000, "Last 1000"),
             (5000, "Last 5000"),
+            (10000, "Last 10,000"),
         ):
             act = QAction(label, self)
             act.setCheckable(True)
@@ -1542,6 +1543,7 @@ class MainWindow(QMainWindow):
                 ("Last 500", 500),
                 ("Last 1000", 1000),
                 ("Last 5000", 5000),
+                ("Last 10,000", 10000),
             ],
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
             parent=self,

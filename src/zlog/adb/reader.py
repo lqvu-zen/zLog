@@ -9,15 +9,27 @@ thread).
 from __future__ import annotations
 
 import subprocess
+import time
 
 from PySide6.QtCore import QThread, Signal
 
 from zlog.core.models import LogEntry
 from zlog.core.parser import parse_line
 
-# Flush to the UI in chunks rather than one signal per line, so a busy log
-# doesn't drown the event loop. Tune for responsiveness vs. overhead.
-_BATCH_SIZE = 50
+# Flush to the UI in chunks rather than one signal per line, so a busy log doesn't
+# drown the event loop. On Start, adb dumps the whole on-device buffer as fast as it
+# can; emitting a cross-thread signal every 50 lines floods the event loop (the window
+# goes "Not Responding"). So we emit at most every _BATCH_SIZE lines OR every
+# _FLUSH_INTERVAL seconds — far fewer signals during a burst, low latency when live.
+_BATCH_SIZE = 2000
+_FLUSH_INTERVAL = 0.1  # seconds
+
+
+def should_flush(batch_len: int, elapsed: float) -> bool:
+    """Whether to emit the accumulated batch now (size cap or time cap). Pure."""
+    if batch_len <= 0:
+        return False
+    return batch_len >= _BATCH_SIZE or elapsed >= _FLUSH_INTERVAL
 
 # Buffers `adb logcat -b` accepts; anything else is ignored so a bad value can't
 # break the command. An empty selection uses adb's default buffers.
@@ -100,14 +112,16 @@ class AdbReader(QThread):
 
         assert self._proc.stdout is not None
         batch: list[LogEntry] = []
+        last = time.monotonic()
         try:
             for raw in self._proc.stdout:
                 if not self._running:
                     break
                 batch.append(parse_line(raw.rstrip("\n")))
-                if len(batch) >= _BATCH_SIZE:
+                if should_flush(len(batch), time.monotonic() - last):
                     self.batch_ready.emit(batch)
                     batch = []
+                    last = time.monotonic()
         except Exception as exc:  # a dead reader thread fails silently otherwise
             if batch:
                 self.batch_ready.emit(batch)
