@@ -32,6 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
+| [query-token-highlight.md](query-token-highlight.md) | Done | Tint recognized tokens (level:/tag:/package:/pid:/proc:/-excl//re/) in the query bar |
 | [device-picker.md](device-picker.md) | Done | Choose which connected device/emulator to stream from |
 | [package-filter.md](package-filter.md) | Done | Filter the view to one app's process (package → PIDs) |
 | [regex-search.md](regex-search.md) | Done | Match log lines with a regular expression |

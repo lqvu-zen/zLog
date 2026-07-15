@@ -1,6 +1,6 @@
 # Plan: Highlight recognized tokens in the query bar
 
-- **Status:** Approved
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-14
 - **Related:** [logcat-style-ui.md](logcat-style-ui.md), quick-filter-pid-package.md
