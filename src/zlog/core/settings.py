@@ -30,7 +30,7 @@ DEFAULTS: dict = {
     "search_history": [],  # recent query-bar entries (see core/history.py)
     "log_buffers": [],  # adb logcat -b buffers ([] = adb default)
     "tail_count": 10000,  # start from the last N lines (0 = whole buffer)
-    "max_rows": 0,  # ring-buffer cap on retained lines (0 = unlimited)
+    "max_rows": 100_000,  # ring-buffer cap on retained lines (0 = unlimited)
     "recent_files": [],  # recently opened/saved .log paths (see core/history.py)
     "reopen_last": False,  # reopen the most-recent log on launch
     "autosave": False,  # stream capture to disk while running (see core/autosave.py)
