@@ -64,3 +64,34 @@ def test_pid_and_proc_coexist_with_search():
     spec = parse_query("pid:5 proc:com.x tag:Act boom")
     assert spec.pids == ("5",) and spec.process == "com.x"
     assert spec.tag == "Act" and spec.search == "boom"
+
+
+def test_token_spans_classifies_each_kind():
+    from zlog.core.query import token_spans
+
+    t = "level:E tag:Foo package:com.x pid:5 proc:com.y -noise /re/ plain"
+    kinds = {t[s:e]: k for s, e, k in token_spans(t)}
+    assert kinds["level:E"] == "level"
+    assert kinds["tag:Foo"] == "tag"
+    assert kinds["package:com.x"] == "package"
+    assert kinds["pid:5"] == "pid"
+    assert kinds["proc:com.y"] == "proc"
+    assert kinds["-noise"] == "exclude"
+    assert kinds["/re/"] == "regex"
+    assert kinds["plain"] == "word"
+
+
+def test_token_spans_keeps_quoted_value_as_one_token():
+    from zlog.core.query import token_spans
+
+    t = 'tag:"My Tag" boom'
+    spans = token_spans(t)
+    s, e, k = spans[0]
+    assert t[s:e] == 'tag:"My Tag"' and k == "tag"
+    assert spans[1][2] == "word"
+
+
+def test_token_spans_unknown_key_is_word():
+    from zlog.core.query import token_spans
+
+    assert token_spans("foo:bar")[0][2] == "word"

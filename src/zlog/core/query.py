@@ -105,3 +105,47 @@ def parse_query(text: str) -> QuerySpec:
         pids=tuple(dict.fromkeys(pids)),
         process=process,
     )
+
+
+def _classify(token: str) -> str:
+    """Classify a raw query token for syntax highlighting."""
+    if len(token) >= 2 and token.startswith("/") and token.endswith("/"):
+        return "regex"
+    if token.startswith("-") and len(token) > 1:
+        return "exclude"
+    if ":" in token:
+        key = token.split(":", 1)[0].lower()
+        if key == "level":
+            return "level"
+        if key == "tag":
+            return "tag"
+        if key in _PACKAGE_KEYS:
+            return "package"
+        if key in _PROC_KEYS:
+            return "proc"
+        if key == "pid":
+            return "pid"
+    return "word"
+
+
+def token_spans(text: str) -> list[tuple[int, int, str]]:
+    """Return ``(start, end, kind)`` for each whitespace-separated token in `text`.
+
+    A quote-aware scanner keeps `"two words"` as one token. `kind` is one of
+    level/tag/package/proc/pid/exclude/regex/word — pure, so it's unit-testable and
+    drives the query bar's token highlighting.
+    """
+    spans: list[tuple[int, int, str]] = []
+    i, n = 0, len(text)
+    while i < n:
+        if text[i].isspace():
+            i += 1
+            continue
+        start = i
+        in_quote = False
+        while i < n and (in_quote or not text[i].isspace()):
+            if text[i] == '"':
+                in_quote = not in_quote
+            i += 1
+        spans.append((start, i, _classify(text[start:i])))
+    return spans

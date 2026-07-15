@@ -92,6 +92,7 @@ from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
+from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
@@ -453,7 +454,7 @@ class MainWindow(QMainWindow):
         self.spark_label.setToolTip("Error rate over the last 500 lines")
 
         # Single query bar, parsed into the filters.
-        self.query = QLineEdit()
+        self.query = QueryLineEdit()
         self.query.setPlaceholderText(
             "Filter — e.g. level:E tag:Activity package:com.x -noise text"
         )
