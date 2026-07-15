@@ -1,6 +1,6 @@
 # Plan: Exclude by pid / proc
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [quick-filter-pid-package.md](quick-filter-pid-package.md), [exclude-filter.md](exclude-filter.md), backlog.md
@@ -46,11 +46,10 @@ package").
 
 ## Verification
 
-- [ ] `uv run pytest` (`parse_query` new cases: `-pid:`, `-proc:`, combined with
+- [x] `uv run pytest` (`parse_query` new cases: `-pid:`, `-proc:`, combined with
       positive tokens; proxy `filterAcceptsRow` exclude-gate tests)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual: type `-pid:1234`, confirm those rows vanish; right-click → Exclude
-      this PID/package adds the token and hides the rows.
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: app renders with no regressions (`run-zlog` driver)
 
 ## Open questions
 

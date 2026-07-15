@@ -34,7 +34,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
 | [inline-match-highlight.md](inline-match-highlight.md) | Approved | Highlight the matched substring inside a row, not just the row tint (Highlight mode) |
 | [goto-line-time.md](goto-line-time.md) | Approved | Ctrl+G jumps to a line number or a timestamp |
-| [exclude-pid-proc.md](exclude-pid-proc.md) | Approved | `-pid:`/`-proc:` query negatives + right-click "Exclude PID/package" |
+| [exclude-pid-proc.md](exclude-pid-proc.md) | Done | `-pid:`/`-proc:` query negatives + right-click "Exclude PID/package" |
 | [adb-connect-wifi.md](adb-connect-wifi.md) | Done | "Connect…" button runs `adb connect host:port` and refreshes devices |
 | [custom-adb-path.md](custom-adb-path.md) | Done | Settings field to point zLog at a specific adb executable |
 | [copy-as-html.md](copy-as-html.md) | Done | "Copy as HTML" clipboard action preserving level colors |

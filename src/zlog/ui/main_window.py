@@ -1180,6 +1180,8 @@ class MainWindow(QMainWindow):
         self.proxy.set_tag(spec.tag)
         self.proxy.set_query_pids(set(spec.pids) if spec.pids else None)
         self.proxy.set_proc(spec.process)
+        self.proxy.set_exclude_pids(set(spec.exclude_pids) if spec.exclude_pids else None)
+        self.proxy.set_exclude_proc(spec.exclude_process)
         ex_pat = "|".join(re.escape(t) for t in spec.excludes)
         ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
         self.regex_check.setChecked(spec.regex)  # -> _apply_search
@@ -1824,6 +1826,16 @@ class MainWindow(QMainWindow):
             ex_tag = excl.addAction(f"Tag: {entry.tag}" if entry.tag else "Tag")
             ex_tag.setEnabled(bool(entry.tag))
             ex_tag.triggered.connect(lambda _c=False, tg=entry.tag: self._mute_tag(tg))
+            if entry.pid:
+                ex_pid = excl.addAction(f"PID: {entry.pid}")
+                ex_pid.triggered.connect(
+                    lambda _c=False, pid=entry.pid: self._add_query_token(f"-pid:{pid}")
+                )
+            if proc:
+                ex_proc = excl.addAction(f"Package: {proc}")
+                ex_proc.triggered.connect(
+                    lambda _c=False, pr=proc: self._add_query_token(f"-proc:{pr}")
+                )
             menu.addSeparator()
         highlight = menu.addAction(f"Highlight tag \u201c{tag}\u201d…" if tag else "Highlight tag…")
         highlight.setEnabled(bool(tag))

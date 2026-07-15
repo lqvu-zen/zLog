@@ -34,6 +34,8 @@ class QuerySpec:
     levels: tuple[str, ...] = field(default_factory=tuple)  # exact set (level:W,E)
     pids: tuple[str, ...] = field(default_factory=tuple)  # exact PID set (pid:100,200)
     process: str = ""  # process/package-name contains (proc:com.foo)
+    exclude_pids: tuple[str, ...] = field(default_factory=tuple)  # -pid:100,200
+    exclude_process: str = ""  # -proc:com.foo (last token wins, mirrors `process`)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -50,6 +52,8 @@ def parse_query(text: str) -> QuerySpec:
     package = ""
     process = ""
     pids: list[str] = []
+    exclude_process = ""
+    exclude_pids: list[str] = []
     regex = False
     regex_body: str | None = None
     words: list[str] = []
@@ -59,7 +63,20 @@ def parse_query(text: str) -> QuerySpec:
         if not tok:
             continue
         if tok.startswith("-") and len(tok) > 1:
-            excludes.append(tok[1:])
+            body = tok[1:]
+            if ":" in body:
+                key, _, val = body.partition(":")
+                key = key.lower()
+                if key == "pid" and val:
+                    for part in val.split(","):
+                        part = part.strip()
+                        if part.isdigit():
+                            exclude_pids.append(part)
+                    continue
+                if key in _PROC_KEYS and val:
+                    exclude_process = val
+                    continue
+            excludes.append(body)
             continue
         if len(tok) >= 2 and tok.startswith("/") and tok.endswith("/"):
             regex_body = tok[1:-1]
@@ -104,6 +121,8 @@ def parse_query(text: str) -> QuerySpec:
         levels=tuple(levels),
         pids=tuple(dict.fromkeys(pids)),
         process=process,
+        exclude_pids=tuple(dict.fromkeys(exclude_pids)),
+        exclude_process=exclude_process,
     )
 
 

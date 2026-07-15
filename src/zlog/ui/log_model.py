@@ -357,6 +357,8 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._collapse = False  # hide consecutive duplicate lines
         self._query_pids: set[str] | None = None  # exact PID gate (pid: token)
         self._proc = ""  # process/package-name contains gate (proc: token)
+        self._exclude_pids: set[str] | None = None  # exact PID exclude (-pid: token)
+        self._exclude_proc = ""  # process/package-name exclude (-proc: token)
 
     def set_min_level(self, level_letter: str) -> None:
         self._min_level = LEVEL_RANK.get(level_letter, 0)
@@ -418,6 +420,17 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._proc = text.lower()
         self.invalidate()
 
+    def set_exclude_pids(self, pids) -> None:
+        """Hide these exact PID strings (-pid: token), or None to clear."""
+        self._exclude_pids = set(pids) if pids else None
+        self.invalidate()
+
+    def set_exclude_proc(self, text: str) -> None:
+        """Hide rows whose resolved process/package name contains this text
+        (-proc: token); "" = off."""
+        self._exclude_proc = text.lower()
+        self.invalidate()
+
     def level_counts(self) -> dict[str, int]:
         """Count of currently-accepted rows per level letter (walks filtered rows,
         unlike LogTableModel.level_counts which is O(1) over the whole buffer)."""
@@ -446,6 +459,11 @@ class LogFilterProxy(QSortFilterProxyModel):
         # Quick-filter process gate (proc: token) — the row's resolved
         # process/package name must contain the text.
         if self._proc and self._proc not in model.process_name(entry.pid).lower():
+            return False
+        # Negative PID/process gates (-pid:/-proc: tokens) — hide matching rows.
+        if self._exclude_pids is not None and entry.pid in self._exclude_pids:
+            return False
+        if self._exclude_proc and self._exclude_proc in model.process_name(entry.pid).lower():
             return False
         # Level gate: an exact set if one is active, else the min-level floor
         # (unparsed lines, level "", always pass either way).

@@ -66,6 +66,24 @@ def test_pid_and_proc_coexist_with_search():
     assert spec.tag == "Act" and spec.search == "boom"
 
 
+def test_parse_exclude_pid_single_and_set():
+    assert parse_query("-pid:4921").exclude_pids == ("4921",)
+    assert parse_query("-pid:100,200,100").exclude_pids == ("100", "200")
+    assert parse_query("-pid:abc").exclude_pids == ()  # non-numeric ignored, no crash
+
+
+def test_parse_exclude_proc_name():
+    assert parse_query("-proc:com.foo").exclude_process == "com.foo"
+    assert parse_query("-process:com.bar").exclude_process == "com.bar"
+
+
+def test_exclude_pid_proc_coexist_with_includes_and_generic_exclude():
+    spec = parse_query("pid:5 -pid:6 proc:com.x -proc:com.y -noise boom")
+    assert spec.pids == ("5",) and spec.exclude_pids == ("6",)
+    assert spec.process == "com.x" and spec.exclude_process == "com.y"
+    assert spec.excludes == ("noise",) and spec.search == "boom"
+
+
 def test_token_spans_classifies_each_kind():
     from zlog.core.query import token_spans
 
