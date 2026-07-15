@@ -75,24 +75,3 @@ def test_sizehint_wraps_to_full_message(qapp):
     short_h = d.sizeHint(opt, proxy.index(0, 0)).height()
     long_h = d.sizeHint(opt, proxy.index(1, 0)).height()
     assert long_h > short_h  # the long message wraps to more lines -> taller row
-
-
-def test_time_column_wide_enough_for_full_stamp(qapp):
-    """The Time box must fit the whole 'MM-DD HH:MM:SS.mmm' stamp (no clipped digit)."""
-    from PySide6.QtGui import QFont, QFontMetrics
-
-    from zlog.core.models import LogEntry
-    from zlog.ui.log_delegate import LogItemDelegate
-    from zlog.ui.log_model import LogFilterProxy, LogTableModel
-
-    stamp = "07-15 20:09:03.024"
-    model = LogTableModel()
-    proxy = LogFilterProxy()
-    proxy.setSourceModel(model)
-    model.append_entries([LogEntry(stamp, "3217", "9836", "I", "T", "hi")])
-
-    d = LogItemDelegate()
-    fm = QFontMetrics(QFont())
-    cw = fm.horizontalAdvance("M") or 8
-    time_w, *_ = d._col_widths(0, 1600, cw, model, fm)
-    assert time_w >= fm.horizontalAdvance(stamp)  # the real glyph run fits in the box

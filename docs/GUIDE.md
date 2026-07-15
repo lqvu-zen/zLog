@@ -161,3 +161,8 @@ persist across launches.
 - **"adb not found"** — install platform-tools and add `adb` to your PATH.
 - **No devices listed** — check the USB cable/authorization dialog on the phone,
   then press refresh. `adb devices` in a terminal should show it too.
+- **Something went wrong / reporting a bug** — zLog keeps its own diagnostics log
+  (`zlog.log`, rotated) next to its settings. Open **Help → Open Log Folder** to
+  find it; it records startup info, the `adb` command used, and any errors with
+  tracebacks. For more detail, set the `ZLOG_LOG_LEVEL=DEBUG` environment variable
+  before launching.

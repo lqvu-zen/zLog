@@ -13,8 +13,11 @@ import time
 
 from PySide6.QtCore import QThread, Signal
 
+from zlog.core.applog import get_logger
 from zlog.core.models import LogEntry
 from zlog.core.parser import parse_line
+
+_log = get_logger()
 
 # Flush to the UI in chunks rather than one signal per line, so a busy log doesn't
 # drown the event loop. On Start, adb dumps the whole on-device buffer as fast as it
@@ -30,6 +33,7 @@ def should_flush(batch_len: int, elapsed: float) -> bool:
     if batch_len <= 0:
         return False
     return batch_len >= _BATCH_SIZE or elapsed >= _FLUSH_INTERVAL
+
 
 # Buffers `adb logcat -b` accepts; anything else is ignored so a bad value can't
 # break the command. An empty selection uses adb's default buffers.
@@ -104,11 +108,13 @@ class AdbReader(QThread):
                 bufsize=1,  # line-buffered
             )
         except FileNotFoundError:
+            _log.error("adb not found: %r (command=%r)", self.adb_path, self._command())
             self.error.emit(
                 f"Could not find '{self.adb_path}'. Install Android "
                 "platform-tools and make sure adb is on your PATH."
             )
             return
+        _log.info("logcat started: %s", " ".join(self._command()))
 
         assert self._proc.stdout is not None
         batch: list[LogEntry] = []
@@ -123,6 +129,7 @@ class AdbReader(QThread):
                     batch = []
                     last = time.monotonic()
         except Exception as exc:  # a dead reader thread fails silently otherwise
+            _log.exception("Log reading stopped")
             if batch:
                 self.batch_ready.emit(batch)
             self.error.emit(f"Log reading stopped: {exc}")

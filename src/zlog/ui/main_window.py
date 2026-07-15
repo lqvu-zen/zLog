@@ -18,11 +18,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QEvent, QStandardPaths, QStringListModel, Qt, QTimer
+from PySide6.QtCore import (
+    QByteArray,
+    QEvent,
+    QStandardPaths,
+    QStringListModel,
+    Qt,
+    QTimer,
+    QUrl,
+)
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QColor,
+    QDesktopServices,
     QFont,
     QFontMetrics,
     QKeySequence,
@@ -64,6 +73,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
+from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.devices import Device, is_serial_streamable
@@ -96,6 +106,8 @@ from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
+
+_log = get_logger()
 
 LEVELS = ["V", "D", "I", "W", "E", "F"]
 LEVEL_NAMES = {"V": "Verbose", "D": "Debug", "I": "Info", "W": "Warn", "E": "Error", "F": "Fatal"}
@@ -747,6 +759,18 @@ class MainWindow(QMainWindow):
 
         self._settings_act = self.menuBar().addAction("&Settings…")
         self._settings_act.triggered.connect(self._open_settings)
+
+        help_menu = self.menuBar().addMenu("&Help")
+        self.open_log_action = QAction("Open &Log Folder", self)
+        self.open_log_action.triggered.connect(self._open_log_folder)
+        help_menu.addAction(self.open_log_action)
+
+    def _open_log_folder(self) -> None:
+        """Reveal the folder holding zlog.log (the self-diagnostics log), so a user
+        can grab it when reporting a bug."""
+        folder = str(self._settings_path().parent)
+        _log.info("Opening log folder: %s", folder)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(folder))
 
     def _connect_signals(self) -> None:
         """Wire toolbar/model/proxy signals to their slots (menu actions wire
@@ -2244,7 +2268,7 @@ class MainWindow(QMainWindow):
         try:
             save_settings(str(self._settings_path()), data)
         except OSError:
-            pass  # never let a settings write failure break shutdown
+            _log.exception("Failed to save settings")  # never break shutdown over it
 
     # --- actions -----------------------------------------------------------
     def start(self) -> None:
@@ -2255,6 +2279,7 @@ class MainWindow(QMainWindow):
         self._want_stream = True
         self._last_time = ""
         self._reconnect_serial = self.device_box.currentData()
+        _log.info("Start requested (device=%r)", self._reconnect_serial or "default")
         self._start_reader(self._reconnect_serial)
         if self.process_action.isChecked():
             self._refresh_process_map()
@@ -2300,6 +2325,7 @@ class MainWindow(QMainWindow):
         self.pause_btn.setText("Pause")
         self._update_start_enabled()
         self._set_tab_label(sess)
+        _log.info("Stopped stream (device=%r)", sess.serial or "default")
         self.statusBar().showMessage("Stopped.")
 
     def on_batch(self, entries) -> None:

@@ -32,6 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
+| [self-diagnostics-log.md](self-diagnostics-log.md) | Done | zLog logs its own behavior to a rotating zlog.log (banner, adb errors, excepthook); Help → Open Log Folder |
 | [query-token-highlight.md](query-token-highlight.md) | Done | Tint recognized tokens (level:/tag:/package:/pid:/proc:/-excl//re/) in the query bar |
 | [perf-start-freeze.md](perf-start-freeze.md) | Done | Debounce counts + coalesce follow-scroll so Start on a busy device doesn't freeze |
 | [device-picker.md](device-picker.md) | Done | Choose which connected device/emulator to stream from |
@@ -121,6 +122,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [fixed-columns-middle-elide.md](fixed-columns-middle-elide.md) | Done | Fixed column widths; Tag/Process middle-elide; Time kept full width |
 | [message-min-half.md](message-min-half.md) | Done | Message keeps ≥50% of the row; Tag/Process shrink to fit, Time/PID/Level stay full |
 | [settings-dialog.md](settings-dialog.md) | Done | Tabbed Settings dialog (top-bar entry); View menu decluttered to commands only |
-| [quick-filter-pid-package.md](quick-filter-pid-package.md) | Done | Right-click Filter to… PID / Package (pid: and proc: query tokens) |
-| [wrap-messages.md](wrap-messages.md) | Done | Optional multi-line wrap of long messages in the log list (Settings → Log view) |
-| [level-query-
+| [quick-filter-pid-package.md](quick-filter-pid-package.md) | Done | Right-click Filter to… PID / Package (pid: 

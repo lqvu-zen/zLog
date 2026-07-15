@@ -71,7 +71,8 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
 | main window, query bar, device bar, menus, wiring | `src/zlog/ui/main_window.py` |
 | headless-Qt test setup (`offscreen` qapp fixture) | `tests/conftest.py` |
-| `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
+| self-diagnostics log (`configure`, `get_logger`) | `src/zlog/core/applog.py` |
+| `QApplication` bootstrap (`main`) + logging setup | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
 | deps, scripts, tooling config | `pyproject.toml` |
 | unit tests | `tests/` |
