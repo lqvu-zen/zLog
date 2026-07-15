@@ -42,13 +42,13 @@ AdbReader (background thread)
         ▼
 LogTableModel  ── master list of every line (virtualized)
         │
-LogFilterProxy ── decides which rows show (level + tag + text + package + exclude)
+LogFilterProxy ── decides which rows show (level + tag + text + package/pid/proc + exclude)
         │
 LogItemDelegate ─ paints one dense line per visible row (no grid)
 ```
 
 Filtering is driven by a single **query bar** parsed by `core/query.py`
-(`level: tag: package: -exclude /regex/ text`).
+(`level: tag: package: pid: proc: -exclude /regex/ text`).
 
 Three ideas make this scale to huge logs: reading happens **off the UI thread**;
 the model is **virtualized** (Qt only asks for visible rows); and filtering is a
@@ -81,8 +81,9 @@ uv run zlog
 That's it — `uv run` creates the virtual environment, installs locked
 dependencies, and launches the app. Equivalent: `uv run python -m zlog`.
 
-Click **Start** to stream, use **Min level** and the search box to filter,
-**Clear** to empty the view, **Stop** to end streaming.
+Click **Start** to stream, type in the **query bar** to filter (with the **Level**
+dropdown for the minimum severity), **Clear** to empty the view, **Stop** to end
+streaming. Preferences live in the **Settings…** dialog on the menu bar.
 
 ## Develop
 
@@ -107,10 +108,14 @@ Or double-click **build.bat**. See the `release-zlog` skill for the full release
 ## Features
 
 A dense, Android-Studio-style log view with a single **query bar**
-(`level: tag: package: -exclude /regex/ text`), device picker, live package/PID
-tracking, highlight mode, match navigation, bookmarks, filter presets, relative-time
-display, light/dark themes, font zoom, and save/open. See
-**[docs/GUIDE.md](docs/GUIDE.md)** for the walkthrough and
+(`level: tag: package: pid: proc: -exclude /regex/ text`) and right-click
+quick-filters. Highlights: a device picker with per-device **tabs** and **New
+Window**; live package/PID tracking; an optional **process/package-name column**;
+optional **word-wrap** to show the full message; a tabbed **Settings** dialog;
+highlight mode; match and severity navigation; bookmarks; filter presets with a
+**Saved Filters** sidebar; a **command palette** (Ctrl+K); relative-time display;
+light/dark themes; font zoom; export (CSV/JSON/HTML); session bundles; and
+save/open. See **[docs/GUIDE.md](docs/GUIDE.md)** for the walkthrough and
 **[docs/ROADMAP.md](docs/ROADMAP.md)** for what's planned next.
 
 ## License
