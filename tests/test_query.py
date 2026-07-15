@@ -49,6 +49,38 @@ def test_level_single_is_floor():
     assert q.level == "E" and q.levels == ()
 
 
+def test_level_full_name_lowercase():
+    assert parse_query("level:verbose").level == "V"
+    assert parse_query("level:debug").level == "D"
+    assert parse_query("level:info").level == "I"
+    assert parse_query("level:warn").level == "W"
+    assert parse_query("level:warning").level == "W"
+    assert parse_query("level:error").level == "E"
+    assert parse_query("level:fatal").level == "F"
+
+
+def test_level_full_name_uppercase_and_mixed_case():
+    assert parse_query("level:ERROR").level == "E"
+    assert parse_query("level:Error").level == "E"
+    assert parse_query("level:WARNING").level == "W"
+    assert parse_query("level:Warn").level == "W"
+
+
+def test_level_full_name_comma_set():
+    q = parse_query("level:error,warning boom")
+    assert q.levels == ("E", "W") and q.level is None and q.search == "boom"
+
+
+def test_level_full_name_mixed_with_letter():
+    q = parse_query("level:E,warning")
+    assert q.levels == ("E", "W") and q.level is None
+
+
+def test_level_bad_full_name_ignored():
+    q = parse_query("level:critical hello")
+    assert q.level is None and q.search == "level:critical hello"
+
+
 def test_parse_pid_single_and_set():
     assert parse_query("pid:4921").pids == ("4921",)
     assert parse_query("pid:100,200,100").pids == ("100", "200")  # deduped, order kept

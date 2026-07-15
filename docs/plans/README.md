@@ -32,6 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
+| [level-full-names.md](level-full-names.md) | Done | `level:error`/`level:WARNING` etc. work like `level:E`, case-insensitive |
 | [debounce-query-filter.md](debounce-query-filter.md) | Done | Fix typing lag: debounce the query bar + collapse ~9 proxy invalidates into 1 |
 | [pause-follow-on-selection.md](pause-follow-on-selection.md) | Done | Auto-scroll only fires when at the bottom AND no row is selected |
 | [inline-match-highlight.md](inline-match-highlight.md) | Done | Highlight the matched substring inside a row, not just the row tint (Highlight mode) |

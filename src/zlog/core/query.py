@@ -1,7 +1,8 @@
 """Parse the single query bar into filter parts — pure, no Qt, so it's testable.
 
 Syntax (space-separated tokens; quote to include spaces):
-    level:E            minimum level (V D I W E F, case-insensitive)
+    level:E            minimum level — a letter (V D I W E F) or full name
+                       (Verbose/Debug/Info/Warn(ing)/Error/Fatal), case-insensitive
     tag:Activity       tag contains this text
     package:com.x      package (also `pkg:` / `app:`)
     pid:1234           only this PID (comma-set: pid:100,200)
@@ -18,9 +19,37 @@ from __future__ import annotations
 import shlex
 from dataclasses import dataclass, field
 
-_LEVELS = {"V", "D", "I", "W", "E", "F"}
+# Every accepted level: spelling (letter or full name), lowercased -> letter.
+_LEVEL_ALIASES = {
+    "v": "V",
+    "verbose": "V",
+    "d": "D",
+    "debug": "D",
+    "i": "I",
+    "info": "I",
+    "w": "W",
+    "warn": "W",
+    "warning": "W",
+    "e": "E",
+    "error": "E",
+    "f": "F",
+    "fatal": "F",
+}
 _PACKAGE_KEYS = {"package", "pkg", "app"}
 _PROC_KEYS = {"proc", "process"}
+
+
+def _parse_level_token(val: str) -> list[str]:
+    """Parse a `level:` token's value into recognized level letters — each
+    comma-separated part is a letter or a full name, case-insensitive.
+    Unrecognized parts are dropped (the caller treats an empty result as "no
+    match", falling back to plain search text)."""
+    letters = []
+    for part in val.split(","):
+        letter = _LEVEL_ALIASES.get(part.strip().lower())
+        if letter:
+            letters.append(letter)
+    return letters
 
 
 @dataclass(frozen=True)
@@ -86,7 +115,7 @@ def parse_query(text: str) -> QuerySpec:
             key, _, val = tok.partition(":")
             key = key.lower()
             if key == "level" and val:
-                letters = [c for c in (ch.upper() for ch in val if ch != ",") if c in _LEVELS]
+                letters = _parse_level_token(val)
                 if letters:
                     if "," in val or len(letters) > 1:
                         levels = list(dict.fromkeys(letters))  # exact set
