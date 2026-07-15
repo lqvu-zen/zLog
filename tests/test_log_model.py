@@ -158,6 +158,38 @@ def test_highlight_cleared_by_empty(qapp):
     assert model.data(model.index(0, 0), Qt.BackgroundRole) is None
 
 
+def test_match_spans_role_returns_spans_for_matching_row(qapp):
+    from zlog.ui.log_model import MATCH_SPANS_ROLE
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="a boom here"), _entry(message="quiet")])
+    model.set_highlight("boom")
+    spans0 = model.data(model.index(0, 0), MATCH_SPANS_ROLE)
+    spans1 = model.data(model.index(1, 0), MATCH_SPANS_ROLE)
+    assert spans0 == [(2, 6)]
+    assert spans1 == []
+
+
+def test_match_spans_role_empty_when_highlight_off(qapp):
+    from zlog.ui.log_model import MATCH_SPANS_ROLE
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="a boom here")])
+    spans = model.data(model.index(0, 0), MATCH_SPANS_ROLE)
+    assert spans == []
+
+
+def test_match_spans_role_cleared_by_empty_highlight(qapp):
+    from zlog.ui.log_model import MATCH_SPANS_ROLE
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="a boom here")])
+    model.set_highlight("boom")
+    model.set_highlight("")
+    spans = model.data(model.index(0, 0), MATCH_SPANS_ROLE)
+    assert spans == []
+
+
 def test_tag_color_beats_highlight(qapp):
     from PySide6.QtCore import Qt
 

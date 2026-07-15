@@ -77,6 +77,38 @@ def test_sizehint_wraps_to_full_message(qapp):
     assert long_h > short_h  # the long message wraps to more lines -> taller row
 
 
+def test_paint_with_match_spans_does_not_crash(qapp):
+    """Smoke-test the QTextLayout span-highlight path (wrap on and off) — a
+    typo in the FormatRange wiring would raise, not just mis-render."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QFont, QImage, QPainter
+    from PySide6.QtWidgets import QStyleOptionViewItem
+
+    from zlog.core.models import LogEntry
+    from zlog.ui.log_delegate import LogItemDelegate
+    from zlog.ui.log_model import LogFilterProxy, LogTableModel
+
+    model = LogTableModel()
+    proxy = LogFilterProxy()
+    proxy.setSourceModel(model)
+    model.append_entries([LogEntry("t", "1", "1", "I", "T", "a boom here " * 10)])
+    model.set_highlight("boom")
+
+    d = LogItemDelegate()
+    opt = QStyleOptionViewItem()
+    opt.font = QFont()
+    opt.rect = QRect(0, 0, 400, 20)
+    image = QImage(400, 20, QImage.Format_ARGB32)
+    painter = QPainter(image)
+    try:
+        d.paint(painter, opt, proxy.index(0, 0))
+        d.wrap = True
+        opt.rect = QRect(0, 0, 400, 100)
+        d.paint(painter, opt, proxy.index(0, 0))
+    finally:
+        painter.end()
+
+
 def test_time_column_wide_enough_for_full_stamp(qapp):
     """The Time box must fit the whole 'MM-DD HH:MM:SS.mmm' stamp (no clipped digit)."""
     from PySide6.QtGui import QFont, QFontMetrics

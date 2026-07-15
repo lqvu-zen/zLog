@@ -1,6 +1,6 @@
 # Plan: Inline search-match highlight
 
-- **Status:** Draft
+- **Status:** Done
 - **Owner:** unassigned
 - **Created:** 2026-07-15
 - **Related:** [highlight-matches.md](highlight-matches.md), [match-navigation.md](match-navigation.md), backlog.md
@@ -44,10 +44,22 @@ just the whole-row tint), so it's obvious at a glance why a long line matched.
 
 ## Verification
 
-- [ ] `uv run pytest` (`find_spans` cases; model returns spans only for matching rows in highlight mode)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Headless smoke: seed rows, enable Highlight mode with a term, screenshot shows
-      the substring highlighted within the row tint.
+- [x] `uv run pytest` (`find_spans` cases; model returns spans only for matching rows in highlight mode)
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] Headless smoke: added `inline-match-highlight` and `inline-match-highlight-wrap`
+      scenarios to the run-zlog driver; both screenshots show the matched substring
+      highlighted within the row tint, including correctly across a wrapped line.
+
+## Implementation note
+
+Painting spans over word-wrapped text turned out to need `QTextLayout` (with
+`FormatRange` background formats), not a manual `fm.horizontalAdvance` offset
+calculation — that's the only Qt primitive that lays out wrapped text and
+accepts per-character background formatting in one pass, so it reproduces
+`drawText(Qt.TextWordWrap)`'s line breaks exactly. Non-wrap (elided) rows use
+the same code path with an effectively unbounded line width, clipped to the
+cell rect; an overlong matched line loses the "…" affordance in that rare case
+(matched *and* longer than the cell) — accepted, documented in code.
 
 ## Open questions
 

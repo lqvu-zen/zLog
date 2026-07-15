@@ -28,7 +28,7 @@ from PySide6.QtGui import QColor
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
 from zlog.core.proc import parse_proc_start
-from zlog.core.search import compile_matcher
+from zlog.core.search import compile_matcher, find_spans
 from zlog.core.timefmt import format_delta, parse_logcat_time
 from zlog.ui.theme import LIGHT
 
@@ -36,6 +36,7 @@ COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
 MESSAGE_COL = 5
 HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
 PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
+MATCH_SPANS_ROLE = int(Qt.UserRole) + 3  # (start, end) spans of the highlight match in message
 _TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
@@ -48,6 +49,7 @@ class LogTableModel(QAbstractTableModel):
         self._tag_colors: dict[str, QColor] = {}  # per-tag highlight, overrides level tint
         self._level_counts: Counter = Counter()
         self._highlight = None  # optional match predicate for highlight mode
+        self._highlight_spans_fn = None  # message -> [(start, end), ...] for the same term
         self._highlight_color = QColor(LIGHT.search_highlight)
         self._time_mode = "absolute"  # "absolute" | "since_start" | "delta"
         self._baseline = None  # datetime of the first parseable row (since_start ref)
@@ -108,6 +110,14 @@ class LogTableModel(QAbstractTableModel):
             if self._highlight is not None and self._highlight(f"{entry.tag} {entry.message}"):
                 return self._highlight_color
             return None
+        if role == MATCH_SPANS_ROLE:
+            if (
+                self._highlight is not None
+                and self._highlight_spans_fn is not None
+                and self._highlight(f"{entry.tag} {entry.message}")
+            ):
+                return self._highlight_spans_fn(entry.message)
+            return []
         if role == Qt.DecorationRole and index.column() == 0:
             return self._bookmark_color if index.row() in self._bookmarks else None
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
@@ -238,12 +248,14 @@ class LogTableModel(QAbstractTableModel):
         Returns False on an invalid regex, keeping the previous predicate."""
         if not text:
             self._highlight = None
+            self._highlight_spans_fn = None
             self._repaint_backgrounds()
             return True
         try:
             self._highlight = compile_matcher(text, regex, case)
         except re.error:
             return False
+        self._highlight_spans_fn = lambda s: find_spans(s, text, regex, case)
         self._repaint_backgrounds()
         return True
 

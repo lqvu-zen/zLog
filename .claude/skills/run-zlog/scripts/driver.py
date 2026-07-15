@@ -230,6 +230,41 @@ def scenario_highlight(window: MainWindow) -> None:
     _shot(window, "highlight")
 
 
+def scenario_inline_match_highlight(window: MainWindow) -> None:
+    # Seed rows, switch to Highlight mode, and search a term that appears in
+    # several messages — the row tint AND the matched-substring highlight
+    # inside the message should both be visible.
+    _seed(window, 3)
+    window.search_mode_box.setCurrentIndex(1)  # Highlight
+    window.search.setText("Exception")
+    _shot(window, "inline-match-highlight")
+
+
+def scenario_inline_match_highlight_wrap(window: MainWindow) -> None:
+    # Same as inline-match-highlight, but with wrap mode on and the window
+    # narrowed so the matched message actually wraps across multiple visual
+    # lines — the highlighted span must still land on the right glyphs after
+    # QTextLayout re-flows the text.
+    window.resize(500, 400)
+    window.model.append_entries(
+        [
+            LogEntry(
+                "06-30 12:34:56.110",
+                "1287",
+                "1287",
+                "W",
+                "Choreographer",
+                "Skipped 12 frames! The app may be doing too much work on its main "
+                "thread, which is a common cause of jank and dropped frames overall.",
+            )
+        ]
+    )
+    window.log_delegate.wrap = True
+    window.search_mode_box.setCurrentIndex(1)  # Highlight
+    window.search.setText("thread")
+    _shot(window, "inline-match-highlight-wrap")
+
+
 def scenario_bookmarks(window: MainWindow) -> None:
     # Seed rows, bookmark a couple, and select one so the marker is visible
     # against both a selected and unselected row.
@@ -307,6 +342,8 @@ SCENARIOS = {
     "bookmarks": scenario_bookmarks,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,
+    "inline-match-highlight": scenario_inline_match_highlight,
+    "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
     "details": scenario_details,
     "columns": scenario_columns,
     "guide-streaming": scenario_guide_streaming,

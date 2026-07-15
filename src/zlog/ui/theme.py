@@ -23,6 +23,7 @@ class Theme:
     level_colors: dict[str, str]  # W/E/F -> row tint hex
     search_error: str  # invalid-regex box tint hex
     search_highlight: str  # tint for rows matching the search in highlight mode
+    inline_match: str  # tint behind the matched substring itself (on top of the row tint)
     bookmark: str  # bookmark marker color (decoration on the Time column)
     level_text: dict[str, str]  # per-level message text color (V/D/I/W/E/F)
     button_hover: str  # QPushButton background when hovered
@@ -44,6 +45,7 @@ LIGHT = Theme(
     level_colors={"W": "#fff4c8", "E": "#ffd7d7", "F": "#ffbebe"},
     search_error="#ffd7d7",
     search_highlight="#cfe8ff",
+    inline_match="#8ec4f5",
     bookmark="#1a73e8",
     level_text={
         "V": "#6a6a6a",
@@ -72,6 +74,7 @@ DARK = Theme(
     level_colors={"W": "#4d4526", "E": "#5a2b2b", "F": "#742b2b"},
     search_error="#5a2b2b",
     search_highlight="#33506b",
+    inline_match="#5c86ab",
     bookmark="#4da3ff",
     level_text={
         "V": "#9aa0a6",

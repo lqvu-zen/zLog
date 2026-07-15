@@ -11,11 +11,11 @@ When ``wrap`` is on, each row grows to fit its full (word-wrapped) message —
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRect, QSize, Qt
-from PySide6.QtGui import QColor, QFontMetrics
+from PySide6.QtCore import QPointF, QRect, QSize, Qt
+from PySide6.QtGui import QColor, QFontMetrics, QTextCharFormat, QTextLayout
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from zlog.ui.log_model import HIGHLIGHT_ROLE, PROCESS_ROLE
+from zlog.ui.log_model import HIGHLIGHT_ROLE, MATCH_SPANS_ROLE, PROCESS_ROLE
 
 _TIME_MIN_W = 8  # Time/PID size to content (model), never below these floors
 _PIDTID_MIN_W = 7
@@ -54,6 +54,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._sel_bg = QColor("#2b6cdb")
         self._sel_fg = QColor("#ffffff")
         self._hover_bg = QColor("#dbe9fb")
+        self._inline_match = QColor("#8ec4f5")
         self._pad = 6
         self.show_process = False  # paint the process/package column
         self.wrap = False  # wrap long messages across as many lines as needed
@@ -68,6 +69,7 @@ class LogItemDelegate(QStyledItemDelegate):
         selection_bg: str,
         selection_text: str,
         row_hover_bg: str,
+        inline_match: str = "#8ec4f5",
     ) -> None:
         self._muted = QColor(muted)
         self._meta = QColor(meta)
@@ -76,6 +78,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._sel_bg = QColor(selection_bg)
         self._sel_fg = QColor(selection_text)
         self._hover_bg = QColor(row_hover_bg)
+        self._inline_match = QColor(inline_match)
 
     def _col_widths(self, left, right, cw, src, fm):
         """Pixel widths of the (content-sized) Time/PID and (flexible) Tag/Process
@@ -209,7 +212,10 @@ class LogItemDelegate(QStyledItemDelegate):
         msg_color = self._sel_fg if selected else lvl_color
         painter.setPen(msg_color)
         mr = QRect(x, top, option.rect.right() - x - self._pad, height)
-        if self.wrap:
+        spans = index.data(MATCH_SPANS_ROLE)
+        if spans:
+            self._draw_message_with_spans(painter, mr, entry.message, spans, option.font, msg_color)
+        elif self.wrap:
             painter.drawText(mr, int(Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap), entry.message)
         else:
             painter.drawText(
@@ -217,4 +223,51 @@ class LogItemDelegate(QStyledItemDelegate):
                 int(Qt.AlignVCenter | Qt.AlignLeft),
                 fm.elidedText(entry.message, Qt.ElideRight, mr.width()),
             )
+        painter.restore()
+
+    def _draw_message_with_spans(self, painter, rect, message, spans, font, color) -> None:
+        """Paint `message` in `rect`, tinting `spans` (char offsets) with the
+        inline-match color behind the text. Only reached when the row has an
+        active highlight match, so this is off the hot path for ordinary rows.
+
+        Uses QTextLayout (not plain drawText) because it's the only Qt
+        primitive that lays out word-wrapped text *and* accepts per-character
+        background formatting — matching drawText(Qt.TextWordWrap)'s line
+        breaks exactly, including across multiple wrapped lines.
+        """
+        layout = QTextLayout(message, font)
+        fmt = QTextCharFormat()
+        fmt.setBackground(self._inline_match)
+        ranges = []
+        for start, end in spans:
+            r = QTextLayout.FormatRange()
+            r.start, r.length, r.format = start, end - start, fmt
+            ranges.append(r)
+        layout.setFormats(ranges)
+        layout.beginLayout()
+        line_width = rect.width() if self.wrap else 10_000_000  # unbounded: one line
+        y = 0.0
+        first_line = None
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            line.setLineWidth(line_width)
+            line.setPosition(QPointF(0, y))
+            y += line.height()
+            first_line = first_line or line
+            if not self.wrap:
+                break
+        layout.endLayout()
+        painter.save()
+        painter.setPen(color)
+        top = rect.top()
+        if not self.wrap:
+            # Single line, vertically centered like the plain drawText path;
+            # clipped since an overlong match isn't elided here (rare: only
+            # matched + longer-than-the-cell rows lose the "…" affordance).
+            painter.setClipRect(rect)
+            line_h = first_line.height() if first_line else 0
+            top = rect.top() + (rect.height() - line_h) / 2
+        layout.draw(painter, QPointF(rect.left(), top))
         painter.restore()

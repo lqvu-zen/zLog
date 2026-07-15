@@ -1742,6 +1742,7 @@ class MainWindow(QMainWindow):
             theme.selection_bg,
             theme.selection_text,
             theme.row_hover_bg,
+            theme.inline_match,
         )
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
