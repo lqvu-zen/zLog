@@ -147,6 +147,7 @@ class MainWindow(QMainWindow):
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
         self._query_package = ""  # last package resolved from the query bar
+        self._isolate_prev_query: str | None = None  # saved query while isolated (None = not)
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
         self._history: list[str] = []  # recent query-bar entries
         self._recent: list[str] = []  # recently opened/saved .log paths
@@ -243,6 +244,9 @@ class MainWindow(QMainWindow):
         if di >= 0:
             self.device_box.setCurrentIndex(di)
         self.package_box.setEditText(sess.package)
+        # A saved "restore" query from another tab must never leak into this
+        # one's "Show All".
+        self._clear_isolate_state()
         # The session query carries the level: token, so it drives the dropdown +
         # proxy via _apply_query — no separate level_box set needed.
         self._set_query_text(sess.query)
@@ -415,9 +419,13 @@ class MainWindow(QMainWindow):
         self.bookmark_action = QAction("Toggle Bookmark", self)
         self.bookmark_action.setShortcut("Ctrl+B")
         self.bookmark_action.triggered.connect(self._toggle_bookmark)
+        self.isolate_action = QAction("Isolate", self)
+        self.isolate_action.setShortcut("Ctrl+I")
+        self.isolate_action.triggered.connect(lambda: self._toggle_isolate(self._current_entry()))
         self.table.addAction(self.copy_action)
         self.table.addAction(self.select_all_action)
         self.table.addAction(self.bookmark_action)
+        self.table.addAction(self.isolate_action)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_table_menu)
 
@@ -996,6 +1004,7 @@ class MainWindow(QMainWindow):
         """Reset every filter to 'show everything' without touching the log."""
         # The query bar owns every filter incl. the level floor, so clearing it
         # (via _apply_query) resets level/tag/search/exclude/package together.
+        self._clear_isolate_state()  # don't resurrect a query the user just cleared
         self._set_query_text("")
         self.statusBar().showMessage("Filters cleared.")
 
@@ -1258,6 +1267,11 @@ class MainWindow(QMainWindow):
         """Coalesce query-bar typing onto a short timer instead of re-filtering
         on every keystroke — see debounce-query-filter.md."""
         self._query_timer.start()
+        # Only real keystrokes reach this slot (_set_query_text blocks signals
+        # around its own writes), so a manual edit here means the isolated
+        # query is no longer intact — drop the saved "restore" state rather
+        # than let a later "Show All" discard the edit.
+        self._clear_isolate_state()
 
     def _commit_query_history(self) -> None:
         """Remember the current query (on Enter) for the completer; persist it."""
@@ -1358,6 +1372,33 @@ class MainWindow(QMainWindow):
         if not idx.isValid():
             return
         self.model.toggle_bookmark(self.proxy.mapToSource(idx).row())
+
+    # --- isolate -------------------------------------------------------------
+    def _current_entry(self) -> LogEntry | None:
+        idx = self.table.currentIndex()
+        if not idx.isValid():
+            return None
+        return self.model.entry_at(self.proxy.mapToSource(idx).row())
+
+    def _clear_isolate_state(self) -> None:
+        self._isolate_prev_query = None
+        self.isolate_action.setText("Isolate")
+
+    def _toggle_isolate(self, entry: LogEntry | None) -> None:
+        """Narrow to `entry`'s pid+tag, or restore the query active before the
+        last isolate — see isolate-toggle.md for why this state resets on any
+        real query-bar edit (_schedule_query_apply) rather than staying sticky."""
+        if self._isolate_prev_query is not None:
+            self._set_query_text(self._isolate_prev_query)
+            self._isolate_prev_query = None
+            self.isolate_action.setText("Isolate")
+            return
+        if entry is None or not entry.pid:
+            return
+        token = f"pid:{entry.pid}" + (f" tag:{entry.tag}" if entry.tag else "")
+        self._isolate_prev_query = self.query.text()
+        self._set_query_text(token)
+        self.isolate_action.setText("Show All")
 
     def _goto_bookmark(self, step: int) -> None:
         rows = []
@@ -1947,6 +1988,11 @@ class MainWindow(QMainWindow):
                 ex_proc.triggered.connect(
                     lambda _c=False, pr=proc: self._add_query_token(f"-proc:{pr}")
                 )
+            isolate = menu.addAction(
+                "Show All" if self._isolate_prev_query is not None else "Isolate"
+            )
+            isolate.setEnabled(bool(entry.pid) or self._isolate_prev_query is not None)
+            isolate.triggered.connect(lambda _c=False, e=entry: self._toggle_isolate(e))
             menu.addSeparator()
         highlight = menu.addAction(f"Highlight tag \u201c{tag}\u201d…" if tag else "Highlight tag…")
         highlight.setEnabled(bool(tag))

@@ -165,6 +165,16 @@ def scenario_time_range_filter(window: MainWindow) -> None:
     _shot(window, "time-range-filter")
 
 
+def scenario_isolate(window: MainWindow) -> None:
+    # Select the FATAL EXCEPTION row and isolate to it: the query bar should
+    # read pid:<n> tag:AndroidRuntime, narrowing the view to just that process.
+    _seed(window, 4)
+    index = window.proxy.index(3, 0)
+    window.table.setCurrentIndex(index)
+    window._toggle_isolate(window._current_entry())
+    _shot(window, "isolate")
+
+
 SAMPLE_LOG_TEXT = "\n".join(
     [
         "06-30 12:34:56.001 1287 1287 I ActivityManager: Start proc com.example.app",
@@ -351,6 +361,7 @@ SCENARIOS = {
     "package-filter": scenario_package_filter,
     "regex-search": scenario_regex_search,
     "time-range-filter": scenario_time_range_filter,
+    "isolate": scenario_isolate,
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
     "dark": scenario_dark,
