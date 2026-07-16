@@ -151,6 +151,18 @@ def scenario_package_filter(window: MainWindow) -> None:
     _shot(window, "package-filter")
 
 
+def scenario_package_from_log(window: MainWindow) -> None:
+    # Log-driven package selector: process names come from the log (here via a
+    # merged ps snapshot), Load fills the dropdown, picking one sets a proc:
+    # token that filters the view — no adb, no device.
+    _seed(window, 8)
+    window.model.merge_process_names({"1287": "com.example.app", "980": "com.android.wifi"})
+    window.load_packages()  # dropdown now holds the log's process names
+    window.package_box.setEditText("com.example.app")
+    window.apply_package_filter()  # -> proc:com.example.app token
+    _shot(window, "package-from-log")
+
+
 def scenario_regex_search(window: MainWindow) -> None:
     _seed(window, 8)
     window.proxy.set_search("Exception|Skipped", regex=True)
@@ -427,6 +439,7 @@ SCENARIOS = {
     "filtered": scenario_filtered,
     "devices": scenario_devices,
     "package-filter": scenario_package_filter,
+    "package-from-log": scenario_package_from_log,
     "regex-search": scenario_regex_search,
     "time-range-filter": scenario_time_range_filter,
     "isolate": scenario_isolate,

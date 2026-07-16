@@ -20,6 +20,9 @@ through everyday use.
 
 - A **device bar** holds the **Device** dropdown and the stream controls:
   refresh, start, stop, clear, a **Follow** toggle, and jump-to-oldest / newest.
+  A **Package** selector sits on the same bar: **Load** fills it with the
+  process/package names seen in the current log (no device needed), and picking
+  one filters the view (a `proc:` token) — the selection and the query stay in sync.
 - Below it, a **filter bar** holds the **query bar** on its own full-width row,
   with a **Level** dropdown for the minimum severity.
 - The menu bar has **File**, **View**, and **Settings…**. File handles open/save,
@@ -53,9 +56,9 @@ of them. Bare words match the tag or message; prefixes target a field:
 | `timeout` | show lines whose tag or message contains "timeout" |
 | `level:E` | show only Error and above (V D I W E F) |
 | `tag:Activity` | show only lines whose tag contains "Activity" |
-| `package:com.example` | show only that app's process (resolved to its PID on the device) |
-| `pid:1234` | show only lines from that exact PID (comma-set: `pid:100,200`) |
 | `proc:com.example` | show only lines whose resolved process/package name contains this |
+| `package:com.example` | alias of `proc:` (filters by the log's process name — no device needed) |
+| `pid:1234` | show only lines from that exact PID (comma-set: `pid:100,200`) |
 | `-GnssHal` | **hide** lines matching this term (repeatable, e.g. `-Gnss -Sensors`) |
 | `/Skipped \d+ frames/` | match a **regular expression** |
 | `"two words"` | quote to include spaces |

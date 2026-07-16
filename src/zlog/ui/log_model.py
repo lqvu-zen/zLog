@@ -349,6 +349,12 @@ class LogTableModel(QAbstractTableModel):
     def process_name(self, pid: str) -> str:
         return self._pid_names.get(pid, "")
 
+    def process_names(self) -> list[str]:
+        """Sorted, de-duplicated process/package names seen in the log (from
+        'Start proc' lines and any merged `adb ps` snapshot). Drives the
+        log-driven package selector."""
+        return sorted({name for name in self._pid_names.values() if name})
+
     def clear_process_names(self) -> None:
         """Forget the pid -> name map (used when loading an offline log, whose
         PIDs belong to a different capture than the live device)."""

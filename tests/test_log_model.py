@@ -659,6 +659,13 @@ def test_clear_process_names_forgets_map(qapp):
     assert model.process_name("1") == ""
 
 
+def test_process_names_sorted_and_deduped(qapp):
+    model, _ = _wire(qapp)
+    assert model.process_names() == []  # nothing known yet
+    model.merge_process_names({"1": "com.b", "2": "com.a", "3": "com.b", "4": ""})
+    assert model.process_names() == ["com.a", "com.b"]  # sorted, deduped, blanks dropped
+
+
 def test_query_pid_gate(qapp):
     model, proxy = _wire(qapp)
     model.append_entries([_entry(pid="100", message="a"), _entry(pid="200", message="b")])

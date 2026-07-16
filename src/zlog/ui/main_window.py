@@ -72,7 +72,7 @@ from PySide6.QtWidgets import (
 
 from zlog.adb.connect import connect as adb_connect
 from zlog.adb.devices import list_devices
-from zlog.adb.packages import clear_logcat, list_packages, resolve_pids
+from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
 from zlog.core.applog import get_logger
@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
-        self._query_package = ""  # last package resolved from the query bar
+        self._query_package = ""  # effective proc: value last mirrored into the package box
         self._isolate_prev_query: str | None = None  # saved query while isolated (None = not)
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
         self._history: list[str] = []  # recent query-bar entries
@@ -863,6 +863,7 @@ class MainWindow(QMainWindow):
         self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
         self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
         self.package_box.lineEdit().returnPressed.connect(self.apply_package_filter)
+        self.package_box.textActivated.connect(self.apply_package_filter)  # pick from dropdown
         self.level_box.currentIndexChanged.connect(self._on_level_box_changed)
         self.search.textChanged.connect(self._apply_search)
         self.query.textChanged.connect(self._schedule_query_apply)
@@ -975,52 +976,36 @@ class MainWindow(QMainWindow):
         self._update_package_enabled()
 
     def _update_package_enabled(self) -> None:
-        enabled = self._current_serial() is not None
+        # The package selector is log-driven (proc: filter), so it's always
+        # usable — no live device required; Load just reflects the current log.
         for w in (self.package_box, self.load_pkgs_btn, self.apply_pkg_btn, self.clear_pkg_btn):
-            w.setEnabled(enabled)
+            w.setEnabled(True)
 
-    # --- package / PID filter ----------------------------------------------
+    # --- package selector (log-driven; syncs with the proc: query token) ----
     def load_packages(self) -> None:
-        serial = self._current_serial()
-        if serial is None:
-            return
-        pkgs = self._run_adb(
-            lambda: list_packages(serial, self._adb_path()),
-            missing_msg="adb not found.",
-            error_prefix="Could not list packages",
-            report=self.statusBar().showMessage,
-        )
-        if pkgs is None:
-            return
+        """Fill the dropdown with the process/package names the current log has
+        parsed — no adb, so it works on an opened offline log too."""
+        names = self.model.process_names()
         current = self.package_box.currentText()
+        self.package_box.blockSignals(True)  # repopulating must not self-apply
         self.package_box.clear()
-        self.package_box.addItems(pkgs)
+        self.package_box.addItems(names)
         self.package_box.setEditText(current)
-        self.statusBar().showMessage(f"{len(pkgs)} packages loaded.")
+        self.package_box.blockSignals(False)
+        self.statusBar().showMessage(f"{len(names)} package(s) from the log.")
 
     def apply_package_filter(self) -> None:
-        serial = self._current_serial()
+        """Filter to the chosen package via a proc: query token (matches the log's
+        resolved process name). Empty text clears the package filter."""
         package = self.package_box.currentText().strip()
-        if serial is None or not package:
-            return
-        pids = self._run_adb(
-            lambda: resolve_pids(serial, package, self._adb_path()),
-            missing_msg="adb not found.",
-            error_prefix="Could not resolve PIDs",
-            report=self.statusBar().showMessage,
-        )
-        if pids is None:
-            return
-        if not pids:
-            self.statusBar().showMessage(f"{package} isn't running — start it and apply again.")
-            return
-        self.devctl.apply_filter(package, pids)
-        self.proxy.set_pids(self.devctl.filter_pids)
-        self.statusBar().showMessage(f"Showing {package} (pid {', '.join(pids)}).")
+        if package:
+            self._add_query_token(f"proc:{package}")
+        else:
+            self.clear_package_filter()
 
     def clear_package_filter(self) -> None:
-        self.devctl.clear_filter()
-        self.proxy.set_pids(None)
+        self._remove_query_token("proc")
+        self.package_box.setEditText("")
         self.statusBar().showMessage("Package filter cleared.")
 
     def clear_filters(self) -> None:
@@ -1255,7 +1240,10 @@ class MainWindow(QMainWindow):
                 self.proxy.set_min_level(level)
             self.proxy.set_tag(spec.tag)
             self.proxy.set_query_pids(set(spec.pids) if spec.pids else None)
-            self.proxy.set_proc(spec.process)
+            # The package box maps to the process-name filter; `package:` is now
+            # an alias of `proc:` (log-driven, no adb — see package-selector-from-log.md).
+            effective_proc = spec.process or spec.package
+            self.proxy.set_proc(effective_proc)
             self.proxy.set_exclude_pids(set(spec.exclude_pids) if spec.exclude_pids else None)
             self.proxy.set_exclude_proc(spec.exclude_process)
             ex_pat = "|".join(re.escape(t) for t in spec.excludes)
@@ -1269,13 +1257,12 @@ class MainWindow(QMainWindow):
                 self.proxy.set_time_range(since_time, until_time)
             self.regex_check.setChecked(spec.regex)  # -> _apply_search
             self.search.setText(spec.search)  # -> _apply_search (search + highlight)
-            if spec.package != self._query_package:
-                self._query_package = spec.package
-                self.package_box.setEditText(spec.package)
-                if spec.package:
-                    self.apply_package_filter()
-                else:
-                    self.clear_package_filter()
+            # Mirror the effective process filter into the package box (the other
+            # half of the two-way sync). setEditText emits no activation signal, so
+            # this can't loop back into apply_package_filter.
+            if effective_proc != self._query_package:
+                self._query_package = effective_proc
+                self.package_box.setEditText(effective_proc)
         search_ok = True
         try:
             compile_matcher(spec.search, spec.regex, case)
@@ -2036,6 +2023,17 @@ class MainWindow(QMainWindow):
         )
         self.statusBar().showMessage(f"Filter \u2192 {token}")
 
+    def _remove_query_token(self, key: str) -> None:
+        """Drop every `key:...` token from the query bar (reapplies the filter)."""
+        try:
+            tokens = shlex.split(self.query.text())
+        except ValueError:
+            tokens = self.query.text().split()
+        kept = [t for t in tokens if not t.startswith(key + ":")]
+        self._set_query_text(
+            " ".join(shlex.quote(t) if any(ch.isspace() for ch in t) else t for t in kept)
+        )
+
     def _show_table_menu(self, pos) -> None:
         menu = QMenu(self.table)
         menu.addAction(self.copy_action)
@@ -2785,8 +2783,6 @@ class MainWindow(QMainWindow):
             at_bottom = sb.value() >= sb.maximum() - 4
             was_at_bottom = at_bottom and not self.table.selectionModel().hasSelection()
         sess.model.append_entries(entries)
-        if active and self.devctl.filtering:
-            self._track_new_pids(entries)
         if active:
             if self.follow_check.isChecked() and was_at_bottom:
                 self._scroll_timer.start()  # coalesced follow scroll
@@ -2831,16 +2827,6 @@ class MainWindow(QMainWindow):
             if sess is self._active:
                 self.statusBar().showMessage("Device back — reconnecting…")
             self._start_reader(sess.reconnect_serial, since_time=sess.last_time or None, sess=sess)
-
-    def _track_new_pids(self, entries) -> None:
-        """Keep an active package filter live: add PIDs of newly started
-        processes of the filtered package (so a restart keeps showing)."""
-        if self.devctl.track(entries):
-            self.proxy.set_pids(self.devctl.filter_pids)
-            pids = ", ".join(sorted(self.devctl.filter_pids))
-            self.statusBar().showMessage(
-                f"{self.devctl.filter_package} restarted → tracking pid {pids}."
-            )
 
     def on_error(self, msg: str) -> None:
         self.statusBar().showMessage(msg)
