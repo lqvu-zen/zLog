@@ -16,7 +16,11 @@
       "Bash(mv assets/report-template.md assets/findings-template.md)",
       "Bash(git stash *)",
       "Bash(QT_QPA_PLATFORM=offscreen uv run python -c ' *)",
-      "Bash(awk '{ print length, $0 }' src/zlog/core/settings.py)"
+      "Bash(awk '{ print length, $0 }' src/zlog/core/settings.py)",
+      "Bash(sed -i 's/| \\\\[duplicate-count.md\\\\]\\(duplicate-count.md\\) | Approved |/| [duplicate-count.md]\\(duplicate-count.md\\) | Done |/' docs/plans/README.md)",
+      "Bash(sed -i 's/| \\\\[redaction-on-export.md\\\\]\\(redaction-on-export.md\\) | Approved |/| [redaction-on-export.md]\\(redaction-on-export.md\\) | Done |/' docs/plans/README.md)",
+      "Bash(sed -i 's/| \\\\[stack-trace-folding.md\\\\]\\(stack-trace-folding.md\\) | Approved |/| [stack-trace-folding.md]\\(stack-trace-folding.md\\) | Done |/' docs/plans/README.md)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
