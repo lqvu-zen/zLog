@@ -232,6 +232,26 @@ def scenario_columns(window: MainWindow) -> None:
     _shot(window, "columns")
 
 
+def scenario_jank_summary(window: MainWindow) -> None:
+    # _show_jank_summary's dialog is modal (dlg.exec() blocks), so make exec()
+    # show non-modally instead — the dialog stays alive as a child of `window`
+    # (QDialog(self)) even after the method returns, so it can be found and
+    # grabbed like any other widget.
+    from PySide6.QtWidgets import QDialog
+
+    QDialog.exec = lambda self: (self.show(), QApplication.processEvents(), 0)[-1]
+    window.model.append_entries(
+        [
+            LogEntry("06-30 12:00:00.000", "100", "200", "W", "Choreographer", "Skipped 8 frames!"),
+            LogEntry("06-30 12:00:01.000", "100", "200", "W", "Choreographer", "Skipped 20 frames!"),
+            LogEntry("06-30 12:00:02.000", "200", "201", "W", "Choreographer", "Skipped 3 frames!"),
+        ]
+    )
+    window._show_jank_summary()
+    dlg = window.findChildren(QDialog)[-1]
+    _shot(dlg, "jank-summary")
+
+
 def scenario_details(window: MainWindow) -> None:
     _seed(window, 4)
     # Select the FATAL EXCEPTION row to show its full message in the detail pane.
@@ -386,6 +406,7 @@ SCENARIOS = {
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,
     "highlight-rules": scenario_highlight_rules,
+    "jank-summary": scenario_jank_summary,
     "inline-match-highlight": scenario_inline_match_highlight,
     "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
     "details": scenario_details,

@@ -85,6 +85,7 @@ from zlog.core.heat import heat_marks
 from zlog.core.highlight_rules import normalize_rules
 from zlog.core.history import normalize_history, push_history
 from zlog.core.incidents import format_incident_summary
+from zlog.core.jank import jank_summary
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.palette import match_commands
 from zlog.core.plugins import load_colorizers
@@ -760,6 +761,8 @@ class MainWindow(QMainWindow):
         prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
         tag_summary_act = view_menu.addAction("&Tag Summary…")
         tag_summary_act.triggered.connect(self._show_tag_summary)
+        jank_summary_act = view_menu.addAction("&Jank Summary…")
+        jank_summary_act.triggered.connect(self._show_jank_summary)
         highlight_rules_act = view_menu.addAction("&Highlight Rules…")
         highlight_rules_act.triggered.connect(self._show_highlight_rules_dialog)
         watch_act = view_menu.addAction("Set &Watch…")
@@ -1678,6 +1681,36 @@ class MainWindow(QMainWindow):
         table.cellDoubleClicked.connect(use)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Double-click a tag to filter to it:"))
+        layout.addWidget(table)
+        dlg.exec()
+
+    def _show_jank_summary(self) -> None:
+        """Modal list of Choreographer jank by PID; double-click filters."""
+        rows = jank_summary(self._filtered_entries())
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Jank Summary")
+        dlg.resize(360, 440)
+        table = QTableWidget(len(rows), 3, dlg)
+        table.setHorizontalHeaderLabels(["PID", "Events", "Frames Skipped"])
+        table.verticalHeader().setVisible(False)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        for i, (pid, events, total_frames) in enumerate(rows):
+            table.setItem(i, 0, QTableWidgetItem(pid))
+            for col, value in ((1, events), (2, total_frames)):
+                cell = QTableWidgetItem(str(value))
+                cell.setTextAlignment(int(Qt.AlignRight | Qt.AlignVCenter))
+                table.setItem(i, col, cell)
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+
+        def use(row: int, _col: int) -> None:
+            self._set_query_text(f"pid:{rows[row][0]}")
+            dlg.accept()
+
+        table.cellDoubleClicked.connect(use)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel("Double-click a PID to filter to it:"))
         layout.addWidget(table)
         dlg.exec()
 

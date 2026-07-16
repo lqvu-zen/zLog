@@ -36,7 +36,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [time-range-filter.md](time-range-filter.md) | Done | `since:`/`until:` query tokens bound the view to a time-of-day range |
 | [isolate-toggle.md](isolate-toggle.md) | Done | One-click isolate to a row's pid+tag, toggles back to the prior query |
 | [persistent-highlight-rules.md](persistent-highlight-rules.md) | Done | User term/regex → color rules, always highlighted regardless of active search |
-| [jank-summary.md](jank-summary.md) | Approved | View → Jank Summary: Choreographer skipped-frames aggregated by PID |
+| [jank-summary.md](jank-summary.md) | Done | View → Jank Summary: Choreographer skipped-frames aggregated by PID |
 | [level-full-names.md](level-full-names.md) | Done | `level:error`/`level:WARNING` etc. work like `level:E`, case-insensitive |
 | [debounce-query-filter.md](debounce-query-filter.md) | Done | Fix typing lag: debounce the query bar + collapse ~9 proxy invalidates into 1 |
 | [pause-follow-on-selection.md](pause-follow-on-selection.md) | Done | Auto-scroll only fires when at the bottom AND no row is selected |
