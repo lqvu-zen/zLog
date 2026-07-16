@@ -36,6 +36,15 @@ def test_specs_cover_exactly_defaults(window):
     assert keys == set(DEFAULTS)
 
 
+def test_redact_toggle_drives_maybe_redact(window):
+    from zlog.core.models import LogEntry
+
+    entries = [LogEntry("t", "1", "2", "I", "Net", "mail a@b.com")]
+    assert window._maybe_redact(entries)[0].message == "mail a@b.com"  # off by default
+    window.redact_action.setChecked(True)
+    assert window._maybe_redact(entries)[0].message == "mail [email]"
+
+
 def test_settings_round_trip(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
 

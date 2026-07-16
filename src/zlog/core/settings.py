@@ -20,6 +20,7 @@ DEFAULTS: dict = {
     "case": False,  # case-sensitive search
     "tag_highlights": {},  # tag -> hex color
     "highlight_rules": [],  # persistent {pattern, regex, color} rules (see core/highlight_rules.py)
+    "redact_on_export": False,  # mask emails/IPs/tokens when saving/exporting (see core/redact.py)
     "show_details": True,
     "hidden_columns": [],
     "clear_on_start": False,

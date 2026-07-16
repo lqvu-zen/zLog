@@ -97,6 +97,7 @@ from zlog.core.presets import (
     upsert_preset,
 )
 from zlog.core.query import parse_query
+from zlog.core.redact import redact_entries
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
@@ -664,7 +665,12 @@ class MainWindow(QMainWindow):
         diff_act = file_menu.addAction("&Diff Against File…")
         diff_act.triggered.connect(self._diff_against_file)
         file_menu.addSeparator()
+        self.redact_action = QAction("Redact secrets", self)
+        self.redact_action.setCheckable(True)
+        self.redact_action.setToolTip("Mask emails, IPs, and tokens when saving or exporting")
         export_menu = file_menu.addMenu("&Export")
+        export_menu.addAction(self.redact_action)  # opt-in masking for every save/export
+        export_menu.addSeparator()
         for name, fmt, ext in (
             ("CSV", to_csv, "csv"),
             ("JSON", to_json, "json"),
@@ -2133,19 +2139,26 @@ class MainWindow(QMainWindow):
             for row in range(self.proxy.rowCount())
         ]
 
+    def _maybe_redact(self, entries: list[LogEntry]) -> list[LogEntry]:
+        """Mask secrets when the Redact-on-Export toggle is on; else pass through.
+        Non-destructive — redaction runs on a copy, never the master list."""
+        return redact_entries(entries) if self.redact_action.isChecked() else entries
+
     def _write_log(self, entries: list[LogEntry], default_name: str) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self, "Save Log", default_name, "Log files (*.log);;All files (*)"
         )
         if not path:
             return
+        entries = self._maybe_redact(entries)
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(entries_to_text(entries))
         except OSError as exc:
             self.statusBar().showMessage(f"Could not save: {exc}")
             return
-        self.statusBar().showMessage(f"Saved {len(entries)} lines to {Path(path).name}.")
+        redacted = " (redacted)" if self.redact_action.isChecked() else ""
+        self.statusBar().showMessage(f"Saved {len(entries)} lines to {Path(path).name}{redacted}.")
         self._remember_recent(path)
 
     def save_log(self) -> None:
@@ -2164,14 +2177,17 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        entries = self._filtered_entries()
+        entries = self._maybe_redact(self._filtered_entries())
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(formatter(entries))
         except OSError as exc:
             self.statusBar().showMessage(f"Could not export: {exc}")
             return
-        self.statusBar().showMessage(f"Exported {len(entries)} lines to {Path(path).name}.")
+        redacted = " (redacted)" if self.redact_action.isChecked() else ""
+        self.statusBar().showMessage(
+            f"Exported {len(entries)} lines to {Path(path).name}{redacted}."
+        )
 
     # --- sessions ----------------------------------------------------------
     def save_session(self) -> None:
@@ -2581,6 +2597,11 @@ class MainWindow(QMainWindow):
             ("recent_files", lambda: self._recent, set_recent),
             ("watch", lambda: self._watch_pattern, set_watch),
             ("collapse", self.collapse_action.isChecked, set_collapse),
+            (
+                "redact_on_export",
+                self.redact_action.isChecked,
+                lambda v: self.redact_action.setChecked(bool(v)),
+            ),
             (
                 "log_buffers",
                 lambda: [n for n, a in self._buffer_actions.items() if a.isChecked()],
