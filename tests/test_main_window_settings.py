@@ -1069,6 +1069,7 @@ def test_process_column_toggle_and_persist(qapp, tmp_path, monkeypatch):
     assert w2.process_action.isChecked() is True
     assert w2.log_delegate.show_process is True
 
+
 def test_copy_shortcut_scoped_to_table(window):
     from PySide6.QtCore import Qt
 
