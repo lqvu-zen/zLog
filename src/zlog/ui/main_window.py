@@ -83,6 +83,7 @@ from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.history import normalize_history, push_history
+from zlog.core.incidents import format_incident_summary
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.palette import match_commands
 from zlog.core.plugins import load_colorizers
@@ -502,6 +503,10 @@ class MainWindow(QMainWindow):
         self.preset_preview.setWordWrap(True)
         self.spark_label = QLabel("")
         self.spark_label.setToolTip("Error rate over the last 500 lines")
+        self.incident_label = QLabel("")
+        self.incident_label.setToolTip(
+            "Detected crashes/ANRs — View → Next/Previous Incident to jump to one"
+        )
 
         # Single query bar, parsed into the filters.
         self.query = QueryLineEdit()
@@ -608,6 +613,7 @@ class MainWindow(QMainWindow):
         self.presets_dock.setWidget(panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.presets_dock)
         self.setStatusBar(QStatusBar())
+        self.statusBar().addPermanentWidget(self.incident_label)
         self.statusBar().addPermanentWidget(self.spark_label)
         self.statusBar().addPermanentWidget(self.count_label)
 
@@ -761,6 +767,14 @@ class MainWindow(QMainWindow):
         prev_bm.triggered.connect(lambda: self._goto_bookmark(-1))
         clear_bm = view_menu.addAction("Clear Bookmarks")
         clear_bm.triggered.connect(self._clear_bookmarks)
+
+        view_menu.addSeparator()
+        next_incident = view_menu.addAction("Next Incident")
+        next_incident.setShortcut("Alt+F2")
+        next_incident.triggered.connect(lambda: self._goto_incident(1))
+        prev_incident = view_menu.addAction("Previous Incident")
+        prev_incident.setShortcut("Alt+Shift+F2")
+        prev_incident.triggered.connect(lambda: self._goto_incident(-1))
 
         view_menu.addSeparator()
         zoom_in = view_menu.addAction("Zoom In")
@@ -1359,6 +1373,26 @@ class MainWindow(QMainWindow):
 
     def _clear_bookmarks(self) -> None:
         self.model.clear_bookmarks()
+
+    # --- crash/ANR navigation -----------------------------------------------
+    def _goto_incident(self, step: int) -> None:
+        rows = []
+        for src in self.model.incident_rows():
+            proxy_row = self.proxy.mapFromSource(self.model.index(src, 0)).row()
+            if proxy_row >= 0:  # skip incidents hidden by the current filter
+                rows.append(proxy_row)
+        rows.sort()
+        if not rows:
+            return
+        cur = self.table.currentIndex().row()
+        if step > 0:
+            target = next((r for r in rows if r > cur), rows[0])
+        else:
+            target = next((r for r in reversed(rows) if r < cur), rows[-1])
+        index = self.proxy.index(target, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(target)
+        self.table.scrollTo(index)
 
     # --- severity navigation ----------------------------------------------
     def _proxy_rank(self, proxy_row: int) -> int:
@@ -2200,6 +2234,7 @@ class MainWindow(QMainWindow):
         # per-level counts describe X when they'd still describe Y.
         counts = self.proxy.level_counts() if visible < total else self.model.level_counts()
         self.count_label.setText(format_level_summary(total, counts, visible))
+        self.incident_label.setText(format_incident_summary(self.model.incident_counts()))
         start = max(0, total - 500)
         ranks = [self.model.entry_at(r).rank for r in range(start, total)]
         self.spark_label.setText(error_rate_sparkline(ranks, LEVEL_RANK["E"]))

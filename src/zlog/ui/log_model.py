@@ -26,6 +26,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor
 
+from zlog.core.incidents import classify_incident
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
 from zlog.core.proc import parse_proc_start
@@ -56,6 +57,7 @@ class LogTableModel(QAbstractTableModel):
         self._baseline = None  # datetime of the first parseable row (since_start ref)
         self._bookmarks: set[int] = set()  # bookmarked source-row indices
         self._bookmark_color = QColor(LIGHT.bookmark)
+        self._incidents: dict[int, str] = {}  # source row -> "crash" | "anr"
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
@@ -146,8 +148,11 @@ class LogTableModel(QAbstractTableModel):
         last = first + len(entries) - 1
         self.beginInsertRows(QModelIndex(), first, last)
         self._rows.extend(entries)
-        for entry in entries:
+        for offset, entry in enumerate(entries):
             self._level_counts[entry.level] += 1
+            kind = classify_incident(entry)
+            if kind is not None:
+                self._incidents[first + offset] = kind
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
             if len(entry.time) > self._time_col_chars:
@@ -189,6 +194,10 @@ class LogTableModel(QAbstractTableModel):
                 del self._level_counts[entry.level]
         if self._bookmarks:
             self._bookmarks = {i - overflow for i in self._bookmarks if i >= overflow}
+        if self._incidents:
+            self._incidents = {
+                i - overflow: kind for i, kind in self._incidents.items() if i >= overflow
+            }
         self.endRemoveRows()
 
     def clear(self) -> None:
@@ -197,6 +206,7 @@ class LogTableModel(QAbstractTableModel):
         self._level_counts.clear()
         self._baseline = None
         self._bookmarks.clear()
+        self._incidents.clear()
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
         self.endResetModel()
@@ -356,6 +366,14 @@ class LogTableModel(QAbstractTableModel):
             top = self.index(0, 0)
             bottom = self.index(len(self._rows) - 1, 0)
             self.dataChanged.emit(top, bottom, [Qt.DecorationRole])
+
+    def incident_rows(self) -> list[int]:
+        """Source rows classified as a crash/ANR, in order."""
+        return sorted(self._incidents)
+
+    def incident_counts(self) -> Counter:
+        """Count of detected incidents by kind ("crash"/"anr")."""
+        return Counter(self._incidents.values())
 
 
 class LogFilterProxy(QSortFilterProxyModel):

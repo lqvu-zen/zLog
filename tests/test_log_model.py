@@ -348,6 +348,29 @@ def test_bookmark_toggle_and_decoration(qapp):
     assert model.is_bookmarked(1) is False
 
 
+def test_incident_tracking(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries(
+        [
+            _entry(level="I", message="ordinary line"),
+            _entry(level="E", tag="AndroidRuntime", message="FATAL EXCEPTION: main"),
+            _entry(level="E", tag="ActivityManager", message="ANR in com.example (input)"),
+        ]
+    )
+    assert model.incident_rows() == [1, 2]
+    assert model.incident_counts() == {"crash": 1, "anr": 1}
+
+
+def test_max_rows_remaps_incidents(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=str(i)) for i in range(2)])
+    model.append_entries([_entry(message="FATAL EXCEPTION: main")])  # row 2
+    model.set_max_rows(3)
+    model.append_entries([_entry(message="3"), _entry(message="4")])  # 5 rows -> drop 2
+    assert model.incident_rows() == [0]  # original row 2 shifted down to 0
+    assert model.entry_at(0).message == "FATAL EXCEPTION: main"
+
+
 def test_clear_bookmarks(qapp):
     model, _ = _wire(qapp)
     model.append_entries([_entry(), _entry()])
@@ -363,6 +386,13 @@ def test_clear_log_clears_bookmarks(qapp):
     model.toggle_bookmark(0)
     model.clear()
     assert model.bookmarked_rows() == []
+
+
+def test_clear_log_clears_incidents(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="FATAL EXCEPTION: main")])
+    model.clear()
+    assert model.incident_rows() == []
 
 
 def test_max_rows_trims_to_last_n(qapp):

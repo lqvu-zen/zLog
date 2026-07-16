@@ -277,6 +277,15 @@ def scenario_bookmarks(window: MainWindow) -> None:
     _shot(window, "bookmarks")
 
 
+def scenario_incidents(window: MainWindow) -> None:
+    # Seed a few reps of SAMPLE (each has one FATAL EXCEPTION line) so the
+    # status-bar incident badge shows a nonzero count, then jump to the first
+    # detected incident to show the navigation landing on it.
+    _seed(window, 3)
+    window._goto_incident(1)
+    _shot(window, "incidents")
+
+
 def scenario_match_nav(window: MainWindow) -> None:
     # Seed rows, search for a term that matches several, and step to one match
     # so the match label ("n/total") and row selection are both visible.
@@ -340,6 +349,7 @@ SCENARIOS = {
     "no-match": scenario_no_match,
     "copy": scenario_copy,
     "bookmarks": scenario_bookmarks,
+    "incidents": scenario_incidents,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,
     "inline-match-highlight": scenario_inline_match_highlight,
