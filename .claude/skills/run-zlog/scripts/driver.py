@@ -240,11 +240,15 @@ def scenario_jank_summary(window: MainWindow) -> None:
     from PySide6.QtWidgets import QDialog
 
     QDialog.exec = lambda self: (self.show(), QApplication.processEvents(), 0)[-1]
+
+    def _jank(pid, n, t):
+        return LogEntry(t, pid, "200", "W", "Choreographer", f"Skipped {n} frames!")
+
     window.model.append_entries(
         [
-            LogEntry("06-30 12:00:00.000", "100", "200", "W", "Choreographer", "Skipped 8 frames!"),
-            LogEntry("06-30 12:00:01.000", "100", "200", "W", "Choreographer", "Skipped 20 frames!"),
-            LogEntry("06-30 12:00:02.000", "200", "201", "W", "Choreographer", "Skipped 3 frames!"),
+            _jank("100", 8, "06-30 12:00:00.000"),
+            _jank("100", 20, "06-30 12:00:01.000"),
+            _jank("200", 3, "06-30 12:00:02.000"),
         ]
     )
     window._show_jank_summary()

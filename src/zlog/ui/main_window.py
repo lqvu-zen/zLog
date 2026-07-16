@@ -862,6 +862,10 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self._open_command_palette)
         QShortcut(QKeySequence("Shift+F3"), self, activated=lambda: self._goto_match(-1))
         QShortcut(QKeySequence("Ctrl+G"), self, activated=self._open_goto)
+        QShortcut(QKeySequence("Alt+Down"), self, activated=lambda: self._goto_same("tag", 1))
+        QShortcut(QKeySequence("Alt+Up"), self, activated=lambda: self._goto_same("tag", -1))
+        QShortcut(QKeySequence("Ctrl+Alt+Down"), self, activated=lambda: self._goto_same("pid", 1))
+        QShortcut(QKeySequence("Ctrl+Alt+Up"), self, activated=lambda: self._goto_same("pid", -1))
         self.regex_check.toggled.connect(self._apply_search)
         self.case_check.toggled.connect(self._apply_search)
         self.search_mode_box.currentIndexChanged.connect(self._apply_search)
@@ -1372,6 +1376,31 @@ class MainWindow(QMainWindow):
         self.table.selectRow(target)
         self.table.scrollTo(index)
         self.match_label.setText(f"{rows.index(target) + 1}/{len(rows)}")
+
+    def _goto_same(self, field: str, step: int) -> None:
+        """Jump to the next/previous visible line whose `field` ("tag"/"pid")
+        equals the selected line's, wrapping — same early-exit scan as
+        _goto_severity but over an equality predicate instead of a rank."""
+        self._goto_same_from(self.table.currentIndex(), field, step)
+
+    def _goto_same_from(self, index, field: str, step: int) -> None:
+        """Jump from `index` (a proxy index) to the next/prev visible line whose
+        `field` matches it, wrapping. Used by both the shortcuts (from the
+        current row) and the context menu (from the clicked row)."""
+        if not index.isValid():
+            return
+        value = getattr(self.model.entry_at(self.proxy.mapToSource(index).row()), field)
+        if not value:
+            return
+        n = self.proxy.rowCount()
+        cur = index.row()
+        forward = range(cur + 1, n) if step > 0 else range(cur - 1, -1, -1)
+        wrap = range(n) if step > 0 else range(n - 1, -1, -1)
+        for r in list(forward) + list(wrap):
+            src = self.proxy.mapToSource(self.proxy.index(r, 0)).row()
+            if getattr(self.model.entry_at(src), field) == value:
+                self._select_proxy_row(r)
+                return
 
     # --- bookmarks ---------------------------------------------------------
     def _toggle_bookmark(self) -> None:
@@ -2036,6 +2065,26 @@ class MainWindow(QMainWindow):
             )
             isolate.setEnabled(bool(entry.pid) or self._isolate_prev_query is not None)
             isolate.triggered.connect(lambda _c=False, e=entry: self._toggle_isolate(e))
+            if entry.tag or entry.pid:
+                goto = menu.addMenu("Go to same…")
+                if entry.tag:
+                    nt = goto.addAction(f"Next tag ‹{entry.tag}›")
+                    nt.triggered.connect(
+                        lambda _c=False, i=index: self._goto_same_from(i, "tag", 1)
+                    )
+                    pt = goto.addAction(f"Previous tag ‹{entry.tag}›")
+                    pt.triggered.connect(
+                        lambda _c=False, i=index: self._goto_same_from(i, "tag", -1)
+                    )
+                if entry.pid:
+                    npid = goto.addAction(f"Next PID ‹{entry.pid}›")
+                    npid.triggered.connect(
+                        lambda _c=False, i=index: self._goto_same_from(i, "pid", 1)
+                    )
+                    ppid = goto.addAction(f"Previous PID ‹{entry.pid}›")
+                    ppid.triggered.connect(
+                        lambda _c=False, i=index: self._goto_same_from(i, "pid", -1)
+                    )
             menu.addSeparator()
         highlight = menu.addAction(f"Highlight tag \u201c{tag}\u201d…" if tag else "Highlight tag…")
         highlight.setEnabled(bool(tag))
