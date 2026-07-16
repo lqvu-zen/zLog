@@ -21,6 +21,7 @@ DEFAULTS: dict = {
     "tag_highlights": {},  # tag -> hex color
     "highlight_rules": [],  # persistent {pattern, regex, color} rules (see core/highlight_rules.py)
     "redact_on_export": False,  # mask emails/IPs/tokens when saving/exporting (see core/redact.py)
+    "fold_traces": False,  # collapse Java stack-trace frames under their header (see core/trace.py)
     "show_details": True,
     "hidden_columns": [],
     "clear_on_start": False,

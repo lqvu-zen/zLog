@@ -165,6 +165,28 @@ def scenario_time_range_filter(window: MainWindow) -> None:
     _shot(window, "time-range-filter")
 
 
+def scenario_stack_trace_folding(window: MainWindow) -> None:
+    # Seed a crash + stack frames, then fold: the header should show a ▶ glyph
+    # and a "… N frames" hint, with the frames hidden below it.
+    def _e(msg, lvl="E"):
+        return LogEntry("06-30 12:34:56.220", "1287", "1342", lvl, "AndroidRuntime", msg)
+
+    window.model.append_entries(
+        [
+            SAMPLE[0],
+            _e("FATAL EXCEPTION: main"),
+            _e("java.lang.RuntimeException: Unable to start activity"),
+            _e("\tat android.app.ActivityThread.performLaunchActivity(ActivityThread.java:3200)"),
+            _e("\tat android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:3400)"),
+            _e("\tat android.app.ActivityThread.-wrap11(Unknown Source:0)"),
+            _e("\t... 27 more"),
+            SAMPLE[6],
+        ]
+    )
+    window.fold_action.setChecked(True)
+    _shot(window, "stack-trace-folding")
+
+
 def scenario_duplicate_count(window: MainWindow) -> None:
     # Seed a run of identical lines, then enable Collapse: the surviving
     # representative should show a ×N badge before its message.
@@ -409,6 +431,7 @@ SCENARIOS = {
     "time-range-filter": scenario_time_range_filter,
     "isolate": scenario_isolate,
     "duplicate-count": scenario_duplicate_count,
+    "stack-trace-folding": scenario_stack_trace_folding,
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
     "dark": scenario_dark,

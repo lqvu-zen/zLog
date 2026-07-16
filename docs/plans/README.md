@@ -40,7 +40,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [jump-to-same.md](jump-to-same.md) | Done | Jump to next/prev visible line with the same tag or PID (no filtering) |
 | [duplicate-count.md](duplicate-count.md) | Done | Show ×N on collapsed duplicate lines instead of hiding them |
 | [redaction-on-export.md](redaction-on-export.md) | Done | Opt-in masking of emails/IPs/tokens when saving/exporting |
-| [stack-trace-folding.md](stack-trace-folding.md) | Approved | Fold a Java exception's `at …` frames under its header, expandable |
+| [stack-trace-folding.md](stack-trace-folding.md) | Done | Fold a Java exception's `at …` frames under its header, expandable |
 | [level-full-names.md](level-full-names.md) | Done | `level:error`/`level:WARNING` etc. work like `level:E`, case-insensitive |
 | [debounce-query-filter.md](debounce-query-filter.md) | Done | Fix typing lag: debounce the query bar + collapse ~9 proxy invalidates into 1 |
 | [pause-follow-on-selection.md](pause-follow-on-selection.md) | Done | Auto-scroll only fires when at the bottom AND no row is selected |

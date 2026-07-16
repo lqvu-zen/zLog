@@ -432,6 +432,7 @@ class MainWindow(QMainWindow):
         self.table.addAction(self.isolate_action)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_table_menu)
+        self.table.fold_toggle_requested.connect(self._on_fold_toggle_requested)
 
         # Detail pane: full, wrapped text of the selected row (read-only).
         self.detail = QPlainTextEdit()
@@ -712,6 +713,9 @@ class MainWindow(QMainWindow):
         self.collapse_action = QAction("Collapse Repeated Lines", self)
         self.collapse_action.setCheckable(True)
         self.collapse_action.toggled.connect(self._on_collapse_toggled)
+        self.fold_action = QAction("Fold Stack Traces", self)
+        self.fold_action.setCheckable(True)
+        self.fold_action.toggled.connect(self._on_fold_toggled)
         self.case_action = QAction("Case sensitive", self)
         self.case_action.setCheckable(True)
         self.case_action.toggled.connect(self._on_case_toggled)
@@ -771,6 +775,7 @@ class MainWindow(QMainWindow):
         jank_summary_act.triggered.connect(self._show_jank_summary)
         highlight_rules_act = view_menu.addAction("&Highlight Rules…")
         highlight_rules_act.triggered.connect(self._show_highlight_rules_dialog)
+        view_menu.addAction(self.fold_action)  # Fold Stack Traces (checkable)
         watch_act = view_menu.addAction("Set &Watch…")
         watch_act.triggered.connect(self._set_watch_dialog)
         reload_plugins_act = view_menu.addAction("Reload &Plugins")
@@ -1312,6 +1317,18 @@ class MainWindow(QMainWindow):
         self.proxy.set_collapse(checked)
         self.log_delegate.collapse = checked  # show/hide the ×N duplicate badge
         self.table.viewport().update()
+
+    def _on_fold_toggled(self, checked: bool) -> None:
+        if checked:
+            self.model.fold_all()
+        else:
+            self.model.unfold_all()
+        self.proxy.invalidate()  # re-run the frame-hidden gate over all rows
+
+    def _on_fold_toggle_requested(self, source_row: int) -> None:
+        """Double-click on a stack-trace header folds/unfolds just that trace."""
+        self.model.toggle_fold(source_row)
+        self.proxy.invalidate()
 
     # --- match navigation --------------------------------------------------
     def _match_rows(self) -> list[int]:
@@ -2495,6 +2512,10 @@ class MainWindow(QMainWindow):
             self.proxy.set_collapse(bool(v))
             self.log_delegate.collapse = bool(v)
 
+        def set_fold(v):
+            # setChecked fires _on_fold_toggled, which folds/unfolds + invalidates.
+            self.fold_action.setChecked(bool(v))
+
         def set_font_delta(v):
             delta = v if isinstance(v, int) else 0
             self._font_delta = max(-4, min(12, delta))
@@ -2597,6 +2618,7 @@ class MainWindow(QMainWindow):
             ("recent_files", lambda: self._recent, set_recent),
             ("watch", lambda: self._watch_pattern, set_watch),
             ("collapse", self.collapse_action.isChecked, set_collapse),
+            ("fold_traces", self.fold_action.isChecked, set_fold),
             (
                 "redact_on_export",
                 self.redact_action.isChecked,

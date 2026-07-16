@@ -32,6 +32,7 @@ from zlog.core.plugins import apply_colorizers
 from zlog.core.proc import parse_proc_start
 from zlog.core.search import compile_matcher, find_spans
 from zlog.core.timefmt import format_delta, in_time_range, parse_logcat_time
+from zlog.core.trace import is_stack_frame
 from zlog.ui.theme import LIGHT
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
@@ -40,6 +41,7 @@ HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tin
 PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
 MATCH_SPANS_ROLE = int(Qt.UserRole) + 3  # (start, end) spans of the highlight match in message
 DUP_COUNT_ROLE = int(Qt.UserRole) + 4  # run length of a collapsed-duplicate representative row
+FOLD_ROLE = int(Qt.UserRole) + 5  # (has_frames, is_folded, frame_count) for a stack-trace header
 _TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
@@ -62,6 +64,9 @@ class LogTableModel(QAbstractTableModel):
         self._incidents: dict[int, str] = {}  # source row -> "crash" | "anr"
         self._run_len: list[int] = []  # per-row consecutive-duplicate run length (0 on non-reps)
         self._run_rep = -1  # source index of the current run's representative row
+        self._frame_header: list[int] = []  # per-row header index for a stack frame, else -1
+        self._header_frames: dict[int, int] = {}  # header source row -> frame count
+        self._folded: set[int] = set()  # header rows whose frames are currently hidden
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
@@ -133,6 +138,11 @@ class LogTableModel(QAbstractTableModel):
             return []
         if role == DUP_COUNT_ROLE:
             return self.run_length(index.row())
+        if role == FOLD_ROLE:
+            count = self._header_frames.get(index.row(), 0)
+            if count == 0:
+                return None  # not a trace header
+            return (True, index.row() in self._folded, count)
         if role == Qt.DecorationRole and index.column() == 0:
             return self._bookmark_color if index.row() in self._bookmarks else None
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
@@ -179,6 +189,16 @@ class LogTableModel(QAbstractTableModel):
             else:
                 self._run_rep = idx
                 self._run_len.append(1)
+            # Stack-trace grouping: a frame line inherits the header of the
+            # preceding frame, or (if the previous row isn't a frame) takes that
+            # previous row as its header. Non-frame lines get -1.
+            if is_stack_frame(entry.message) and idx > 0:
+                prev_header = self._frame_header[idx - 1]
+                header = prev_header if prev_header >= 0 else idx - 1
+                self._frame_header.append(header)
+                self._header_frames[header] = self._header_frames.get(header, 0) + 1
+            else:
+                self._frame_header.append(-1)
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
             if len(entry.time) > self._time_col_chars:
@@ -234,6 +254,18 @@ class LogTableModel(QAbstractTableModel):
             self._run_rep = 0
             if self._run_len:
                 self._run_len[0] = max(self._run_len[0], 1)
+        # Fold state is transient UI state: clear it on trim to avoid remapping
+        # header keys across the boundary (see stack-trace-folding.md). The
+        # index-based _frame_header must shift; a frame whose header was itself
+        # trimmed becomes header-less (-1). _header_frames is recounted from the
+        # corrected mapping so surviving traces keep their disclosure counts.
+        del self._frame_header[:overflow]
+        self._frame_header = [h - overflow if h >= overflow else -1 for h in self._frame_header]
+        self._folded = set()
+        self._header_frames = {}
+        for h in self._frame_header:
+            if h >= 0:
+                self._header_frames[h] = self._header_frames.get(h, 0) + 1
         self.endRemoveRows()
 
     def clear(self) -> None:
@@ -245,6 +277,9 @@ class LogTableModel(QAbstractTableModel):
         self._incidents.clear()
         self._run_len.clear()
         self._run_rep = -1
+        self._frame_header.clear()
+        self._header_frames.clear()
+        self._folded.clear()
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
         self.endResetModel()
@@ -256,6 +291,43 @@ class LogTableModel(QAbstractTableModel):
         """Consecutive-duplicate run length for a run's representative row
         (1 for a unique line; 0 for a hidden duplicate, which is never shown)."""
         return self._run_len[source_row] if 0 <= source_row < len(self._run_len) else 1
+
+    # --- stack-trace folding ----------------------------------------------
+    def header_at(self, source_row: int) -> int:
+        """The header source row this frame belongs to, or -1 if it's not a frame."""
+        if 0 <= source_row < len(self._frame_header):
+            return self._frame_header[source_row]
+        return -1
+
+    def frame_count(self, header_row: int) -> int:
+        """Number of stack frames grouped under this header (0 if not a header)."""
+        return self._header_frames.get(header_row, 0)
+
+    def is_folded(self, header_row: int) -> bool:
+        return header_row in self._folded
+
+    def is_frame_hidden(self, source_row: int) -> bool:
+        """True if `source_row` is a frame whose header is currently folded."""
+        return self._frame_header[source_row] in self._folded
+
+    def toggle_fold(self, header_row: int) -> None:
+        """Fold/unfold one trace (a header row with frames)."""
+        if self.frame_count(header_row) == 0:
+            return
+        if header_row in self._folded:
+            self._folded.discard(header_row)
+        else:
+            self._folded.add(header_row)
+        self.layoutChanged.emit()
+
+    def fold_all(self) -> None:
+        self._folded = set(self._header_frames)
+        self.layoutChanged.emit()
+
+    def unfold_all(self) -> None:
+        if self._folded:
+            self._folded = set()
+            self.layoutChanged.emit()
 
     def all_entries(self) -> list[LogEntry]:
         """A copy of the full master list (used by Save Log)."""
@@ -579,6 +651,10 @@ class LogFilterProxy(QSortFilterProxyModel):
     def filterAcceptsRow(self, source_row, source_parent) -> bool:
         model: LogTableModel = self.sourceModel()
         entry = model.entry_at(source_row)
+        # Stack-trace folding: hide a frame line whose header is folded (a no-op
+        # when nothing is folded, since is_frame_hidden is then always False).
+        if model.is_frame_hidden(source_row):
+            return False
         # Collapse: drop a line identical to the one right before it (device spam).
         if self._collapse and source_row > 0:
             prev = model.entry_at(source_row - 1)

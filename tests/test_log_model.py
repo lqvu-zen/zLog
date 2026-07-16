@@ -546,6 +546,52 @@ def test_run_length_counts_across_append_batches(qapp):
     assert model.run_length(0) == 3
 
 
+def _trace_rows():
+    return [
+        LogEntry("t", "1", "2", "E", "AndroidRuntime", "FATAL EXCEPTION: main"),
+        LogEntry("t", "1", "2", "E", "AndroidRuntime", "\tat com.x.A.a(A.java:1)"),
+        LogEntry("t", "1", "2", "E", "AndroidRuntime", "\tat com.x.B.b(B.java:2)"),
+        LogEntry("t", "1", "2", "E", "AndroidRuntime", "\t... 5 more"),
+        LogEntry("t", "1", "2", "I", "Other", "unrelated line"),
+    ]
+
+
+def test_frame_grouping_and_fold(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(_trace_rows())
+    # Rows 1..3 are frames of the header at row 0; rows 0 and 4 are not frames.
+    assert model.header_at(1) == 0 and model.header_at(3) == 0
+    assert model.header_at(0) == -1 and model.header_at(4) == -1
+    assert model.frame_count(0) == 3
+    assert proxy.rowCount() == 5  # nothing folded yet
+    model.toggle_fold(0)
+    proxy.invalidate()
+    assert proxy.rowCount() == 2  # header + the unrelated line; 3 frames hidden
+    assert _messages(model, proxy) == ["FATAL EXCEPTION: main", "unrelated line"]
+    model.unfold_all()
+    proxy.invalidate()
+    assert proxy.rowCount() == 5
+
+
+def test_fold_all_and_toggle_non_header_is_noop(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries(_trace_rows())
+    model.fold_all()
+    proxy.invalidate()
+    assert proxy.rowCount() == 2
+    model.toggle_fold(4)  # row 4 isn't a header -> no change
+    proxy.invalidate()
+    assert proxy.rowCount() == 2
+
+
+def test_non_trace_log_is_unaffected(qapp):
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="a"), _entry(message="b")])
+    model.fold_all()
+    proxy.invalidate()
+    assert proxy.rowCount() == 2  # no frames anywhere
+
+
 def test_run_length_cap_promotes_new_front(qapp):
     # After a trim that drops a run's representative, the new front row becomes a
     # representative with count >= 1 (the documented boundary limitation: its

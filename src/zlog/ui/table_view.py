@@ -7,15 +7,29 @@ filtered to nothing).
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPainter, QPalette
 from PySide6.QtWidgets import QTableView
 
+from zlog.ui.log_model import FOLD_ROLE
+
 
 class LogTableView(QTableView):
+    # Emitted with a source-model row when a stack-trace header is double-clicked.
+    fold_toggle_requested = Signal(int)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._placeholder = ""
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        index = self.indexAt(event.position().toPoint())
+        if index.isValid() and index.data(FOLD_ROLE):
+            model = self.model()
+            src = model.mapToSource(index).row() if hasattr(model, "mapToSource") else index.row()
+            self.fold_toggle_requested.emit(src)
+            return  # don't let the double-click also start a selection/edit
+        super().mouseDoubleClickEvent(event)
 
     def set_placeholder(self, text: str) -> None:
         if text != self._placeholder:

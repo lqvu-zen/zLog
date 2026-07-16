@@ -15,7 +15,14 @@ from PySide6.QtCore import QPointF, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QTextCharFormat, QTextLayout
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from zlog.ui.log_model import DUP_COUNT_ROLE, HIGHLIGHT_ROLE, MATCH_SPANS_ROLE, PROCESS_ROLE
+from zlog.core.trace import frame_hint
+from zlog.ui.log_model import (
+    DUP_COUNT_ROLE,
+    FOLD_ROLE,
+    HIGHLIGHT_ROLE,
+    MATCH_SPANS_ROLE,
+    PROCESS_ROLE,
+)
 
 _TIME_MIN_W = 8  # Time/PID size to content (model), never below these floors
 _PIDTID_MIN_W = 7
@@ -222,19 +229,33 @@ class LogItemDelegate(QStyledItemDelegate):
                 painter.drawText(badge, int(Qt.AlignCenter), label)
                 x += badge_w + cw
 
+        # Stack-trace disclosure: a ▶/▼ glyph on a header row that has frames,
+        # with a "… N frames" hint appended when folded.
+        fold = index.data(FOLD_ROLE)
+        message = entry.message
+        if fold:
+            _has, folded, count = fold
+            painter.setPen(base_fg)
+            glyph = "▶" if folded else "▼"
+            gw = fm.horizontalAdvance("▶") + cw // 2
+            painter.drawText(QRect(x, top, gw, band), int(Qt.AlignVCenter | Qt.AlignLeft), glyph)
+            x += gw
+            if folded:
+                message = f"{message}  {frame_hint(count)}"
+
         msg_color = self._sel_fg if selected else lvl_color
         painter.setPen(msg_color)
         mr = QRect(x, top, option.rect.right() - x - self._pad, height)
         spans = index.data(MATCH_SPANS_ROLE)
         if spans:
-            self._draw_message_with_spans(painter, mr, entry.message, spans, option.font, msg_color)
+            self._draw_message_with_spans(painter, mr, message, spans, option.font, msg_color)
         elif self.wrap:
-            painter.drawText(mr, int(Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap), entry.message)
+            painter.drawText(mr, int(Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap), message)
         else:
             painter.drawText(
                 mr,
                 int(Qt.AlignVCenter | Qt.AlignLeft),
-                fm.elidedText(entry.message, Qt.ElideRight, mr.width()),
+                fm.elidedText(message, Qt.ElideRight, mr.width()),
             )
         painter.restore()
 
