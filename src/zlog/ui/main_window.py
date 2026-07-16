@@ -82,6 +82,7 @@ from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
 from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
+from zlog.core.highlight_rules import normalize_rules
 from zlog.core.history import normalize_history, push_history
 from zlog.core.incidents import format_incident_summary
 from zlog.core.models import LEVEL_RANK, LogEntry
@@ -103,6 +104,7 @@ from zlog.core.summary import format_level_summary, tag_counts
 from zlog.core.timefmt import first_at_or_after, parse_time_of_day
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.heat_scrollbar import HeatScrollBar
+from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
@@ -758,6 +760,8 @@ class MainWindow(QMainWindow):
         prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
         tag_summary_act = view_menu.addAction("&Tag Summary…")
         tag_summary_act.triggered.connect(self._show_tag_summary)
+        highlight_rules_act = view_menu.addAction("&Highlight Rules…")
+        highlight_rules_act.triggered.connect(self._show_highlight_rules_dialog)
         watch_act = view_menu.addAction("Set &Watch…")
         watch_act.triggered.connect(self._set_watch_dialog)
         reload_plugins_act = view_menu.addAction("Reload &Plugins")
@@ -1677,6 +1681,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(table)
         dlg.exec()
 
+    def _show_highlight_rules_dialog(self) -> None:
+        dlg = HighlightRulesDialog(self.model.highlight_rules(), parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            self.model.set_highlight_rules(normalize_rules(dlg.get_values()))
+            self.table.viewport().update()
+
     def eventFilter(self, obj, event) -> bool:
         # Ctrl + mouse wheel zooms the text (same as Ctrl+=/-), reusing _zoom so
         # it stays clamped and in sync across the log and detail panes. A plain
@@ -2350,6 +2360,9 @@ class MainWindow(QMainWindow):
                 for tag, color in v.items():
                     self.model.set_tag_color(str(tag), str(color))
 
+        def set_highlight_rules(v):
+            self.model.set_highlight_rules(normalize_rules(v))
+
         def set_tail_count(v):
             count = v if v in self._tail_actions else 0
             self._tail_actions[count].setChecked(True)
@@ -2443,6 +2456,7 @@ class MainWindow(QMainWindow):
                 lambda v: self.case_check.setChecked(bool(v)),
             ),
             ("tag_highlights", self.model.tag_colors, set_tag_highlights),
+            ("highlight_rules", self.model.highlight_rules, set_highlight_rules),
             ("show_details", self.details_action.isChecked, set_show_details),
             ("hidden_columns", lambda: [], set_hidden_columns),
             (

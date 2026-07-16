@@ -49,6 +49,7 @@ class LogTableModel(QAbstractTableModel):
         self._rows: list[LogEntry] = []
         self._level_colors: dict[str, QColor] = {}
         self._tag_colors: dict[str, QColor] = {}  # per-tag highlight, overrides level tint
+        self._highlight_rules: list = []  # compiled (matcher, pattern, regex, QColor) rules
         self._level_counts: Counter = Counter()
         self._highlight = None  # optional match predicate for highlight mode
         self._highlight_spans_fn = None  # message -> [(start, end), ...] for the same term
@@ -91,6 +92,9 @@ class LogTableModel(QAbstractTableModel):
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
                 return tag
+            rule_color = self._rule_color(entry)
+            if rule_color is not None:
+                return rule_color
             if self._colorizers:
                 c = apply_colorizers(self._colorizers, entry)
                 if c:
@@ -106,6 +110,9 @@ class LogTableModel(QAbstractTableModel):
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
                 return tag
+            rule_color = self._rule_color(entry)
+            if rule_color is not None:
+                return rule_color
             if self._colorizers:
                 c = apply_colorizers(self._colorizers, entry)
                 if c:
@@ -298,6 +305,37 @@ class LogTableModel(QAbstractTableModel):
     def tag_colors(self) -> dict[str, str]:
         """Current tag highlights as hex strings (for saving)."""
         return {tag: color.name() for tag, color in self._tag_colors.items()}
+
+    def set_highlight_rules(self, rules: list[dict]) -> None:
+        """Install persistent term/regex -> color rules (see core/highlight_rules.py).
+        A rule whose pattern fails to compile as regex is skipped, same
+        tolerance `set_search`/`set_exclude` already have."""
+        compiled = []
+        for rule in rules:
+            try:
+                matcher = compile_matcher(rule["pattern"], rule["regex"])
+            except re.error:
+                continue
+            compiled.append((matcher, rule["pattern"], rule["regex"], QColor(rule["color"])))
+        self._highlight_rules = compiled
+        self._repaint_backgrounds()
+
+    def highlight_rules(self) -> list[dict]:
+        """Current highlight rules as plain dicts (for saving)."""
+        return [
+            {"pattern": pattern, "regex": regex, "color": color.name()}
+            for _matcher, pattern, regex, color in self._highlight_rules
+        ]
+
+    def _rule_color(self, entry: LogEntry) -> QColor | None:
+        """First highlight rule matching this row's tag+message, or None."""
+        if not self._highlight_rules:
+            return None
+        haystack = f"{entry.tag} {entry.message}"
+        for matcher, _pattern, _regex, color in self._highlight_rules:
+            if matcher(haystack):
+                return color
+        return None
 
     def level_counts(self) -> dict[str, int]:
         """Count of rows per level letter across the master list."""

@@ -19,6 +19,7 @@ DEFAULTS: dict = {
     "regex": False,
     "case": False,  # case-sensitive search
     "tag_highlights": {},  # tag -> hex color
+    "highlight_rules": [],  # persistent {pattern, regex, color} rules (see core/highlight_rules.py)
     "show_details": True,
     "hidden_columns": [],
     "clear_on_start": False,

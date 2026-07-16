@@ -331,6 +331,69 @@ def test_exclude_combines_with_search(qapp):
     assert _messages(model, proxy) == ["error in app"]
 
 
+def test_highlight_rule_colors_matching_row(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="boom happened"), _entry(message="all quiet")])
+    model.set_highlight_rules([{"pattern": "boom", "regex": False, "color": "#ff0000"}])
+    hit = model.data(model.index(0, 0), Qt.BackgroundRole)
+    miss = model.data(model.index(1, 0), Qt.BackgroundRole)
+    assert hit is not None and hit.name() == "#ff0000"
+    assert miss is None or miss.name() != "#ff0000"
+
+
+def test_highlight_rule_loses_to_explicit_tag_color(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(tag="Foo", message="boom")])
+    model.set_highlight_rules([{"pattern": "boom", "regex": False, "color": "#ff0000"}])
+    model.set_tag_color("Foo", "#00ff00")
+    color = model.data(model.index(0, 0), Qt.BackgroundRole)
+    assert color.name() == "#00ff00"
+
+
+def test_highlight_rule_first_match_wins(qapp):
+    from PySide6.QtCore import Qt
+
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="boom")])
+    model.set_highlight_rules(
+        [
+            {"pattern": "boom", "regex": False, "color": "#ff0000"},
+            {"pattern": "oo", "regex": False, "color": "#00ff00"},
+        ]
+    )
+    color = model.data(model.index(0, 0), Qt.BackgroundRole)
+    assert color.name() == "#ff0000"
+
+
+def test_highlight_rule_shows_regardless_of_active_search(qapp):
+    from PySide6.QtCore import Qt
+
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="boom")])
+    model.set_highlight_rules([{"pattern": "boom", "regex": False, "color": "#ff0000"}])
+    proxy.set_search("something else entirely", regex=False)
+    color = model.data(model.index(0, 0), Qt.BackgroundRole)
+    assert color.name() == "#ff0000"
+
+
+def test_highlight_rule_invalid_regex_is_skipped_not_raised(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message="boom")])
+    model.set_highlight_rules([{"pattern": "(unclosed", "regex": True, "color": "#ff0000"}])
+    assert model.highlight_rules() == []
+
+
+def test_highlight_rules_round_trip(qapp):
+    model, _ = _wire(qapp)
+    rules = [{"pattern": "boom", "regex": False, "color": "#ff0000"}]
+    model.set_highlight_rules(rules)
+    assert model.highlight_rules() == rules
+
+
 def test_bookmark_toggle_and_decoration(qapp):
     from PySide6.QtCore import Qt
 

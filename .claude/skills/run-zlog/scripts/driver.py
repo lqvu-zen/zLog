@@ -248,6 +248,19 @@ def scenario_highlight(window: MainWindow) -> None:
     _shot(window, "highlight")
 
 
+def scenario_highlight_rules(window: MainWindow) -> None:
+    # A persistent rule tints every FATAL EXCEPTION row even with an unrelated
+    # search active (Highlight mode, so both stay visible) — proving the rule
+    # doesn't depend on what's currently in the search box.
+    _seed(window, 4)
+    window.model.set_highlight_rules(
+        [{"pattern": "FATAL EXCEPTION", "regex": False, "color": "#ff8a80"}]
+    )
+    window.search_mode_box.setCurrentIndex(1)  # Highlight
+    window.search.setText("WifiService")
+    _shot(window, "highlight-rules")
+
+
 def scenario_inline_match_highlight(window: MainWindow) -> None:
     # Seed rows, switch to Highlight mode, and search a term that appears in
     # several messages — the row tint AND the matched-substring highlight
@@ -372,6 +385,7 @@ SCENARIOS = {
     "incidents": scenario_incidents,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,
+    "highlight-rules": scenario_highlight_rules,
     "inline-match-highlight": scenario_inline_match_highlight,
     "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
     "details": scenario_details,
