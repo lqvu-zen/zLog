@@ -1228,6 +1228,13 @@ class MainWindow(QMainWindow):
             self.proxy.set_exclude_proc(spec.exclude_process)
             ex_pat = "|".join(re.escape(t) for t in spec.excludes)
             ex_ok = self.proxy.set_exclude(ex_pat, bool(spec.excludes), case)
+            since_time = parse_time_of_day(spec.since) if spec.since else None
+            until_time = parse_time_of_day(spec.until) if spec.until else None
+            time_ok = (not spec.since or since_time is not None) and (
+                not spec.until or until_time is not None
+            )
+            if time_ok:
+                self.proxy.set_time_range(since_time, until_time)
             self.regex_check.setChecked(spec.regex)  # -> _apply_search
             self.search.setText(spec.search)  # -> _apply_search (search + highlight)
             if spec.package != self._query_package:
@@ -1242,7 +1249,7 @@ class MainWindow(QMainWindow):
             compile_matcher(spec.search, spec.regex, case)
         except re.error:
             search_ok = False
-        good = search_ok and ex_ok
+        good = search_ok and ex_ok and time_ok
         self.query.setStyleSheet(
             "" if good else f"QLineEdit {{ background-color: {self._search_error_color}; }}"
         )

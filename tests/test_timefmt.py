@@ -2,7 +2,13 @@
 
 from datetime import time, timedelta
 
-from zlog.core.timefmt import first_at_or_after, format_delta, parse_logcat_time, parse_time_of_day
+from zlog.core.timefmt import (
+    first_at_or_after,
+    format_delta,
+    in_time_range,
+    parse_logcat_time,
+    parse_time_of_day,
+)
 
 
 def test_parse_valid():
@@ -65,3 +71,30 @@ def test_first_at_or_after_first_row_when_target_is_earliest():
 def test_first_at_or_after_skips_unparseable_entries():
     times = ["", "06-30 10:00:05.000"]
     assert first_at_or_after(times, time(10, 0, 0)) == 1
+
+
+def test_in_time_range_no_bounds_always_passes():
+    assert in_time_range("06-30 12:00:00.000", None, None) is True
+
+
+def test_in_time_range_since_only():
+    assert in_time_range("06-30 12:00:00.000", time(11, 0, 0), None) is True
+    assert in_time_range("06-30 10:00:00.000", time(11, 0, 0), None) is False
+
+
+def test_in_time_range_until_only():
+    assert in_time_range("06-30 10:00:00.000", None, time(11, 0, 0)) is True
+    assert in_time_range("06-30 12:00:00.000", None, time(11, 0, 0)) is False
+
+
+def test_in_time_range_both_bounds_inclusive():
+    since, until = time(10, 0, 0), time(11, 0, 0)
+    assert in_time_range("06-30 10:00:00.000", since, until) is True  # inclusive lower
+    assert in_time_range("06-30 11:00:00.000", since, until) is True  # inclusive upper
+    assert in_time_range("06-30 09:59:59.000", since, until) is False
+    assert in_time_range("06-30 11:00:01.000", since, until) is False
+
+
+def test_in_time_range_unparseable_stamp_always_passes():
+    assert in_time_range("not a time", time(10, 0, 0), time(11, 0, 0)) is True
+    assert in_time_range("", time(10, 0, 0), time(11, 0, 0)) is True

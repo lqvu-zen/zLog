@@ -7,6 +7,8 @@ Syntax (space-separated tokens; quote to include spaces):
     package:com.x      package (also `pkg:` / `app:`)
     pid:1234           only this PID (comma-set: pid:100,200)
     proc:com.x         resolved process/package name contains this (also `process:`)
+    since:HH:MM:SS     only lines at/after this time-of-day (inclusive)
+    until:HH:MM:SS     only lines at/before this time-of-day (inclusive)
     -noise             exclude lines matching this text (repeatable)
     /re.*gex/          regex search over tag+message
     plain words        substring search over tag+message
@@ -65,6 +67,8 @@ class QuerySpec:
     process: str = ""  # process/package-name contains (proc:com.foo)
     exclude_pids: tuple[str, ...] = field(default_factory=tuple)  # -pid:100,200
     exclude_process: str = ""  # -proc:com.foo (last token wins, mirrors `process`)
+    since: str = ""  # since:HH:MM:SS — raw value, parsed by the caller
+    until: str = ""  # until:HH:MM:SS — raw value, parsed by the caller
 
 
 def _tokenize(text: str) -> list[str]:
@@ -83,6 +87,8 @@ def parse_query(text: str) -> QuerySpec:
     pids: list[str] = []
     exclude_process = ""
     exclude_pids: list[str] = []
+    since = ""
+    until = ""
     regex = False
     regex_body: str | None = None
     words: list[str] = []
@@ -137,6 +143,12 @@ def parse_query(text: str) -> QuerySpec:
                     if part.isdigit():
                         pids.append(part)
                 continue
+            if key == "since" and val:
+                since = val
+                continue
+            if key == "until" and val:
+                until = val
+                continue
         words.append(tok)
 
     search = regex_body if regex_body is not None else " ".join(words)
@@ -152,6 +164,8 @@ def parse_query(text: str) -> QuerySpec:
         process=process,
         exclude_pids=tuple(dict.fromkeys(exclude_pids)),
         exclude_process=exclude_process,
+        since=since,
+        until=until,
     )
 
 
@@ -173,6 +187,8 @@ def _classify(token: str) -> str:
             return "proc"
         if key == "pid":
             return "pid"
+        if key in ("since", "until"):
+            return "time"
     return "word"
 
 

@@ -55,6 +55,23 @@ def first_at_or_after(times: list[str], target: time) -> int | None:
     return None
 
 
+def in_time_range(stamp: str, since: time | None, until: time | None) -> bool:
+    """True if `stamp`'s time-of-day falls within [since, until] (either bound
+    optional, both inclusive). An unparseable/empty stamp always passes — same
+    "don't hide what we can't classify" rule the level gate already follows."""
+    if since is None and until is None:
+        return True
+    dt = parse_logcat_time(stamp)
+    if dt is None:
+        return True
+    t = dt.time()
+    if since is not None and t < since:
+        return False
+    if until is not None and t > until:
+        return False
+    return True
+
+
 def format_delta(td: timedelta) -> str:
     """Format a signed duration compactly: +0.750, +1:23.450, +1:01:01.500."""
     total = td.total_seconds()

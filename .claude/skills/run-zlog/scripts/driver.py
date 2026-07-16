@@ -157,6 +157,14 @@ def scenario_regex_search(window: MainWindow) -> None:
     _shot(window, "regex-search")
 
 
+def scenario_time_range_filter(window: MainWindow) -> None:
+    # SAMPLE's stamps run 12:34:56.001 -> .400; since: hides the two earliest
+    # rows (and the unparseable banner line still passes through).
+    _seed(window, 4)
+    window._set_query_text("since:12:34:56.110")
+    _shot(window, "time-range-filter")
+
+
 SAMPLE_LOG_TEXT = "\n".join(
     [
         "06-30 12:34:56.001 1287 1287 I ActivityManager: Start proc com.example.app",
@@ -342,6 +350,7 @@ SCENARIOS = {
     "devices": scenario_devices,
     "package-filter": scenario_package_filter,
     "regex-search": scenario_regex_search,
+    "time-range-filter": scenario_time_range_filter,
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
     "dark": scenario_dark,

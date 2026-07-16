@@ -116,6 +116,26 @@ def test_exclude_pid_proc_coexist_with_includes_and_generic_exclude():
     assert spec.excludes == ("noise",) and spec.search == "boom"
 
 
+def test_parse_since_and_until():
+    spec = parse_query("since:12:00:00 until:12:05:00")
+    assert spec.since == "12:00:00" and spec.until == "12:05:00"
+
+
+def test_since_until_coexist_with_other_tokens():
+    spec = parse_query("since:12:00:00 tag:Act until:12:05:00 boom")
+    assert spec.since == "12:00:00" and spec.until == "12:05:00"
+    assert spec.tag == "Act" and spec.search == "boom"
+
+
+def test_token_spans_classifies_since_and_until():
+    from zlog.core.query import token_spans
+
+    t = "since:12:00:00 until:12:05:00"
+    kinds = {t[s:e]: k for s, e, k in token_spans(t)}
+    assert kinds["since:12:00:00"] == "time"
+    assert kinds["until:12:05:00"] == "time"
+
+
 def test_token_spans_classifies_each_kind():
     from zlog.core.query import token_spans
 

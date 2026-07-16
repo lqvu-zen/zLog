@@ -24,6 +24,7 @@ _KIND_COLORS = {
     "pid": "#3b7dd8",  # blue
     "exclude": "#d0453b",  # red
     "regex": "#9b59b6",  # purple
+    "time": "#8a7a4b",  # olive
 }
 _ALPHA = 70  # translucency of the token tint
 

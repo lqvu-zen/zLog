@@ -544,6 +544,32 @@ def test_exclude_pid_gate(qapp):
     assert _messages(model, proxy) == ["a", "b"]
 
 
+def test_time_range_gate(qapp):
+    from datetime import time
+
+    model, proxy = _wire(qapp)
+    model.append_entries(
+        [
+            LogEntry("06-30 10:00:00.000", "100", "200", "I", "Tag", "early"),
+            LogEntry("06-30 11:00:00.000", "100", "200", "I", "Tag", "mid"),
+            LogEntry("06-30 12:00:00.000", "100", "200", "I", "Tag", "late"),
+        ]
+    )
+    proxy.set_time_range(time(10, 30, 0), time(11, 30, 0))
+    assert _messages(model, proxy) == ["mid"]
+    proxy.set_time_range(None, None)
+    assert _messages(model, proxy) == ["early", "mid", "late"]
+
+
+def test_time_range_gate_unparseable_stamp_always_passes(qapp):
+    from datetime import time
+
+    model, proxy = _wire(qapp)
+    model.append_entries([_entry(message="banner")])  # default stamp has no MM-DD
+    proxy.set_time_range(time(10, 0, 0), time(11, 0, 0))
+    assert _messages(model, proxy) == ["banner"]
+
+
 def test_exclude_proc_gate(qapp):
     model, proxy = _wire(qapp)
     model.append_entries([_entry(pid="100", message="sysui"), _entry(pid="200", message="other")])

@@ -31,7 +31,7 @@ from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
 from zlog.core.proc import parse_proc_start
 from zlog.core.search import compile_matcher, find_spans
-from zlog.core.timefmt import format_delta, parse_logcat_time
+from zlog.core.timefmt import format_delta, in_time_range, parse_logcat_time
 from zlog.ui.theme import LIGHT
 
 COLUMNS = ["Time", "PID", "TID", "Level", "Tag", "Message"]
@@ -390,6 +390,8 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._proc = ""  # process/package-name contains gate (proc: token)
         self._exclude_pids: set[str] | None = None  # exact PID exclude (-pid: token)
         self._exclude_proc = ""  # process/package-name exclude (-proc: token)
+        self._since = None  # since: token — datetime.time, inclusive lower bound
+        self._until = None  # until: token — datetime.time, inclusive upper bound
         self._batching = False  # see batch_update()
 
     def _invalidate(self) -> None:
@@ -483,6 +485,13 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._exclude_proc = text.lower()
         self._invalidate()
 
+    def set_time_range(self, since, until) -> None:
+        """Restrict to rows whose time-of-day is within [since, until]
+        (each a `datetime.time` or None to leave that bound open)."""
+        self._since = since
+        self._until = until
+        self._invalidate()
+
     def level_counts(self) -> dict[str, int]:
         """Count of currently-accepted rows per level letter (walks filtered rows,
         unlike LogTableModel.level_counts which is O(1) over the whole buffer)."""
@@ -516,6 +525,12 @@ class LogFilterProxy(QSortFilterProxyModel):
         if self._exclude_pids is not None and entry.pid in self._exclude_pids:
             return False
         if self._exclude_proc and self._exclude_proc in model.process_name(entry.pid).lower():
+            return False
+        # Time-range gate (since:/until: tokens) — an unparseable timestamp
+        # always passes, same rule the level gate applies to unparsed lines.
+        if (self._since is not None or self._until is not None) and not in_time_range(
+            entry.time, self._since, self._until
+        ):
             return False
         # Level gate: an exact set if one is active, else the min-level floor
         # (unparsed lines, level "", always pass either way).
