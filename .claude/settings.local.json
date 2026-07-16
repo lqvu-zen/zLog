@@ -15,7 +15,8 @@
       "Bash(git mv *)",
       "Bash(mv assets/report-template.md assets/findings-template.md)",
       "Bash(git stash *)",
-      "Bash(QT_QPA_PLATFORM=offscreen uv run python -c ' *)"
+      "Bash(QT_QPA_PLATFORM=offscreen uv run python -c ' *)",
+      "Bash(awk '{ print length, $0 }' src/zlog/core/settings.py)"
     ]
   }
 }
