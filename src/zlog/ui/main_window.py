@@ -500,7 +500,7 @@ class MainWindow(QMainWindow):
         self.search_mode_box.addItem("Highlight", "highlight")
         self.search_mode_box.setToolTip("Filter hides non-matches; Highlight tints matches")
         self.clear_filters_btn = QPushButton("Clear filters")
-        self.clear_filters_btn.setToolTip("Reset level, search, and package filters")
+        self.clear_filters_btn.setToolTip("Reset all filters (level, search, tag, package, time…)")
 
         self.count_label = QLabel("0 lines")
         self.presets_list = QListWidget()
@@ -597,6 +597,7 @@ class MainWindow(QMainWindow):
         filter_row.addWidget(self.match_prev_btn)
         filter_row.addWidget(self.match_next_btn)
         filter_row.addWidget(self.match_label)
+        filter_row.addWidget(self.clear_filters_btn)
 
         layout = QVBoxLayout()
         layout.addWidget(self.tab_bar)
