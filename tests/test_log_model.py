@@ -524,6 +524,40 @@ def test_collapse_first_row_always_shows(qapp):
     assert proxy.rowCount() == 1  # the very first row is never folded
 
 
+def test_run_length_counts_consecutive_duplicates(qapp):
+    from zlog.ui.log_model import DUP_COUNT_ROLE
+
+    model, _ = _wire(qapp)
+    a = _entry(message="same")
+    b = _entry(message="other")
+    model.append_entries([a, a, a, b])  # A A A B
+    assert model.run_length(0) == 3  # representative of the 3-run
+    assert model.run_length(1) == 0 and model.run_length(2) == 0  # hidden dups
+    assert model.run_length(3) == 1  # unique
+    assert model.data(model.index(0, 0), DUP_COUNT_ROLE) == 3
+    assert model.data(model.index(3, 0), DUP_COUNT_ROLE) == 1
+
+
+def test_run_length_counts_across_append_batches(qapp):
+    model, _ = _wire(qapp)
+    a = _entry(message="same")
+    model.append_entries([a, a])  # batch 1
+    model.append_entries([a])  # batch 2 continues the same run
+    assert model.run_length(0) == 3
+
+
+def test_run_length_cap_promotes_new_front(qapp):
+    # After a trim that drops a run's representative, the new front row becomes a
+    # representative with count >= 1 (the documented boundary limitation: its
+    # count restarts rather than reflecting the full original run).
+    model, _ = _wire(qapp)
+    a = _entry(message="same")
+    model.append_entries([a, a, a])
+    model.set_max_rows(2)  # drop the front row (the original representative)
+    assert model.rowCount() == 2
+    assert model.run_length(0) >= 1  # promoted, no negative index / crash
+
+
 def test_colorizer_tints_row(qapp):
     from PySide6.QtGui import QColor
 

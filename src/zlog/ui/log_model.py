@@ -39,6 +39,7 @@ MESSAGE_COL = 5
 HIGHLIGHT_ROLE = int(Qt.UserRole) + 1  # tag/search highlight only (no level tint)
 PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row's PID
 MATCH_SPANS_ROLE = int(Qt.UserRole) + 3  # (start, end) spans of the highlight match in message
+DUP_COUNT_ROLE = int(Qt.UserRole) + 4  # run length of a collapsed-duplicate representative row
 _TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
@@ -59,6 +60,8 @@ class LogTableModel(QAbstractTableModel):
         self._bookmarks: set[int] = set()  # bookmarked source-row indices
         self._bookmark_color = QColor(LIGHT.bookmark)
         self._incidents: dict[int, str] = {}  # source row -> "crash" | "anr"
+        self._run_len: list[int] = []  # per-row consecutive-duplicate run length (0 on non-reps)
+        self._run_rep = -1  # source index of the current run's representative row
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
@@ -128,6 +131,8 @@ class LogTableModel(QAbstractTableModel):
             ):
                 return self._highlight_spans_fn(entry.message)
             return []
+        if role == DUP_COUNT_ROLE:
+            return self.run_length(index.row())
         if role == Qt.DecorationRole and index.column() == 0:
             return self._bookmark_color if index.row() in self._bookmarks else None
         if role == Qt.TextAlignmentRole and index.column() in (1, 2):
@@ -148,6 +153,10 @@ class LogTableModel(QAbstractTableModel):
         return None
 
     # --- helpers -----------------------------------------------------------
+    @staticmethod
+    def _same_as_prev(a: LogEntry, b: LogEntry) -> bool:
+        return (a.level, a.tag, a.message) == (b.level, b.tag, b.message)
+
     def append_entries(self, entries: list[LogEntry]) -> None:
         if not entries:
             return
@@ -156,10 +165,20 @@ class LogTableModel(QAbstractTableModel):
         self.beginInsertRows(QModelIndex(), first, last)
         self._rows.extend(entries)
         for offset, entry in enumerate(entries):
+            idx = first + offset
             self._level_counts[entry.level] += 1
             kind = classify_incident(entry)
             if kind is not None:
-                self._incidents[first + offset] = kind
+                self._incidents[idx] = kind
+            # Consecutive-duplicate run length: a row identical to the one before
+            # it extends the current run (the representative carries the count);
+            # otherwise it starts a fresh run. Mirrors the collapse gate's rule.
+            if idx > 0 and self._same_as_prev(entry, self._rows[idx - 1]):
+                self._run_len.append(0)
+                self._run_len[self._run_rep] += 1
+            else:
+                self._run_rep = idx
+                self._run_len.append(1)
             if self._baseline is None:
                 self._baseline = parse_logcat_time(entry.time)
             if len(entry.time) > self._time_col_chars:
@@ -205,6 +224,16 @@ class LogTableModel(QAbstractTableModel):
             self._incidents = {
                 i - overflow: kind for i, kind in self._incidents.items() if i >= overflow
             }
+        # Run lengths are index-aligned to _rows, so drop the trimmed front slice.
+        # If the trim removed the current run's representative, promote the new
+        # front row to a representative (its count restarts — see the boundary
+        # limitation in duplicate-count.md).
+        del self._run_len[:overflow]
+        self._run_rep -= overflow
+        if self._run_rep < 0:
+            self._run_rep = 0
+            if self._run_len:
+                self._run_len[0] = max(self._run_len[0], 1)
         self.endRemoveRows()
 
     def clear(self) -> None:
@@ -214,12 +243,19 @@ class LogTableModel(QAbstractTableModel):
         self._baseline = None
         self._bookmarks.clear()
         self._incidents.clear()
+        self._run_len.clear()
+        self._run_rep = -1
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
         return self._rows[row]
+
+    def run_length(self, source_row: int) -> int:
+        """Consecutive-duplicate run length for a run's representative row
+        (1 for a unique line; 0 for a hidden duplicate, which is never shown)."""
+        return self._run_len[source_row] if 0 <= source_row < len(self._run_len) else 1
 
     def all_entries(self) -> list[LogEntry]:
         """A copy of the full master list (used by Save Log)."""

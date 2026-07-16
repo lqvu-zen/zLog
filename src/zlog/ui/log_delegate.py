@@ -15,7 +15,7 @@ from PySide6.QtCore import QPointF, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QTextCharFormat, QTextLayout
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate
 
-from zlog.ui.log_model import HIGHLIGHT_ROLE, MATCH_SPANS_ROLE, PROCESS_ROLE
+from zlog.ui.log_model import DUP_COUNT_ROLE, HIGHLIGHT_ROLE, MATCH_SPANS_ROLE, PROCESS_ROLE
 
 _TIME_MIN_W = 8  # Time/PID size to content (model), never below these floors
 _PIDTID_MIN_W = 7
@@ -58,6 +58,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._pad = 6
         self.show_process = False  # paint the process/package column
         self.wrap = False  # wrap long messages across as many lines as needed
+        self.collapse = False  # paint a ×N badge on collapsed-duplicate representatives
         self.view = None  # set by MainWindow; used to read the column width in sizeHint
 
     def set_theme(
@@ -208,6 +209,18 @@ class LogItemDelegate(QStyledItemDelegate):
         painter.setPen(self._chip_fg)
         painter.drawText(chip, int(Qt.AlignCenter), level)
         x += 3 * cw
+
+        # ×N badge for a run of collapsed duplicates (only when collapse is on).
+        if self.collapse:
+            count = index.data(DUP_COUNT_ROLE)
+            if isinstance(count, int) and count > 1:
+                label = f"×{count}"
+                badge_w = fm.horizontalAdvance(label) + cw
+                badge = QRect(x, top + 2, badge_w, band - 4)
+                painter.setPen(self._muted)
+                painter.drawRect(badge)
+                painter.drawText(badge, int(Qt.AlignCenter), label)
+                x += badge_w + cw
 
         msg_color = self._sel_fg if selected else lvl_color
         painter.setPen(msg_color)

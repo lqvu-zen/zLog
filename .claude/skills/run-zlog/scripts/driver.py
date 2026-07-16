@@ -165,6 +165,15 @@ def scenario_time_range_filter(window: MainWindow) -> None:
     _shot(window, "time-range-filter")
 
 
+def scenario_duplicate_count(window: MainWindow) -> None:
+    # Seed a run of identical lines, then enable Collapse: the surviving
+    # representative should show a ×N badge before its message.
+    dup = LogEntry("06-30 12:00:00.000", "1287", "1287", "W", "GnssHal", "measurement dropped")
+    window.model.append_entries([dup] * 6 + [SAMPLE[0]])
+    window.collapse_action.setChecked(True)
+    _shot(window, "duplicate-count")
+
+
 def scenario_isolate(window: MainWindow) -> None:
     # Select the FATAL EXCEPTION row and isolate to it: the query bar should
     # read pid:<n> tag:AndroidRuntime, narrowing the view to just that process.
@@ -399,6 +408,7 @@ SCENARIOS = {
     "regex-search": scenario_regex_search,
     "time-range-filter": scenario_time_range_filter,
     "isolate": scenario_isolate,
+    "duplicate-count": scenario_duplicate_count,
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
     "dark": scenario_dark,

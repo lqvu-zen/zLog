@@ -705,7 +705,7 @@ class MainWindow(QMainWindow):
         self.process_action.toggled.connect(self._on_process_toggled)
         self.collapse_action = QAction("Collapse Repeated Lines", self)
         self.collapse_action.setCheckable(True)
-        self.collapse_action.toggled.connect(self.proxy.set_collapse)
+        self.collapse_action.toggled.connect(self._on_collapse_toggled)
         self.case_action = QAction("Case sensitive", self)
         self.case_action.setCheckable(True)
         self.case_action.toggled.connect(self._on_case_toggled)
@@ -1301,6 +1301,11 @@ class MainWindow(QMainWindow):
     def _on_highlight_toggled(self, checked: bool) -> None:
         self.search_mode_box.setCurrentIndex(1 if checked else 0)
         self._apply_query()
+
+    def _on_collapse_toggled(self, checked: bool) -> None:
+        self.proxy.set_collapse(checked)
+        self.log_delegate.collapse = checked  # show/hide the ×N duplicate badge
+        self.table.viewport().update()
 
     # --- match navigation --------------------------------------------------
     def _match_rows(self) -> list[int]:
@@ -2472,6 +2477,7 @@ class MainWindow(QMainWindow):
         def set_collapse(v):
             self.collapse_action.setChecked(bool(v))
             self.proxy.set_collapse(bool(v))
+            self.log_delegate.collapse = bool(v)
 
         def set_font_delta(v):
             delta = v if isinstance(v, int) else 0
