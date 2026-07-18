@@ -837,6 +837,9 @@ class MainWindow(QMainWindow):
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.table.verticalScrollBar().valueChanged.connect(self._schedule_wrap_fit)
+        # A width change re-flows wrapped rows, so re-fit the visible ones (debounced
+        # via _wrap_timer; a no-op when wrap is off) — see wrap-refit-on-resize.md.
+        self.table.resized.connect(self._schedule_wrap_fit)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)

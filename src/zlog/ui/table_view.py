@@ -17,10 +17,17 @@ from zlog.ui.log_model import FOLD_ROLE
 class LogTableView(QTableView):
     # Emitted with a source-model row when a stack-trace header is double-clicked.
     fold_toggle_requested = Signal(int)
+    # Emitted after the viewport is resized, so wrap mode can re-fit visible rows
+    # to the new width (their wrapped height depends on it — see wrap-refit-on-resize.md).
+    resized = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._placeholder = ""
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.resized.emit()
 
     def mouseDoubleClickEvent(self, event) -> None:
         index = self.indexAt(event.position().toPoint())
