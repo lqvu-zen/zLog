@@ -21,3 +21,4 @@ dist/
 # run-zlog screenshots (throwaway artifacts)
 .claude/skills/run-zlog/screenshots/
 /docs/images
+/.claude/worktrees
