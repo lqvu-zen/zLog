@@ -34,6 +34,7 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QFont,
+    QFontDatabase,
     QFontMetrics,
     QKeySequence,
     QShortcut,
@@ -149,6 +150,7 @@ class MainWindow(QMainWindow):
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
+        self._font_family = ""  # chosen log font family ("" = the LOG_FONT_FAMILIES chain)
         self._density = DEFAULT_DENSITY  # row-padding preset (see core/density.py)
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
@@ -401,11 +403,7 @@ class MainWindow(QMainWindow):
         # Android-Studio-style dense view: one line per entry. Show only column 0
         # stretched full-width and paint the whole entry with a delegate (the model
         # stays virtualized — the delegate runs only for visible rows).
-        mono = QFont()
-        mono.setFamilies(LOG_FONT_FAMILIES)
-        mono.setStyleHint(QFont.Monospace)
-        mono.setFixedPitch(True)
-        self.table.setFont(mono)
+        self.table.setFont(self._make_log_font())
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         for col in range(1, len(COLUMNS)):
             self.table.setColumnHidden(col, True)
@@ -1782,13 +1780,46 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     # --- font zoom ---------------------------------------------------------
+    def _make_log_font(self) -> QFont:
+        """Build the log table's monospace font, honoring the chosen family
+        (``_font_family``; "" = the built-in chain) and the zoom offset. A picked
+        family is listed *before* the chain so a later-uninstalled family still
+        falls back to a readable monospace instead of vanishing."""
+        font = QFont()
+        if self._font_family:
+            font.setFamilies([self._font_family, *LOG_FONT_FAMILIES])
+        else:
+            font.setFamilies(LOG_FONT_FAMILIES)
+        font.setStyleHint(QFont.Monospace)
+        font.setFixedPitch(True)
+        font.setPointSize(max(6, min(28, BASE_FONT_PT + self._font_delta)))
+        return font
+
     def _apply_font(self) -> None:
         size = max(6, min(28, BASE_FONT_PT + self._font_delta))
-        for widget in (self.table, self.detail):
-            font = widget.font()
-            font.setPointSize(size)
-            widget.setFont(font)
+        self.table.setFont(self._make_log_font())
+        # The detail pane keeps its default (proportional) family unless the user
+        # picks a log font; only the size tracks zoom otherwise.
+        detail_font = self.detail.font()
+        if self._font_family:
+            detail_font.setFamily(self._font_family)
+        detail_font.setPointSize(size)
+        self.detail.setFont(detail_font)
         self._apply_row_height()
+
+    def _set_font_family(self, name: str) -> None:
+        self._font_family = str(name or "")
+        self._apply_font()
+
+    def _available_log_fonts(self) -> list[str]:
+        """Installed fixed-pitch families for the Settings font picker. Only
+        monospace families are offered, so a pick can't break column alignment.
+        The currently-chosen family is always included, even if this machine
+        doesn't report it as fixed-pitch, so it stays selected in the dialog."""
+        families = sorted(f for f in QFontDatabase.families() if QFontDatabase.isFixedPitch(f))
+        if self._font_family and self._font_family not in families:
+            families.append(self._font_family)
+        return families
 
     def _apply_row_height(self) -> None:
         """Uniform one-line rows; when wrap is on, only the on-screen rows are grown
@@ -1852,6 +1883,7 @@ class MainWindow(QMainWindow):
         return {
             "theme": self._theme_name,
             "font_delta": self._font_delta,
+            "font_family": self._font_family,
             "density": self._density,
             "show_details": self.details_action.isChecked(),
             "time_mode": time_mode,
@@ -1887,6 +1919,7 @@ class MainWindow(QMainWindow):
                 ("Last 10,000", 10000),
             ],
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
+            fonts=self._available_log_fonts(),
             parent=self,
         )
         if dlg.exec():
@@ -1898,6 +1931,7 @@ class MainWindow(QMainWindow):
         self.apply_theme(v["theme"])
         for act in self._theme_group.actions():
             act.setChecked(act.text() == v["theme"])
+        self._set_font_family(v["font_family"])
         self._set_font_delta(v["font_delta"])
         self._set_density(v["density"])
         self.details_action.setChecked(v["show_details"])
@@ -2535,6 +2569,9 @@ class MainWindow(QMainWindow):
             self._font_delta = max(-4, min(12, delta))
             self._apply_font()
 
+        def set_font_family(v):
+            self._set_font_family(str(v) if v else "")
+
         def set_density(v):
             self._set_density(v if v in DENSITY_NAMES else DEFAULT_DENSITY)
 
@@ -2631,6 +2668,7 @@ class MainWindow(QMainWindow):
                 set_time_mode,
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
+            ("font_family", lambda: self._font_family, set_font_family),
             ("density", lambda: self._density, set_density),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),

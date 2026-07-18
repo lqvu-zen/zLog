@@ -35,6 +35,7 @@ class SettingsDialog(QDialog):
         time_modes,
         tail_options,
         buffers,
+        fonts=(),
         parent=None,
     ):
         super().__init__(parent)
@@ -47,6 +48,11 @@ class SettingsDialog(QDialog):
         for name in themes:
             self.theme_box.addItem(name, name)
         self._select(self.theme_box, values.get("theme", "Light"))
+        self.font_box = QComboBox()
+        self.font_box.addItem("Default (built-in monospace)", "")
+        for family in fonts:
+            self.font_box.addItem(family, family)
+        self._select(self.font_box, values.get("font_family", ""))
         self.font_spin = QSpinBox()
         self.font_spin.setRange(-4, 12)
         self.font_spin.setValue(int(values.get("font_delta", 0)))
@@ -55,6 +61,7 @@ class SettingsDialog(QDialog):
         self.details_chk.setChecked(values.get("show_details", True))
         appearance = QFormLayout()
         appearance.addRow("Theme", self.theme_box)
+        appearance.addRow("Log font", self.font_box)
         appearance.addRow("Font size offset", self.font_spin)
         appearance.addRow(self.details_chk)
         tabs.addTab(self._wrap(appearance), "Appearance")
@@ -172,6 +179,7 @@ class SettingsDialog(QDialog):
     def get_values(self) -> dict:
         return {
             "theme": self.theme_box.currentData(),
+            "font_family": self.font_box.currentData(),
             "font_delta": self.font_spin.value(),
             "show_details": self.details_chk.isChecked(),
             "time_mode": self.time_box.currentData(),

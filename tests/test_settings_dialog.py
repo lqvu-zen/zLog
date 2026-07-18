@@ -17,6 +17,7 @@ def test_dialog_reflects_initial_values(qapp):
 
     values = {
         "theme": "Dark",
+        "font_family": "",
         "font_delta": 3,
         "show_details": False,
         "time_mode": "delta",

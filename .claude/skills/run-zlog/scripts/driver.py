@@ -363,6 +363,13 @@ def scenario_inline_match_highlight_wrap(window: MainWindow) -> None:
     _shot(window, "inline-match-highlight-wrap")
 
 
+def scenario_font_family(window: MainWindow) -> None:
+    # Pick a known monospace family; the log switches to it (see font-family-picker.md).
+    _seed(window, 20)
+    window._set_font_family("Courier New")
+    _shot(window, "font-family")
+
+
 def scenario_density_compact(window: MainWindow) -> None:
     # Compact density packs rows tighter than the default (see density-modes.md).
     _seed(window, 30)
@@ -497,6 +504,7 @@ SCENARIOS = {
     "inline-match-highlight": scenario_inline_match_highlight,
     "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
     "wrap-refit": scenario_wrap_refit,
+    "font-family": scenario_font_family,
     "density-compact": scenario_density_compact,
     "density-comfortable": scenario_density_comfortable,
     "details": scenario_details,

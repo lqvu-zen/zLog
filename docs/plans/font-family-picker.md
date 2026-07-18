@@ -1,6 +1,6 @@
 # Plan: Font-family picker
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Claude
 - **Created:** 2026-07-18
 - **Related:** readable-log-font.md, font-zoom.md
