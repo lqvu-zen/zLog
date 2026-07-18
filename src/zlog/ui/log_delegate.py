@@ -63,6 +63,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._hover_bg = QColor("#dbe9fb")
         self._inline_match = QColor("#8ec4f5")
         self._pad = 6
+        self.row_pad = 4  # extra vertical px per row (density preset; see core/density.py)
         self.show_process = False  # paint the process/package column
         self.wrap = False  # wrap long messages across as many lines as needed
         self.collapse = False  # paint a ×N badge on collapsed-duplicate representatives
@@ -119,7 +120,7 @@ class LogItemDelegate(QStyledItemDelegate):
         fm = QFontMetrics(option.font)
         line_h = fm.height()
         if not self.wrap or index is None or not index.isValid():
-            return QSize(0, line_h + 4)
+            return QSize(0, line_h + self.row_pad)
         entry = index.data(Qt.UserRole)
         message = entry.message if entry is not None else (index.data(Qt.DisplayRole) or "")
         # sizeHintForRow doesn't give the column width in option.rect, so read it
@@ -138,7 +139,7 @@ class LogItemDelegate(QStyledItemDelegate):
             avail = (width - self._pad) - self._msg_left(0, time_w, pid_w, tag_w, proc_w, cw)
         avail = max(int(avail), cw * 4)
         rect = fm.boundingRect(0, 0, avail, 1_000_000, int(Qt.TextWordWrap), message)
-        return QSize(0, max(line_h, rect.height()) + 4)
+        return QSize(0, max(line_h, rect.height()) + self.row_pad)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -159,7 +160,7 @@ class LogItemDelegate(QStyledItemDelegate):
         x = option.rect.left() + self._pad
         # In wrap mode metadata sits on the first line (band); the message wraps
         # into the full row height. Otherwise everything is one vertically-centered line.
-        band = (fm.height() + 4) if self.wrap else height
+        band = (fm.height() + self.row_pad) if self.wrap else height
         painter.setFont(option.font)
 
         deco = index.data(Qt.DecorationRole)

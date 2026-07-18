@@ -363,6 +363,19 @@ def scenario_inline_match_highlight_wrap(window: MainWindow) -> None:
     _shot(window, "inline-match-highlight-wrap")
 
 
+def scenario_density_compact(window: MainWindow) -> None:
+    # Compact density packs rows tighter than the default (see density-modes.md).
+    _seed(window, 30)
+    window._set_density("compact")
+    _shot(window, "density-compact")
+
+
+def scenario_density_comfortable(window: MainWindow) -> None:
+    _seed(window, 20)
+    window._set_density("comfortable")
+    _shot(window, "density-comfortable")
+
+
 def scenario_wrap_refit(window: MainWindow) -> None:
     # Wrap on + a long message, then narrow the window: the row must re-fit to
     # the smaller width (grow taller) without a manual scroll — resizeEvent ->
@@ -484,6 +497,8 @@ SCENARIOS = {
     "inline-match-highlight": scenario_inline_match_highlight,
     "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
     "wrap-refit": scenario_wrap_refit,
+    "density-compact": scenario_density_compact,
+    "density-comfortable": scenario_density_comfortable,
     "details": scenario_details,
     "columns": scenario_columns,
     "guide-streaming": scenario_guide_streaming,

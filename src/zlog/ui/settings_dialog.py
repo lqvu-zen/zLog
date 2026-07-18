@@ -64,6 +64,14 @@ class SettingsDialog(QDialog):
         for label, data in time_modes:
             self.time_box.addItem(label, data)
         self._select(self.time_box, values.get("time_mode", "absolute"))
+        self.density_box = QComboBox()
+        for label, data in (
+            ("Compact", "compact"),
+            ("Default", "default"),
+            ("Comfortable", "comfortable"),
+        ):
+            self.density_box.addItem(label, data)
+        self._select(self.density_box, values.get("density", "default"))
         self.highlight_chk = QCheckBox("Highlight matches instead of hiding non-matches")
         self.highlight_chk.setChecked(values.get("highlight", False))
         self.case_chk = QCheckBox("Case-sensitive search")
@@ -76,6 +84,7 @@ class SettingsDialog(QDialog):
         self.wrap_chk.setChecked(values.get("wrap", False))
         logview = QFormLayout()
         logview.addRow("Time display", self.time_box)
+        logview.addRow("Row density", self.density_box)
         logview.addRow(self.highlight_chk)
         logview.addRow(self.case_chk)
         logview.addRow(self.collapse_chk)
@@ -166,6 +175,7 @@ class SettingsDialog(QDialog):
             "font_delta": self.font_spin.value(),
             "show_details": self.details_chk.isChecked(),
             "time_mode": self.time_box.currentData(),
+            "density": self.density_box.currentData(),
             "highlight": self.highlight_chk.isChecked(),
             "case": self.case_chk.isChecked(),
             "collapse": self.collapse_chk.isChecked(),

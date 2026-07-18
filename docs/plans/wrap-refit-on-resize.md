@@ -1,6 +1,6 @@
 # Plan: Wrap re-fit on resize
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Claude
 - **Created:** 2026-07-18
 - **Related:** wrap-messages.md, inline-match-highlight.md

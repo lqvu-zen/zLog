@@ -30,6 +30,7 @@ DEFAULTS: dict = {
     "search_mode": "filter",  # "filter" hides non-matches; "highlight" tints matches
     "time_mode": "absolute",  # Time column: "absolute" | "since_start" | "delta"
     "font_delta": 0,  # point-size offset applied to the table + detail pane
+    "density": "default",  # row-padding preset: compact | default | comfortable
     "search_history": [],  # recent query-bar entries (see core/history.py)
     "log_buffers": [],  # adb logcat -b buffers ([] = adb default)
     "tail_count": 10000,  # start from the last N lines (0 = whole buffer)

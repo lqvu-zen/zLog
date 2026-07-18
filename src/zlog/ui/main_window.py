@@ -78,6 +78,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
+from zlog.core.density import DEFAULT_DENSITY, DENSITY_NAMES, density_pad
 from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
 from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
@@ -148,6 +149,7 @@ class MainWindow(QMainWindow):
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
+        self._density = DEFAULT_DENSITY  # row-padding preset (see core/density.py)
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
         self._query_package = ""  # effective proc: value last mirrored into the package box
@@ -1794,7 +1796,7 @@ class MainWindow(QMainWindow):
         vh = self.table.verticalHeader()
         vh.setSectionResizeMode(QHeaderView.Fixed)  # never ResizeToContents (O(n^2) on stream)
         fm = QFontMetrics(self.table.font())
-        vh.setDefaultSectionSize(fm.height() + 4)
+        vh.setDefaultSectionSize(fm.height() + self.log_delegate.row_pad)
         if self.log_delegate.wrap:
             self._fit_visible_rows()  # grow the visible rows now
         else:
@@ -1834,6 +1836,14 @@ class MainWindow(QMainWindow):
         self._font_delta = max(-4, min(12, int(n)))
         self._apply_font()
 
+    def _set_density(self, name: str) -> None:
+        """Apply a row-density preset (compact/default/comfortable): set the
+        delegate's per-row padding and re-lay-out row heights."""
+        self._density = name if name in DENSITY_NAMES else DEFAULT_DENSITY
+        self.log_delegate.row_pad = density_pad(self._density)
+        self._apply_row_height()
+        self.table.viewport().update()
+
     # --- settings dialog ---------------------------------------------------
     def _collect_settings(self) -> dict:
         """Snapshot the current preference state for the Settings dialog."""
@@ -1842,6 +1852,7 @@ class MainWindow(QMainWindow):
         return {
             "theme": self._theme_name,
             "font_delta": self._font_delta,
+            "density": self._density,
             "show_details": self.details_action.isChecked(),
             "time_mode": time_mode,
             "highlight": self.highlight_action.isChecked(),
@@ -1888,6 +1899,7 @@ class MainWindow(QMainWindow):
         for act in self._theme_group.actions():
             act.setChecked(act.text() == v["theme"])
         self._set_font_delta(v["font_delta"])
+        self._set_density(v["density"])
         self.details_action.setChecked(v["show_details"])
         mode = v["time_mode"]
         if mode in self._time_actions:
@@ -2523,6 +2535,9 @@ class MainWindow(QMainWindow):
             self._font_delta = max(-4, min(12, delta))
             self._apply_font()
 
+        def set_density(v):
+            self._set_density(v if v in DENSITY_NAMES else DEFAULT_DENSITY)
+
         def set_time_mode(v):
             mode = v if v in self._time_actions else "absolute"
             self._time_actions[mode].setChecked(True)
@@ -2616,6 +2631,7 @@ class MainWindow(QMainWindow):
                 set_time_mode,
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
+            ("density", lambda: self._density, set_density),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
             ("watch", lambda: self._watch_pattern, set_watch),
