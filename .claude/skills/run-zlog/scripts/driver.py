@@ -363,6 +363,58 @@ def scenario_inline_match_highlight_wrap(window: MainWindow) -> None:
     _shot(window, "inline-match-highlight-wrap")
 
 
+def scenario_line_numbers(window: MainWindow) -> None:
+    # Source-row line numbers in a left gutter (see gutter-line-numbers.md).
+    _seed(window, 6)
+    window.log_delegate.line_numbers = True
+    window._apply_row_height()
+    _shot(window, "line-numbers")
+
+
+def scenario_font_family(window: MainWindow) -> None:
+    # Pick a known monospace family; the log switches to it (see font-family-picker.md).
+    _seed(window, 20)
+    window._set_font_family("Courier New")
+    _shot(window, "font-family")
+
+
+def scenario_density_compact(window: MainWindow) -> None:
+    # Compact density packs rows tighter than the default (see density-modes.md).
+    _seed(window, 30)
+    window._set_density("compact")
+    _shot(window, "density-compact")
+
+
+def scenario_density_comfortable(window: MainWindow) -> None:
+    _seed(window, 20)
+    window._set_density("comfortable")
+    _shot(window, "density-comfortable")
+
+
+def scenario_wrap_refit(window: MainWindow) -> None:
+    # Wrap on + a long message, then narrow the window: the row must re-fit to
+    # the smaller width (grow taller) without a manual scroll — resizeEvent ->
+    # _schedule_wrap_fit does it. Grab after the resize settles.
+    window.model.append_entries(
+        [
+            LogEntry(
+                "06-30 12:34:56.110",
+                "1287",
+                "1287",
+                "W",
+                "Choreographer",
+                "Skipped 12 frames! The app may be doing too much work on its main "
+                "thread, which is a common cause of jank and dropped frames overall, "
+                "so keep heavy work off the UI thread wherever you possibly can.",
+            )
+        ]
+    )
+    window.log_delegate.wrap = True
+    window._apply_row_height()
+    window.resize(520, 400)
+    _shot(window, "wrap-refit")
+
+
 def scenario_bookmarks(window: MainWindow) -> None:
     # Seed rows, bookmark a couple, and select one so the marker is visible
     # against both a selected and unselected row.
@@ -459,6 +511,11 @@ SCENARIOS = {
     "jank-summary": scenario_jank_summary,
     "inline-match-highlight": scenario_inline_match_highlight,
     "inline-match-highlight-wrap": scenario_inline_match_highlight_wrap,
+    "wrap-refit": scenario_wrap_refit,
+    "font-family": scenario_font_family,
+    "line-numbers": scenario_line_numbers,
+    "density-compact": scenario_density_compact,
+    "density-comfortable": scenario_density_comfortable,
     "details": scenario_details,
     "columns": scenario_columns,
     "guide-streaming": scenario_guide_streaming,

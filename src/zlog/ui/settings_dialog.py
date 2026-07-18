@@ -35,6 +35,7 @@ class SettingsDialog(QDialog):
         time_modes,
         tail_options,
         buffers,
+        fonts=(),
         parent=None,
     ):
         super().__init__(parent)
@@ -47,6 +48,11 @@ class SettingsDialog(QDialog):
         for name in themes:
             self.theme_box.addItem(name, name)
         self._select(self.theme_box, values.get("theme", "Light"))
+        self.font_box = QComboBox()
+        self.font_box.addItem("Default (built-in monospace)", "")
+        for family in fonts:
+            self.font_box.addItem(family, family)
+        self._select(self.font_box, values.get("font_family", ""))
         self.font_spin = QSpinBox()
         self.font_spin.setRange(-4, 12)
         self.font_spin.setValue(int(values.get("font_delta", 0)))
@@ -55,6 +61,7 @@ class SettingsDialog(QDialog):
         self.details_chk.setChecked(values.get("show_details", True))
         appearance = QFormLayout()
         appearance.addRow("Theme", self.theme_box)
+        appearance.addRow("Log font", self.font_box)
         appearance.addRow("Font size offset", self.font_spin)
         appearance.addRow(self.details_chk)
         tabs.addTab(self._wrap(appearance), "Appearance")
@@ -64,6 +71,14 @@ class SettingsDialog(QDialog):
         for label, data in time_modes:
             self.time_box.addItem(label, data)
         self._select(self.time_box, values.get("time_mode", "absolute"))
+        self.density_box = QComboBox()
+        for label, data in (
+            ("Compact", "compact"),
+            ("Default", "default"),
+            ("Comfortable", "comfortable"),
+        ):
+            self.density_box.addItem(label, data)
+        self._select(self.density_box, values.get("density", "default"))
         self.highlight_chk = QCheckBox("Highlight matches instead of hiding non-matches")
         self.highlight_chk.setChecked(values.get("highlight", False))
         self.case_chk = QCheckBox("Case-sensitive search")
@@ -74,13 +89,17 @@ class SettingsDialog(QDialog):
         self.process_chk.setChecked(values.get("show_process", False))
         self.wrap_chk = QCheckBox("Wrap long messages (show the full message)")
         self.wrap_chk.setChecked(values.get("wrap", False))
+        self.linenum_chk = QCheckBox("Show line numbers (source-row gutter)")
+        self.linenum_chk.setChecked(values.get("line_numbers", False))
         logview = QFormLayout()
         logview.addRow("Time display", self.time_box)
+        logview.addRow("Row density", self.density_box)
         logview.addRow(self.highlight_chk)
         logview.addRow(self.case_chk)
         logview.addRow(self.collapse_chk)
         logview.addRow(self.process_chk)
         logview.addRow(self.wrap_chk)
+        logview.addRow(self.linenum_chk)
         tabs.addTab(self._wrap(logview), "Log view")
 
         # --- Capture ------------------------------------------------------
@@ -163,14 +182,17 @@ class SettingsDialog(QDialog):
     def get_values(self) -> dict:
         return {
             "theme": self.theme_box.currentData(),
+            "font_family": self.font_box.currentData(),
             "font_delta": self.font_spin.value(),
             "show_details": self.details_chk.isChecked(),
             "time_mode": self.time_box.currentData(),
+            "density": self.density_box.currentData(),
             "highlight": self.highlight_chk.isChecked(),
             "case": self.case_chk.isChecked(),
             "collapse": self.collapse_chk.isChecked(),
             "show_process": self.process_chk.isChecked(),
             "wrap": self.wrap_chk.isChecked(),
+            "line_numbers": self.linenum_chk.isChecked(),
             "buffers": {n for n, c in self.buffer_chks.items() if c.isChecked()},
             "tail": self.tail_box.currentData(),
             "max_rows": self.max_spin.value(),

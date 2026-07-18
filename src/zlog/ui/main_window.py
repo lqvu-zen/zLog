@@ -34,6 +34,7 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QFont,
+    QFontDatabase,
     QFontMetrics,
     QKeySequence,
     QShortcut,
@@ -78,6 +79,7 @@ from zlog.adb.reader import AdbReader
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
+from zlog.core.density import DEFAULT_DENSITY, DENSITY_NAMES, density_pad
 from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
 from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
@@ -148,6 +150,8 @@ class MainWindow(QMainWindow):
         self._theme_name = "Light"
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
+        self._font_family = ""  # chosen log font family ("" = the LOG_FONT_FAMILIES chain)
+        self._density = DEFAULT_DENSITY  # row-padding preset (see core/density.py)
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
         self._query_package = ""  # effective proc: value last mirrored into the package box
@@ -399,11 +403,7 @@ class MainWindow(QMainWindow):
         # Android-Studio-style dense view: one line per entry. Show only column 0
         # stretched full-width and paint the whole entry with a delegate (the model
         # stays virtualized — the delegate runs only for visible rows).
-        mono = QFont()
-        mono.setFamilies(LOG_FONT_FAMILIES)
-        mono.setStyleHint(QFont.Monospace)
-        mono.setFixedPitch(True)
-        self.table.setFont(mono)
+        self.table.setFont(self._make_log_font())
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         for col in range(1, len(COLUMNS)):
             self.table.setColumnHidden(col, True)
@@ -837,6 +837,9 @@ class MainWindow(QMainWindow):
         themselves in _build_menus)."""
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.table.verticalScrollBar().valueChanged.connect(self._schedule_wrap_fit)
+        # A width change re-flows wrapped rows, so re-fit the visible ones (debounced
+        # via _wrap_timer; a no-op when wrap is off) — see wrap-refit-on-resize.md.
+        self.table.resized.connect(self._schedule_wrap_fit)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
@@ -1777,13 +1780,46 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     # --- font zoom ---------------------------------------------------------
+    def _make_log_font(self) -> QFont:
+        """Build the log table's monospace font, honoring the chosen family
+        (``_font_family``; "" = the built-in chain) and the zoom offset. A picked
+        family is listed *before* the chain so a later-uninstalled family still
+        falls back to a readable monospace instead of vanishing."""
+        font = QFont()
+        if self._font_family:
+            font.setFamilies([self._font_family, *LOG_FONT_FAMILIES])
+        else:
+            font.setFamilies(LOG_FONT_FAMILIES)
+        font.setStyleHint(QFont.Monospace)
+        font.setFixedPitch(True)
+        font.setPointSize(max(6, min(28, BASE_FONT_PT + self._font_delta)))
+        return font
+
     def _apply_font(self) -> None:
         size = max(6, min(28, BASE_FONT_PT + self._font_delta))
-        for widget in (self.table, self.detail):
-            font = widget.font()
-            font.setPointSize(size)
-            widget.setFont(font)
+        self.table.setFont(self._make_log_font())
+        # The detail pane keeps its default (proportional) family unless the user
+        # picks a log font; only the size tracks zoom otherwise.
+        detail_font = self.detail.font()
+        if self._font_family:
+            detail_font.setFamily(self._font_family)
+        detail_font.setPointSize(size)
+        self.detail.setFont(detail_font)
         self._apply_row_height()
+
+    def _set_font_family(self, name: str) -> None:
+        self._font_family = str(name or "")
+        self._apply_font()
+
+    def _available_log_fonts(self) -> list[str]:
+        """Installed fixed-pitch families for the Settings font picker. Only
+        monospace families are offered, so a pick can't break column alignment.
+        The currently-chosen family is always included, even if this machine
+        doesn't report it as fixed-pitch, so it stays selected in the dialog."""
+        families = sorted(f for f in QFontDatabase.families() if QFontDatabase.isFixedPitch(f))
+        if self._font_family and self._font_family not in families:
+            families.append(self._font_family)
+        return families
 
     def _apply_row_height(self) -> None:
         """Uniform one-line rows; when wrap is on, only the on-screen rows are grown
@@ -1791,7 +1827,7 @@ class MainWindow(QMainWindow):
         vh = self.table.verticalHeader()
         vh.setSectionResizeMode(QHeaderView.Fixed)  # never ResizeToContents (O(n^2) on stream)
         fm = QFontMetrics(self.table.font())
-        vh.setDefaultSectionSize(fm.height() + 4)
+        vh.setDefaultSectionSize(fm.height() + self.log_delegate.row_pad)
         if self.log_delegate.wrap:
             self._fit_visible_rows()  # grow the visible rows now
         else:
@@ -1831,6 +1867,14 @@ class MainWindow(QMainWindow):
         self._font_delta = max(-4, min(12, int(n)))
         self._apply_font()
 
+    def _set_density(self, name: str) -> None:
+        """Apply a row-density preset (compact/default/comfortable): set the
+        delegate's per-row padding and re-lay-out row heights."""
+        self._density = name if name in DENSITY_NAMES else DEFAULT_DENSITY
+        self.log_delegate.row_pad = density_pad(self._density)
+        self._apply_row_height()
+        self.table.viewport().update()
+
     # --- settings dialog ---------------------------------------------------
     def _collect_settings(self) -> dict:
         """Snapshot the current preference state for the Settings dialog."""
@@ -1839,6 +1883,8 @@ class MainWindow(QMainWindow):
         return {
             "theme": self._theme_name,
             "font_delta": self._font_delta,
+            "font_family": self._font_family,
+            "density": self._density,
             "show_details": self.details_action.isChecked(),
             "time_mode": time_mode,
             "highlight": self.highlight_action.isChecked(),
@@ -1853,6 +1899,7 @@ class MainWindow(QMainWindow):
             "reopen_last": self.reopen_last_action.isChecked(),
             "autosave": self.autosave_action.isChecked(),
             "wrap": self.log_delegate.wrap,
+            "line_numbers": self.log_delegate.line_numbers,
             "adb_path": self._adb_path_setting,
         }
 
@@ -1873,6 +1920,7 @@ class MainWindow(QMainWindow):
                 ("Last 10,000", 10000),
             ],
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
+            fonts=self._available_log_fonts(),
             parent=self,
         )
         if dlg.exec():
@@ -1884,7 +1932,9 @@ class MainWindow(QMainWindow):
         self.apply_theme(v["theme"])
         for act in self._theme_group.actions():
             act.setChecked(act.text() == v["theme"])
+        self._set_font_family(v["font_family"])
         self._set_font_delta(v["font_delta"])
+        self._set_density(v["density"])
         self.details_action.setChecked(v["show_details"])
         mode = v["time_mode"]
         if mode in self._time_actions:
@@ -1905,6 +1955,7 @@ class MainWindow(QMainWindow):
         self.reopen_last_action.setChecked(v["reopen_last"])
         self.autosave_action.setChecked(v["autosave"])
         self.log_delegate.wrap = bool(v["wrap"])
+        self.log_delegate.line_numbers = bool(v["line_numbers"])
         self._apply_row_height()
         self.table.viewport().update()
         self._adb_path_setting = v["adb_path"]
@@ -2520,6 +2571,12 @@ class MainWindow(QMainWindow):
             self._font_delta = max(-4, min(12, delta))
             self._apply_font()
 
+        def set_font_family(v):
+            self._set_font_family(str(v) if v else "")
+
+        def set_density(v):
+            self._set_density(v if v in DENSITY_NAMES else DEFAULT_DENSITY)
+
         def set_time_mode(v):
             mode = v if v in self._time_actions else "absolute"
             self._time_actions[mode].setChecked(True)
@@ -2546,6 +2603,11 @@ class MainWindow(QMainWindow):
         def set_wrap(v):
             self.log_delegate.wrap = bool(v)
             self._apply_row_height()
+            self.table.viewport().update()
+
+        def set_line_numbers(v):
+            self.log_delegate.line_numbers = bool(v)
+            self._apply_row_height()  # the gutter narrows the message -> re-fit wrap heights
             self.table.viewport().update()
 
         def set_adb_path(v):
@@ -2613,6 +2675,8 @@ class MainWindow(QMainWindow):
                 set_time_mode,
             ),
             ("font_delta", lambda: self._font_delta, set_font_delta),
+            ("font_family", lambda: self._font_family, set_font_family),
+            ("density", lambda: self._density, set_density),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
             ("watch", lambda: self._watch_pattern, set_watch),
@@ -2644,6 +2708,7 @@ class MainWindow(QMainWindow):
                 lambda v: self.process_action.setChecked(bool(v)),
             ),
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
+            ("line_numbers", lambda: self.log_delegate.line_numbers, set_line_numbers),
             ("adb_path", lambda: self._adb_path_setting, set_adb_path),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
