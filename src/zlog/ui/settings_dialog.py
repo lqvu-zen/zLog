@@ -89,6 +89,8 @@ class SettingsDialog(QDialog):
         self.process_chk.setChecked(values.get("show_process", False))
         self.wrap_chk = QCheckBox("Wrap long messages (show the full message)")
         self.wrap_chk.setChecked(values.get("wrap", False))
+        self.linenum_chk = QCheckBox("Show line numbers (source-row gutter)")
+        self.linenum_chk.setChecked(values.get("line_numbers", False))
         logview = QFormLayout()
         logview.addRow("Time display", self.time_box)
         logview.addRow("Row density", self.density_box)
@@ -97,6 +99,7 @@ class SettingsDialog(QDialog):
         logview.addRow(self.collapse_chk)
         logview.addRow(self.process_chk)
         logview.addRow(self.wrap_chk)
+        logview.addRow(self.linenum_chk)
         tabs.addTab(self._wrap(logview), "Log view")
 
         # --- Capture ------------------------------------------------------
@@ -189,6 +192,7 @@ class SettingsDialog(QDialog):
             "collapse": self.collapse_chk.isChecked(),
             "show_process": self.process_chk.isChecked(),
             "wrap": self.wrap_chk.isChecked(),
+            "line_numbers": self.linenum_chk.isChecked(),
             "buffers": {n for n, c in self.buffer_chks.items() if c.isChecked()},
             "tail": self.tail_box.currentData(),
             "max_rows": self.max_spin.value(),

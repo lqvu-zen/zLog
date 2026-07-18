@@ -35,7 +35,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [wrap-refit-on-resize.md](wrap-refit-on-resize.md) | Done | Re-fit wrapped rows when the viewport width changes (finish the wrap feature) |
 | [density-modes.md](density-modes.md) | Done | Compact/Default/Comfortable row-padding presets (Settings → Log view) |
 | [font-family-picker.md](font-family-picker.md) | Done | Pick the log's monospace font family in Settings → Appearance |
-| [gutter-line-numbers.md](gutter-line-numbers.md) | Approved | Optional left-gutter source-row numbers (View toggle) |
+| [gutter-line-numbers.md](gutter-line-numbers.md) | Done | Optional left-gutter source-row numbers (Settings → Log view) |
 | [filter-chips.md](filter-chips.md) | Approved | Active query tokens as removable chips under the query bar |
 | [bookmark-labels.md](bookmark-labels.md) | Approved | Name bookmarks + a Bookmarks dock to jump between them |
 | [large-file-progress.md](large-file-progress.md) | Approved | Stream big `.log` opens in the background with a cancelable progress dialog |

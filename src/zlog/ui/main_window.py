@@ -1899,6 +1899,7 @@ class MainWindow(QMainWindow):
             "reopen_last": self.reopen_last_action.isChecked(),
             "autosave": self.autosave_action.isChecked(),
             "wrap": self.log_delegate.wrap,
+            "line_numbers": self.log_delegate.line_numbers,
             "adb_path": self._adb_path_setting,
         }
 
@@ -1954,6 +1955,7 @@ class MainWindow(QMainWindow):
         self.reopen_last_action.setChecked(v["reopen_last"])
         self.autosave_action.setChecked(v["autosave"])
         self.log_delegate.wrap = bool(v["wrap"])
+        self.log_delegate.line_numbers = bool(v["line_numbers"])
         self._apply_row_height()
         self.table.viewport().update()
         self._adb_path_setting = v["adb_path"]
@@ -2603,6 +2605,11 @@ class MainWindow(QMainWindow):
             self._apply_row_height()
             self.table.viewport().update()
 
+        def set_line_numbers(v):
+            self.log_delegate.line_numbers = bool(v)
+            self._apply_row_height()  # the gutter narrows the message -> re-fit wrap heights
+            self.table.viewport().update()
+
         def set_adb_path(v):
             self._adb_path_setting = str(v) if v else ""
 
@@ -2701,6 +2708,7 @@ class MainWindow(QMainWindow):
                 lambda v: self.process_action.setChecked(bool(v)),
             ),
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
+            ("line_numbers", lambda: self.log_delegate.line_numbers, set_line_numbers),
             ("adb_path", lambda: self._adb_path_setting, set_adb_path),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice

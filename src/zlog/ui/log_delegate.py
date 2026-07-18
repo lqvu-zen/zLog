@@ -64,6 +64,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self._inline_match = QColor("#8ec4f5")
         self._pad = 6
         self.row_pad = 4  # extra vertical px per row (density preset; see core/density.py)
+        self.line_numbers = False  # paint a left gutter of source-row numbers
         self.show_process = False  # paint the process/package column
         self.wrap = False  # wrap long messages across as many lines as needed
         self.collapse = False  # paint a ×N badge on collapsed-duplicate representatives
@@ -109,6 +110,17 @@ class LogItemDelegate(QStyledItemDelegate):
         tag_w, proc_w = plan_tag_proc_widths(usable, cw, self.show_process, fixed_px)
         return time_w, pid_w, tag_w, proc_w
 
+    def _gutter_w(self, src, fm):
+        """Pixel width of the line-number gutter (0 when off). Sized to the digit
+        count of the source model's row count, so numbers right-align in a stable
+        column across a viewport of appends. Kept in sync between paint and sizeHint."""
+        if not self.line_numbers or src is None:
+            return 0
+        fn = getattr(src, "rowCount", None)
+        rows = max(1, fn() if fn else 1)
+        digits = len(str(rows))
+        return fm.horizontalAdvance("0" * digits) + 2 * self._pad
+
     def _msg_left(self, left, time_w, pid_w, tag_w, proc_w, cw):
         """The x where the message starts (after Time/PID/Tag/[Process]/level chip)."""
         x = left + self._pad + (time_w + cw) + (pid_w + cw) + (tag_w + cw)
@@ -130,13 +142,14 @@ class LogItemDelegate(QStyledItemDelegate):
             width = self.view.viewport().width()
         width = width if width > 0 else 800
         cw = fm.horizontalAdvance("M") or 8
+        src = index.model()
+        src = src.sourceModel() if hasattr(src, "sourceModel") else src
+        gutter = self._gutter_w(src, fm)  # the message column starts after the gutter
         if entry is None or not entry.level:
-            avail = width - 2 * self._pad
+            avail = width - 2 * self._pad - gutter
         else:
-            src = index.model()
-            src = src.sourceModel() if hasattr(src, "sourceModel") else src
-            time_w, pid_w, tag_w, proc_w = self._col_widths(0, width, cw, src, fm)
-            avail = (width - self._pad) - self._msg_left(0, time_w, pid_w, tag_w, proc_w, cw)
+            time_w, pid_w, tag_w, proc_w = self._col_widths(gutter, width, cw, src, fm)
+            avail = (width - self._pad) - self._msg_left(gutter, time_w, pid_w, tag_w, proc_w, cw)
         avail = max(int(avail), cw * 4)
         rect = fm.boundingRect(0, 0, avail, 1_000_000, int(Qt.TextWordWrap), message)
         return QSize(0, max(line_h, rect.height()) + self.row_pad)
@@ -157,11 +170,20 @@ class LogItemDelegate(QStyledItemDelegate):
         fm = QFontMetrics(option.font)
         cw = fm.horizontalAdvance("M") or 8
         top, height = option.rect.top(), option.rect.height()
-        x = option.rect.left() + self._pad
+        painter.setFont(option.font)
         # In wrap mode metadata sits on the first line (band); the message wraps
         # into the full row height. Otherwise everything is one vertically-centered line.
         band = (fm.height() + self.row_pad) if self.wrap else height
-        painter.setFont(option.font)
+
+        src = index.model()
+        src = src.sourceModel() if hasattr(src, "sourceModel") else src
+        # Optional line-number gutter: shifts every column right by its width and
+        # paints the row's absolute (source-model) number, right-aligned.
+        gutter = self._gutter_w(src, fm)
+        left = option.rect.left() + gutter
+        x = left + self._pad
+        if gutter:
+            self._paint_gutter(painter, option, index, fm, gutter, band, selected)
 
         deco = index.data(Qt.DecorationRole)
         if isinstance(deco, QColor):
@@ -198,12 +220,8 @@ class LogItemDelegate(QStyledItemDelegate):
 
         level = entry.level
         lvl_color = self._level_text.get(level, self._muted)
-        src = index.model()
-        src = src.sourceModel() if hasattr(src, "sourceModel") else src
         show = self.show_process
-        time_w, pid_w, tag_w, proc_w = self._col_widths(
-            option.rect.left(), option.rect.right(), cw, src, fm
-        )
+        time_w, pid_w, tag_w, proc_w = self._col_widths(left, option.rect.right(), cw, src, fm)
         seg(time_str, time_w, base_fg)
         seg(f"{entry.pid}-{entry.tid}", pid_w, base_fg)
         seg(entry.tag, tag_w, base_fg, elide="middle")
@@ -259,6 +277,21 @@ class LogItemDelegate(QStyledItemDelegate):
                 fm.elidedText(message, Qt.ElideRight, mr.width()),
             )
         painter.restore()
+
+    def _paint_gutter(self, painter, option, index, fm, gutter, band, selected) -> None:
+        """Paint the row's absolute (source-model) line number, right-aligned in
+        the left gutter, plus a hair-line divider. Uses the source row so the
+        number is stable across filtering (matching bookmark/incident indexing)."""
+        model = index.model()
+        src_row = model.mapToSource(index).row() if hasattr(model, "mapToSource") else index.row()
+        left, top = option.rect.left(), option.rect.top()
+        # Align to the metadata band (the first line in wrap mode), like the columns.
+        num_rect = QRect(left, top, gutter - self._pad, band)
+        painter.setPen(self._sel_fg if selected else self._muted)
+        painter.drawText(num_rect, int(Qt.AlignRight | Qt.AlignVCenter), str(src_row + 1))
+        painter.setPen(self._muted)
+        gx = left + gutter - self._pad // 2
+        painter.drawLine(gx, top, gx, option.rect.bottom())
 
     def _draw_message_with_spans(self, painter, rect, message, spans, font, color) -> None:
         """Paint `message` in `rect`, tinting `spans` (char offsets) with the

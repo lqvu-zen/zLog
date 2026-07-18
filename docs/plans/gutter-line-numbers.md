@@ -1,6 +1,6 @@
 # Plan: Gutter line numbers
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Claude
 - **Created:** 2026-07-18
 - **Related:** goto-line-time.md, fixed-columns-middle-elide.md

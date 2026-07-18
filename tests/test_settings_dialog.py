@@ -27,6 +27,7 @@ def test_dialog_reflects_initial_values(qapp):
         "collapse": True,
         "show_process": True,
         "wrap": True,
+        "line_numbers": True,
         "buffers": {"system"},
         "tail": 500,
         "max_rows": 10000,
