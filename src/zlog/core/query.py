@@ -213,3 +213,17 @@ def token_spans(text: str) -> list[tuple[int, int, str]]:
             i += 1
         spans.append((start, i, _classify(text[start:i])))
     return spans
+
+
+def remove_span(text: str, start: int, end: int) -> str:
+    """Return `text` with `[start, end)` removed and the surrounding whitespace
+    collapsed to a single space, trimmed.
+
+    Removing by character span (not by token key) drops exactly one occurrence, so
+    duplicate tokens like ``-a -b`` are handled correctly. Used by the filter chip
+    bar: dropping a chip slices its span out of the query text.
+    """
+    if start < 0 or end > len(text) or start >= end:
+        return text.strip()
+    remaining = (text[:start] + " " + text[end:]).split()
+    return " ".join(remaining)

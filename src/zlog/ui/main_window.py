@@ -99,7 +99,7 @@ from zlog.core.presets import (
     remove_preset,
     upsert_preset,
 )
-from zlog.core.query import parse_query
+from zlog.core.query import parse_query, remove_span
 from zlog.core.redact import redact_entries
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
@@ -109,6 +109,7 @@ from zlog.core.summary import format_level_summary, tag_counts
 from zlog.core.timefmt import first_at_or_after, parse_time_of_day
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
+from zlog.ui.filter_chips import FilterChipBar
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_delegate import LogItemDelegate
@@ -601,10 +602,14 @@ class MainWindow(QMainWindow):
         filter_row.addWidget(self.match_label)
         filter_row.addWidget(self.clear_filters_btn)
 
+        self.chip_bar = FilterChipBar()
+        self.chip_bar.remove_requested.connect(self._remove_query_span)
+
         layout = QVBoxLayout()
         layout.addWidget(self.tab_bar)
         layout.addLayout(top_row)
         layout.addLayout(filter_row)
+        layout.addWidget(self.chip_bar)
         layout.addWidget(self._splitter)
         container = QWidget()
         container.setLayout(layout)
@@ -898,6 +903,7 @@ class MainWindow(QMainWindow):
         self.level_box.currentIndexChanged.connect(self._on_level_box_changed)
         self.search.textChanged.connect(self._apply_search)
         self.query.textChanged.connect(self._schedule_query_apply)
+        self.query.textChanged.connect(self.chip_bar.set_query)
         self.query.returnPressed.connect(self._commit_query_history)
         self.exclude.textChanged.connect(self._apply_search)
         self.match_next_btn.clicked.connect(lambda: self._goto_match(1))
@@ -1251,7 +1257,12 @@ class MainWindow(QMainWindow):
         self.query.blockSignals(True)
         self.query.setText(text)
         self.query.blockSignals(False)
+        self.chip_bar.set_query(text)  # textChanged is blocked above, so refresh chips here
         self._apply_query()
+
+    def _remove_query_span(self, start: int, end: int) -> None:
+        """A filter chip's × was clicked: slice that token span out of the query."""
+        self._set_query_text(remove_span(self.query.text(), start, end))
 
     def _apply_query(self) -> None:
         """Parse the single query bar and drive the (hidden) filter widgets +

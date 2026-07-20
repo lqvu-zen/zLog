@@ -1,6 +1,6 @@
 # Plan: Filter chips
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Claude
 - **Created:** 2026-07-18
 - **Related:** query-token-highlight.md, exclude-pid-proc.md, clear-filters-button.md

@@ -165,3 +165,39 @@ def test_token_spans_unknown_key_is_word():
     from zlog.core.query import token_spans
 
     assert token_spans("foo:bar")[0][2] == "word"
+
+
+def test_remove_span_first_middle_last_token():
+    from zlog.core.query import parse_query, remove_span, token_spans
+
+    text = "level:E tag:Foo -noise"
+    spans = token_spans(text)
+    # remove the middle token (tag:Foo) -> the rest parses the same minus that token
+    s, e, _ = spans[1]
+    rest = remove_span(text, s, e)
+    assert rest == "level:E -noise"
+    spec = parse_query(rest)
+    assert spec.level == "E" and spec.tag == "" and spec.excludes == ("noise",)
+    # first token
+    s, e, _ = token_spans(text)[0]
+    assert remove_span(text, s, e) == "tag:Foo -noise"
+    # last token
+    spans = token_spans(text)
+    s, e, _ = spans[-1]
+    assert remove_span(text, s, e) == "level:E tag:Foo"
+
+
+def test_remove_span_handles_duplicates():
+    from zlog.core.query import remove_span, token_spans
+
+    text = "-a -b"
+    s, e, _ = token_spans(text)[0]  # drop only the first -a
+    assert remove_span(text, s, e) == "-b"
+
+
+def test_remove_span_quoted_token():
+    from zlog.core.query import remove_span, token_spans
+
+    text = 'tag:"two words" boom'
+    s, e, _ = token_spans(text)[0]
+    assert remove_span(text, s, e) == "boom"
