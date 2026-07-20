@@ -7,23 +7,24 @@ from __future__ import annotations
 
 import json
 
-_VERSION = 1
+_VERSION = 2  # v2 stores bookmarks as {row: label}; v1's list[int] still parses
 
 
 def make_bundle(
     log_text: str,
     query: str,
     tag_highlights: dict[str, str],
-    bookmarks: list[int],
+    bookmarks: dict[int, str],
 ) -> str:
-    """Serialize a session to a JSON string."""
+    """Serialize a session to a JSON string. `bookmarks` maps source-row -> label
+    ("" for unlabeled)."""
     return json.dumps(
         {
             "version": _VERSION,
             "log": log_text,
             "query": query,
             "tag_highlights": tag_highlights,
-            "bookmarks": bookmarks,
+            "bookmarks": {str(row): label for row, label in bookmarks.items()},
         },
         indent=2,
         ensure_ascii=False,
@@ -35,7 +36,8 @@ def parse_bundle(text: str) -> dict:
 
     Tolerant of missing keys and wrong types (each falls back to an empty default)
     so an old or hand-edited file still opens; a non-JSON file raises ValueError for
-    the caller to report.
+    the caller to report. `bookmarks` is always returned as a {row: label} dict,
+    reading either the v2 mapping or a v1 `list[int]` (labels become "").
     """
     data = json.loads(text)
     if not isinstance(data, dict):
@@ -47,11 +49,17 @@ def parse_bundle(text: str) -> dict:
     tags = {}
     if isinstance(raw_tags, dict):
         tags = {str(k): str(v) for k, v in raw_tags.items()}
-    marks = []
-    if isinstance(raw_marks, list):
+    marks: dict[int, str] = {}
+    if isinstance(raw_marks, dict):  # v2: {row: label}
+        for k, v in raw_marks.items():
+            try:
+                marks[int(k)] = str(v)
+            except (TypeError, ValueError):
+                continue
+    elif isinstance(raw_marks, list):  # v1: [row, ...]
         for m in raw_marks:
             if isinstance(m, int) and not isinstance(m, bool):
-                marks.append(m)
+                marks[m] = ""
     return {
         "log": log if isinstance(log, str) else "",
         "query": query if isinstance(query, str) else "",

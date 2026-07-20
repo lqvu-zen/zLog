@@ -626,6 +626,31 @@ class MainWindow(QMainWindow):
         self.presets_dock.setObjectName("presetsDock")
         self.presets_dock.setWidget(panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.presets_dock)
+
+        # Bookmarks dock (right side): navigable, labelable landmarks. Hidden by
+        # default so the window isn't busier out of the box (open from View).
+        bpanel = QWidget()
+        blayout = QVBoxLayout(bpanel)
+        blayout.setContentsMargins(6, 6, 6, 6)
+        blayout.addWidget(QLabel("Bookmarks"))
+        self.bookmarks_list = QListWidget()
+        self.bookmarks_list.setToolTip("Double-click to jump; use the buttons to label or remove")
+        self.bookmarks_list.itemActivated.connect(self._jump_to_bookmark_item)
+        blayout.addWidget(self.bookmarks_list)
+        brow = QHBoxLayout()
+        self.edit_note_btn = QPushButton("Edit note…")
+        self.edit_note_btn.clicked.connect(self._edit_bookmark_note)
+        self.remove_bookmark_btn = QPushButton("Remove")
+        self.remove_bookmark_btn.clicked.connect(self._remove_selected_bookmark)
+        brow.addWidget(self.edit_note_btn)
+        brow.addWidget(self.remove_bookmark_btn)
+        blayout.addLayout(brow)
+        self.bookmarks_dock = QDockWidget("Bookmarks", self)
+        self.bookmarks_dock.setObjectName("bookmarksDock")
+        self.bookmarks_dock.setWidget(bpanel)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.bookmarks_dock)
+        self.bookmarks_dock.hide()
+        self.model.bookmarksChanged.connect(self._rebuild_bookmarks_list)
         self.setStatusBar(QStatusBar())
         self.statusBar().addPermanentWidget(self.incident_label)
         self.statusBar().addPermanentWidget(self.spark_label)
@@ -782,6 +807,7 @@ class MainWindow(QMainWindow):
         reload_plugins_act = view_menu.addAction("Reload &Plugins")
         reload_plugins_act.triggered.connect(self._load_plugins)
         view_menu.addAction(self.presets_dock.toggleViewAction())
+        view_menu.addAction(self.bookmarks_dock.toggleViewAction())
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
 
@@ -1473,6 +1499,46 @@ class MainWindow(QMainWindow):
         self.table.setCurrentIndex(index)
         self.table.selectRow(target)
         self.table.scrollTo(index)
+
+    def _rebuild_bookmarks_list(self) -> None:
+        """Refresh the Bookmarks dock from the model (line + label/preview)."""
+        self.bookmarks_list.clear()
+        for src in self.model.bookmarked_rows():
+            entry = self.model.entry_at(src)
+            label = self.model.bookmark_label(src)
+            preview = label or (entry.message[:60] if entry is not None else "")
+            item = QListWidgetItem(f"line {src + 1}  •  {preview}")
+            item.setData(Qt.UserRole, src)
+            self.bookmarks_list.addItem(item)
+
+    def _jump_to_bookmark_item(self, item) -> None:
+        src = item.data(Qt.UserRole)
+        if src is None:
+            return
+        proxy_row = self.proxy.mapFromSource(self.model.index(int(src), 0)).row()
+        if proxy_row < 0:  # bookmark hidden by the current filter
+            self.statusBar().showMessage("That bookmark is hidden by the current filter.")
+            return
+        index = self.proxy.index(proxy_row, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(proxy_row)
+        self.table.scrollTo(index)
+
+    def _edit_bookmark_note(self) -> None:
+        item = self.bookmarks_list.currentItem()
+        if item is None:
+            return
+        src = int(item.data(Qt.UserRole))
+        current = self.model.bookmark_label(src)
+        text, ok = QInputDialog.getText(self, "Edit bookmark note", "Note:", text=current)
+        if ok:
+            self.model.set_bookmark_label(src, text.strip())
+
+    def _remove_selected_bookmark(self) -> None:
+        item = self.bookmarks_list.currentItem()
+        if item is None:
+            return
+        self.model.toggle_bookmark(int(item.data(Qt.UserRole)))
 
     def _clear_bookmarks(self) -> None:
         self.model.clear_bookmarks()
@@ -2273,7 +2339,7 @@ class MainWindow(QMainWindow):
             entries_to_text(self.model.all_entries()),
             self.query.text(),
             self.model.tag_colors(),
-            self.model.bookmarked_rows(),
+            self.model.bookmarks(),
         )
         try:
             with open(path, "w", encoding="utf-8") as fh:

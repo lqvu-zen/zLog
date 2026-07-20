@@ -1,6 +1,6 @@
 # Plan: Bookmark labels & notes
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** Claude
 - **Created:** 2026-07-18
 - **Related:** bookmarks.md, session-bundles.md, saved-filters-sidebar.md

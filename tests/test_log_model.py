@@ -343,6 +343,38 @@ def test_highlight_rule_colors_matching_row(qapp):
     assert miss is None or miss.name() != "#ff0000"
 
 
+def test_bookmark_labels_get_set_and_persist_shape(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=f"m{i}") for i in range(5)])
+    model.toggle_bookmark(1)
+    model.toggle_bookmark(3)
+    model.set_bookmark_label(3, "look here")
+    assert model.bookmarked_rows() == [1, 3]
+    assert model.bookmark_label(1) == "" and model.bookmark_label(3) == "look here"
+    assert model.bookmarks() == {1: "", 3: "look here"}
+    # labeling a non-bookmarked row is a no-op
+    model.set_bookmark_label(4, "nope")
+    assert 4 not in model.bookmarks()
+
+
+def test_set_bookmarks_accepts_list_or_dict_and_clamps(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=f"m{i}") for i in range(3)])
+    model.set_bookmarks([0, 2, 99])  # list form; 99 out of range dropped
+    assert model.bookmarks() == {0: "", 2: ""}
+    model.set_bookmarks({1: "note", 5: "gone"})  # dict form; 5 clamped away
+    assert model.bookmarks() == {1: "note"}
+
+
+def test_bookmark_labels_survive_ring_buffer_trim(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([_entry(message=f"m{i}") for i in range(5)])
+    model.toggle_bookmark(4)
+    model.set_bookmark_label(4, "keep")
+    model.set_max_rows(3)  # drops rows 0..1, shifting row 4 -> 2
+    assert model.bookmarks() == {2: "keep"}
+
+
 def test_highlight_rule_loses_to_explicit_tag_color(qapp):
     from PySide6.QtCore import Qt
 

@@ -23,6 +23,7 @@ from PySide6.QtCore import (
     QModelIndex,
     QSortFilterProxyModel,
     Qt,
+    Signal,
 )
 from PySide6.QtGui import QColor
 
@@ -47,6 +48,8 @@ _PIDTID_MAX_CHARS = 13
 
 
 class LogTableModel(QAbstractTableModel):
+    bookmarksChanged = Signal()  # bookmarks added/removed/labeled (for the Bookmarks dock)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows: list[LogEntry] = []
@@ -59,7 +62,7 @@ class LogTableModel(QAbstractTableModel):
         self._highlight_color = QColor(LIGHT.search_highlight)
         self._time_mode = "absolute"  # "absolute" | "since_start" | "delta"
         self._baseline = None  # datetime of the first parseable row (since_start ref)
-        self._bookmarks: set[int] = set()  # bookmarked source-row indices
+        self._bookmarks: dict[int, str] = {}  # source-row index -> label ("" = unlabeled)
         self._bookmark_color = QColor(LIGHT.bookmark)
         self._incidents: dict[int, str] = {}  # source row -> "crash" | "anr"
         self._run_len: list[int] = []  # per-row consecutive-duplicate run length (0 on non-reps)
@@ -239,7 +242,9 @@ class LogTableModel(QAbstractTableModel):
             if self._level_counts[entry.level] <= 0:
                 del self._level_counts[entry.level]
         if self._bookmarks:
-            self._bookmarks = {i - overflow for i in self._bookmarks if i >= overflow}
+            self._bookmarks = {
+                i - overflow: label for i, label in self._bookmarks.items() if i >= overflow
+            }
         if self._incidents:
             self._incidents = {
                 i - overflow: kind for i, kind in self._incidents.items() if i >= overflow
@@ -489,11 +494,12 @@ class LogTableModel(QAbstractTableModel):
 
     def toggle_bookmark(self, source_row: int) -> None:
         if source_row in self._bookmarks:
-            self._bookmarks.discard(source_row)
+            del self._bookmarks[source_row]
         else:
-            self._bookmarks.add(source_row)
+            self._bookmarks[source_row] = ""
         top = self.index(source_row, 0)
         self.dataChanged.emit(top, top, [Qt.DecorationRole])
+        self.bookmarksChanged.emit()
 
     def is_bookmarked(self, source_row: int) -> bool:
         return source_row in self._bookmarks
@@ -502,16 +508,35 @@ class LogTableModel(QAbstractTableModel):
         """Bookmarked source rows, in order."""
         return sorted(self._bookmarks)
 
+    def bookmark_label(self, source_row: int) -> str:
+        """The label for a bookmarked row ("" if none / not bookmarked)."""
+        return self._bookmarks.get(source_row, "")
+
+    def bookmarks(self) -> dict[int, str]:
+        """A copy of the {source-row: label} bookmark map (for session save)."""
+        return dict(self._bookmarks)
+
+    def set_bookmark_label(self, source_row: int, text: str) -> None:
+        """Attach/replace a bookmark's label. No-op if the row isn't bookmarked."""
+        if source_row in self._bookmarks:
+            self._bookmarks[source_row] = text or ""
+            self.bookmarksChanged.emit()
+
     def clear_bookmarks(self) -> None:
         self._bookmarks.clear()
         self._repaint_bookmarks()
+        self.bookmarksChanged.emit()
 
     def set_bookmarks(self, rows) -> None:
-        """Replace the bookmark set (used when restoring a session), clamped to
-        valid source rows so a stale index can't point out of range."""
+        """Replace the bookmarks (restoring a session), clamped to valid source
+        rows. Accepts a list of rows (unlabeled) or a {row: label} mapping."""
         n = len(self._rows)
-        self._bookmarks = {int(r) for r in rows if 0 <= int(r) < n}
+        if isinstance(rows, dict):
+            self._bookmarks = {int(r): str(v) for r, v in rows.items() if 0 <= int(r) < n}
+        else:
+            self._bookmarks = {int(r): "" for r in rows if 0 <= int(r) < n}
         self._repaint_bookmarks()
+        self.bookmarksChanged.emit()
 
     def _repaint_bookmarks(self) -> None:
         if self._rows:
