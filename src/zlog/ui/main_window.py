@@ -60,6 +60,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPlainTextEdit,
+    QProgressDialog,
     QPushButton,
     QSplitter,
     QStatusBar,
@@ -107,6 +108,7 @@ from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
 from zlog.core.timefmt import first_at_or_after, parse_time_of_day
 from zlog.ui.device_controller import DeviceController
+from zlog.ui.file_loader import FileLoader
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_delegate import LogItemDelegate
@@ -2426,26 +2428,77 @@ class MainWindow(QMainWindow):
         if path:
             self._load_log_file(path)
 
+    _LARGE_FILE_BYTES = 5_000_000  # above this, load in the background with progress
+
     def _load_log_file(self, path: str) -> None:
-        """Load a saved log into the offline view; used by Open and Open Recent."""
+        """Load a saved log into the offline view; used by Open and Open Recent.
+
+        Large files stream in on a background thread with a cancelable progress
+        dialog; small ones keep the instant synchronous path (no dialog flicker).
+        """
         try:
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
+            size = os.path.getsize(path)
         except OSError as exc:
             self.statusBar().showMessage(f"Could not open: {exc}")
-            self._forget_recent(path)  # gone/moved -> drop it from the list
+            self._forget_recent(path)
             return
         # Opening is an offline view: stop any live stream and drop the
         # device-specific package (PID) filter, which no longer applies.
         if self.reader and self.reader.isRunning():
             self.stop()
         self.proxy.set_pids(None)
-        entries = text_to_entries(text)
         self.model.clear()
         self.model.clear_process_names()  # offline: PIDs are from another capture
+
+        if size > self._LARGE_FILE_BYTES:
+            self._load_log_file_async(path)
+            return
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not open: {exc}")
+            self._forget_recent(path)
+            return
+        entries = text_to_entries(text)
         self.model.append_entries(entries)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
         self._remember_recent(path)
+
+    def _load_log_file_async(self, path: str) -> None:
+        """Background path for big files: a FileLoader thread fills the model as it
+        reads, behind a cancelable QProgressDialog."""
+        if getattr(self, "_file_loader", None) is not None:
+            self._file_loader.stop()  # only one loader at a time
+            self._file_loader.wait(2000)
+        dialog = QProgressDialog(f"Opening {Path(path).name}…", "Cancel", 0, 100, self)
+        dialog.setWindowModality(Qt.WindowModal)
+        dialog.setMinimumDuration(0)
+        loader = FileLoader(path, self)
+        self._file_loader = loader
+
+        def on_progress(read, total):
+            dialog.setValue(int(read * 100 / total) if total else 0)
+
+        def finish(message):
+            dialog.reset()
+            self._file_loader = None
+            self.statusBar().showMessage(message)
+
+        def on_done(n):
+            finish(f"Loaded {n} lines from {Path(path).name}.")
+            self._remember_recent(path)
+
+        def on_error(msg):
+            finish(f"Could not open: {msg}")
+            self._forget_recent(path)
+
+        loader.batch_ready.connect(self.model.append_entries)
+        loader.progress.connect(on_progress)
+        loader.done.connect(on_done)
+        loader.error.connect(on_error)
+        dialog.canceled.connect(loader.stop)
+        loader.start()
 
     # --- recent files ------------------------------------------------------
     def _remember_recent(self, path: str) -> None:

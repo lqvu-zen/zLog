@@ -6,6 +6,8 @@ files round-trip through the same `parse_line` used for live logs.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
+
 from zlog.core.models import LogEntry
 from zlog.core.parser import parse_line
 
@@ -31,3 +33,20 @@ def entries_to_text(entries: list[LogEntry]) -> str:
 def text_to_entries(text: str) -> list[LogEntry]:
     """Parse saved log text back into entries, reusing the live-log parser."""
     return [parse_line(line) for line in text.splitlines()]
+
+
+def iter_entry_batches(lines: Iterable[str], size: int = 50) -> Iterator[list[LogEntry]]:
+    """Parse an iterable of raw log lines into `size`-sized batches of entries.
+
+    Streams lazily (never materializes the whole file), so a background loader can
+    fill the model incrementally — mirroring the live reader's batching. The final
+    batch may be smaller; an empty input yields nothing.
+    """
+    batch: list[LogEntry] = []
+    for line in lines:
+        batch.append(parse_line(line.rstrip("\n")))
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
