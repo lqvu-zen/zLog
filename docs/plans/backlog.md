@@ -4,6 +4,27 @@
 - **Owner:** unassigned
 - **Created:** 2026-07-14
 
+## Status (2026-07-20)
+
+Most items below have since shipped — each became its own Done plan (see the
+[plans index](README.md)): inline match highlight, persistent highlight rules,
+stack-trace folding, go-to line/time, jump-to-same, exclude pid/proc, time-range
+filter, filter chips, duplicate count, isolate toggle, adb-over-Wi-Fi, custom adb
+path, crash/ANR detector, jank summary, density modes, font-family picker,
+gutter line numbers, configurable columns via Settings, copy-as-HTML, redaction on
+export, bookmark labels, watch beep, CLI tail, and dumpsys capture. Perf smoke
+tests and more themes (Solarized Dark, Monokai) also landed.
+
+**Deferred (bigger bets, revisit later):**
+- **Timeline histogram** (P2, L) — largely covered today by the status-bar error
+  sparkline + scrollbar heat marks; a full click-to-seek band is a bigger build.
+- **Regex named-group → columns** (P3, L) — the single-line delegate retired the
+  column model, so ad-hoc dynamic columns need a rethink of the row layout.
+- **Sticky header line** (P3, M) and **merged multi-device view** (P3, L) —
+  low-demand power features.
+
+The sketches below are kept for reference.
+
 A survey of features that fit zLog. Grouped by theme; each entry lists **why**, a
 **design sketch** (approach/files), **effort** (S/M/L), and whether the core logic is
 **Qt-free-testable**. Priority buckets mirror the roadmap (P0 correctness/perf ·

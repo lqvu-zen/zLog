@@ -77,6 +77,7 @@ from zlog.adb.devices import list_devices
 from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
+from zlog.adb.snapshot import capture_dumpsys
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
@@ -698,6 +699,8 @@ class MainWindow(QMainWindow):
         open_session_act.triggered.connect(self.open_session)
         diff_act = file_menu.addAction("&Diff Against File…")
         diff_act.triggered.connect(self._diff_against_file)
+        dumpsys_act = file_menu.addAction("Capture &dumpsys…")
+        dumpsys_act.triggered.connect(self._capture_dumpsys)
         file_menu.addSeparator()
         self.redact_action = QAction("Redact secrets", self)
         self.redact_action.setCheckable(True)
@@ -1682,6 +1685,42 @@ class MainWindow(QMainWindow):
         refresh()
         box.setFocus()
         dlg.exec()
+
+    def _capture_dumpsys(self) -> None:
+        """Save a one-shot `adb shell dumpsys` snapshot for the current device."""
+        serial = self._current_serial()
+        if serial is None:
+            self.statusBar().showMessage("Select a device first to capture dumpsys.")
+            return
+        section, ok = QInputDialog.getText(
+            self,
+            "Capture dumpsys",
+            "Service (blank = everything, e.g. battery, meminfo, activity):",
+        )
+        if not ok:
+            return
+        self.statusBar().showMessage("Capturing dumpsys…")
+        output = self._run_adb(
+            lambda: capture_dumpsys(serial, section, self._adb_path()),
+            missing_msg="adb not found.",
+            error_prefix="Could not capture dumpsys",
+            report=self.statusBar().showMessage,
+        )
+        if not output:
+            return
+        default = f"dumpsys-{section.strip() or 'all'}.txt"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save dumpsys", default, "Text files (*.txt);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(output)
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not save: {exc}")
+            return
+        self.statusBar().showMessage(f"Saved dumpsys to {Path(path).name}.")
 
     def _diff_against_file(self) -> None:
         """Compare the current log with another saved log (unified, colored diff)."""

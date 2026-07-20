@@ -159,6 +159,12 @@ sidebar you can double-click a preset to apply it, preview its contents, **Renam
 **Update to current** (overwrite it with the current filter), or **Delete** it. Presets
 persist across launches.
 
+## Capturing a dumpsys snapshot
+
+**File → Capture dumpsys…** saves a one-shot `adb shell dumpsys` to a text file —
+leave the service blank for everything, or name one (e.g. `battery`, `meminfo`,
+`activity`) to grab just that. Handy to keep next to a log for context.
+
 ## Command line (headless tail)
 
 Run zLog from a terminal without the GUI to stream filtered logcat to stdout:
