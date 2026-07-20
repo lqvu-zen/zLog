@@ -91,7 +91,71 @@ DARK = Theme(
     row_hover_bg="#37475c",
 )
 
-THEMES: dict[str, Theme] = {LIGHT.name: LIGHT, DARK.name: DARK}
+
+SOLARIZED_DARK = Theme(
+    name="Solarized Dark",
+    window="#002b36",
+    text="#839496",
+    base="#073642",
+    alt_base="#063039",
+    header="#0a3f4c",
+    muted="#586e75",
+    meta_text="#93a1a1",
+    level_colors={"W": "#3a3410", "E": "#3f1f1e", "F": "#4a1f1e"},
+    search_error="#3f1f1e",
+    search_highlight="#0a3a48",
+    inline_match="#2a6f8a",
+    bookmark="#268bd2",
+    level_text={
+        "V": "#657b83",
+        "D": "#268bd2",
+        "I": "#859900",
+        "W": "#b58900",
+        "E": "#dc322f",
+        "F": "#cb4b16",
+    },
+    button_hover="#0a3f4c",
+    button_pressed="#0d4a59",
+    selection_bg="#268bd2",
+    selection_text="#fdf6e3",
+    row_hover_bg="#0a3a48",
+)
+
+MONOKAI = Theme(
+    name="Monokai",
+    window="#272822",
+    text="#f8f8f2",
+    base="#1e1f1c",
+    alt_base="#26271f",
+    header="#3e3d32",
+    muted="#75715e",
+    meta_text="#c0c0b0",
+    level_colors={"W": "#3d3a1f", "E": "#4a1f2a", "F": "#5a1f2a"},
+    search_error="#4a1f2a",
+    search_highlight="#3a3f2a",
+    inline_match="#3a5a6a",
+    bookmark="#66d9ef",
+    level_text={
+        "V": "#75715e",
+        "D": "#66d9ef",
+        "I": "#a6e22e",
+        "W": "#e6db74",
+        "E": "#f92672",
+        "F": "#fd971f",
+    },
+    button_hover="#3e3d32",
+    button_pressed="#49483e",
+    selection_bg="#66d9ef",
+    selection_text="#272822",
+    row_hover_bg="#3e3d32",
+)
+
+THEMES: dict[str, Theme] = {
+    LIGHT.name: LIGHT,
+    DARK.name: DARK,
+    SOLARIZED_DARK.name: SOLARIZED_DARK,
+    MONOKAI.name: MONOKAI,
+}
 
 
 def build_stylesheet(theme: Theme) -> str:

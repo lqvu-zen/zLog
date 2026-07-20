@@ -4,7 +4,21 @@ from zlog.ui.theme import DARK, LIGHT, THEMES, build_stylesheet
 
 
 def test_themes_present():
-    assert set(THEMES) == {"Light", "Dark"}
+    assert set(THEMES) == {"Light", "Dark", "Solarized Dark", "Monokai"}
+
+
+def test_every_theme_has_complete_hex_palette():
+    # Adding a theme is easy to get wrong; assert every color field on every theme
+    # is a 7-char hex so a typo can't ship a broken (blank/short) color.
+    hex_fields = (
+        "window text base alt_base header muted meta_text search_error "
+        "search_highlight inline_match bookmark button_hover button_pressed "
+        "selection_bg selection_text row_hover_bg"
+    ).split()
+    for theme in THEMES.values():
+        for field in hex_fields:
+            c = getattr(theme, field)
+            assert c.startswith("#") and len(c) == 7, (theme.name, field, c)
 
 
 def test_level_colors_are_hex():
