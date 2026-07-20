@@ -159,6 +159,19 @@ sidebar you can double-click a preset to apply it, preview its contents, **Renam
 **Update to current** (overwrite it with the current filter), or **Delete** it. Presets
 persist across launches.
 
+## Command line (headless tail)
+
+Run zLog from a terminal without the GUI to stream filtered logcat to stdout:
+
+```
+zlog --tail --filter "level:E -Choreographer" --serial <device>
+```
+
+`--filter` takes the same query language as the filter bar (level/tag/pid/search/
+`-exclude`/`/regex/`); `--adb` sets an explicit adb path, `--buffers main,system`
+picks buffers, and `--dump N` starts from the last N lines. (`proc:` and
+`since:`/`until:` are GUI-only.)
+
 ## Troubleshooting
 
 - **"adb not found"** — install platform-tools and add `adb` to your PATH.

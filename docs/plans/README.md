@@ -60,6 +60,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [custom-adb-path.md](custom-adb-path.md) | Done | Settings field to point zLog at a specific adb executable |
 | [copy-as-html.md](copy-as-html.md) | Done | "Copy as HTML" clipboard action preserving level colors |
 | [self-diagnostics-log.md](self-diagnostics-log.md) | Done | zLog logs its own behavior to a rotating zlog.log (banner, adb errors, excepthook); Help → Open Log Folder |
+| [cli-tail.md](cli-tail.md) | Done | Headless `zlog --tail --filter '<query>'` streams filtered logcat to stdout (no GUI) |
 | [query-token-highlight.md](query-token-highlight.md) | Done | Tint recognized tokens (level:/tag:/package:/pid:/proc:/-excl//re/) in the query bar |
 | [perf-start-freeze.md](perf-start-freeze.md) | Done | Debounce counts + coalesce follow-scroll so Start on a busy device doesn't freeze |
 | [device-picker.md](device-picker.md) | Done | Choose which connected device/emulator to stream from |

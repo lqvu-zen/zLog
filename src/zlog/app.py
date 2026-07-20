@@ -3,6 +3,7 @@ both call main()."""
 
 from __future__ import annotations
 
+import argparse
 import platform
 import sys
 
@@ -56,8 +57,36 @@ def _install_qt_message_handler() -> None:
     qInstallMessageHandler(handler)
 
 
+def _parse_cli(argv):
+    """Recognize the headless tail flags. Returns (args, leftover) where leftover
+    is passed on to QApplication so Qt's own flags still work in GUI mode."""
+    parser = argparse.ArgumentParser(prog="zlog", add_help=True)
+    parser.add_argument(
+        "--tail", action="store_true", help="stream filtered logcat to stdout (no GUI)"
+    )
+    parser.add_argument("--serial", default=None, help="device serial (adb -s)")
+    parser.add_argument(
+        "--filter", dest="filter_text", default="", help="query string, e.g. 'level:E -noise'"
+    )
+    parser.add_argument("--adb", dest="adb_path", default="", help="path to the adb executable")
+    parser.add_argument(
+        "--buffers", default="", help="comma-separated logcat buffers (main,system,crash,…)"
+    )
+    parser.add_argument(
+        "--dump", type=int, default=0, help="start from the last N lines (adb logcat -T N)"
+    )
+    return parser.parse_known_args(argv[1:])
+
+
 def main() -> int:
-    app = QApplication(sys.argv)
+    args, leftover = _parse_cli(sys.argv)
+    if args.tail:
+        from zlog.cli import run_tail
+
+        buffers = [b for b in args.buffers.split(",") if b] or None
+        return run_tail(args.serial, args.filter_text, args.adb_path, buffers, args.dump)
+
+    app = QApplication(sys.argv[:1] + leftover)
     # Names give QStandardPaths a proper per-user config dir for settings + the log.
     app.setApplicationName("zlog")
     app.setOrganizationName("zlog")
