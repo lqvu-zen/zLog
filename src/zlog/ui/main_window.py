@@ -78,6 +78,7 @@ from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
 from zlog.adb.snapshot import capture_dumpsys
+from zlog.core.anchor import pick_anchor
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
@@ -120,6 +121,7 @@ from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
 from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.settings_dialog import SettingsDialog
+from zlog.ui.sticky_header import StickyHeader
 from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
@@ -253,6 +255,7 @@ class MainWindow(QMainWindow):
         self.table.selectionModel().currentChanged.connect(self._update_detail)
         self.table.selectionModel().currentChanged.connect(self._arm_scroll_clear_suppression)
         self.table.selectionModel().selectionChanged.connect(self._arm_scroll_clear_suppression)
+        self.table.selectionModel().currentChanged.connect(self._update_sticky)
 
     def _save_toolbar(self, sess) -> None:
         sess.query = self.query.text()
@@ -836,6 +839,10 @@ class MainWindow(QMainWindow):
         self.histogram_action.setCheckable(True)
         self.histogram_action.toggled.connect(self._on_histogram_toggled)
         view_menu.addAction(self.histogram_action)
+        self.sticky_action = QAction("Pin Anchor &Line", self)
+        self.sticky_action.setCheckable(True)
+        self.sticky_action.toggled.connect(self._on_sticky_toggled)
+        view_menu.addAction(self.sticky_action)
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
 
@@ -894,6 +901,13 @@ class MainWindow(QMainWindow):
         # A width change re-flows wrapped rows, so re-fit the visible ones (debounced
         # via _wrap_timer; a no-op when wrap is off) — see wrap-refit-on-resize.md.
         self.table.resized.connect(self._schedule_wrap_fit)
+        # Sticky header: pin the anchor row while scrolling (see core.anchor).
+        self.sticky_header = StickyHeader(self.table, self.log_delegate)
+        self.sticky_header.setEnabled(False)  # off until the View toggle turns it on
+        self.sticky_header.clicked.connect(self._jump_to_sticky)
+        self._sticky_row = -1  # the pinned proxy row (-1 = none)
+        self.table.verticalScrollBar().valueChanged.connect(self._update_sticky)
+        self.table.resized.connect(self._update_sticky)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
@@ -1627,6 +1641,36 @@ class MainWindow(QMainWindow):
         times = [parse_logcat_time(e.time) for e in entries]
         levels = [e.level for e in entries]
         self.histogram_bar.set_data(bucketize(times, levels, self.histogram_bar.bucket_count()))
+
+    # --- sticky header -----------------------------------------------------
+    def _update_sticky(self, *args) -> None:
+        """Recompute and reposition the pinned anchor row as the view scrolls."""
+        if not self.sticky_header.isEnabled():  # gated by the View toggle
+            self.sticky_header.set_index(None)
+            self._sticky_row = -1
+            return
+        first_visible = self.table.rowAt(0)
+        selected = self.table.currentIndex().row()
+        bookmarks = []
+        for src in self.model.bookmarked_rows():
+            pr = self.proxy.mapFromSource(self.model.index(src, 0)).row()
+            if pr >= 0:
+                bookmarks.append(pr)
+        anchor = pick_anchor(first_visible, selected, bookmarks)
+        self._sticky_row = anchor if anchor is not None else -1
+        self.sticky_header.set_index(self.proxy.index(anchor, 0) if anchor is not None else None)
+
+    def _jump_to_sticky(self) -> None:
+        if self._sticky_row >= 0:
+            index = self.proxy.index(self._sticky_row, 0)
+            self.table.setCurrentIndex(index)
+            self.table.selectRow(self._sticky_row)
+            self.table.scrollTo(index)
+
+    def _on_sticky_toggled(self, checked: bool) -> None:
+        # Enabled flag doubles as the on/off gate read by _update_sticky.
+        self.sticky_header.setEnabled(bool(checked))
+        self._update_sticky()
 
     def _seek_to_source_row(self, src: int) -> None:
         """Scroll/select the given source row (from a histogram-band click)."""
@@ -2903,6 +2947,11 @@ class MainWindow(QMainWindow):
                 "show_histogram",
                 self.histogram_action.isChecked,
                 lambda v: self.histogram_action.setChecked(bool(v)),
+            ),
+            (
+                "show_sticky_header",
+                self.sticky_action.isChecked,
+                lambda v: self.sticky_action.setChecked(bool(v)),
             ),
             (
                 "redact_on_export",

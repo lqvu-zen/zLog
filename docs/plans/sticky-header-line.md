@@ -1,6 +1,6 @@
 # Plan: Sticky header line
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-20
 - **Related:** [detail-pane.md](detail-pane.md), [bookmark-labels.md](bookmark-labels.md), [stack-trace-folding.md](stack-trace-folding.md)

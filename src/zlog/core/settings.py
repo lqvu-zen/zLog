@@ -45,6 +45,7 @@ DEFAULTS: dict = {
     "show_process": False,  # show the resolved process/package-name column
     "wrap": True,  # wrap long messages across as many lines as needed
     "show_histogram": False,  # show the timeline volume/error band above the log
+    "show_sticky_header": False,  # pin the anchor (selected/bookmark) row while scrolling
     "line_numbers": False,  # show a left gutter of source-row line numbers
     "adb_path": "",  # explicit adb executable path ("" = use "adb" from PATH)
 }

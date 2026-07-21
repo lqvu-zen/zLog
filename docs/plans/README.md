@@ -63,7 +63,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [cli-tail.md](cli-tail.md) | Done | Headless `zlog --tail --filter '<query>'` streams filtered logcat to stdout (no GUI) |
 | [dumpsys-snapshot.md](dumpsys-snapshot.md) | Done | File → Capture dumpsys… saves a one-shot device snapshot to a text file |
 | [timeline-histogram.md](timeline-histogram.md) | Done | Volume/error band above the log; click-to-seek (deferred bigger bet) |
-| [sticky-header-line.md](sticky-header-line.md) | Draft | Pin the selected/nearest-bookmark line at the top while scrolling |
+| [sticky-header-line.md](sticky-header-line.md) | Done | Pin the selected/nearest-bookmark line at the top while scrolling |
 | [regex-extract-columns.md](regex-extract-columns.md) | Draft | Named-group regex extracts ad-hoc fields; detail-pane + summary first |
 | [merged-multi-device.md](merged-multi-device.md) | Draft | One view merging several device streams, tagged by source; device: filter |
 | [query-token-highlight.md](query-token-highlight.md) | Done | Tint recognized tokens (level:/tag:/package:/pid:/proc:/-excl//re/) in the query bar |
