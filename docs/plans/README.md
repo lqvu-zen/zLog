@@ -64,7 +64,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [dumpsys-snapshot.md](dumpsys-snapshot.md) | Done | File → Capture dumpsys… saves a one-shot device snapshot to a text file |
 | [timeline-histogram.md](timeline-histogram.md) | Done | Volume/error band above the log; click-to-seek (deferred bigger bet) |
 | [sticky-header-line.md](sticky-header-line.md) | Done | Pin the selected/nearest-bookmark line at the top while scrolling |
-| [regex-extract-columns.md](regex-extract-columns.md) | Draft | Named-group regex extracts ad-hoc fields; detail-pane + summary first |
+| [regex-extract-columns.md](regex-extract-columns.md) | Done | Named-group regex extracts ad-hoc fields; detail-pane + summary first |
 | [merged-multi-device.md](merged-multi-device.md) | Draft | One view merging several device streams, tagged by source; device: filter |
 | [query-token-highlight.md](query-token-highlight.md) | Done | Tint recognized tokens (level:/tag:/package:/pid:/proc:/-excl//re/) in the query bar |
 | [perf-start-freeze.md](perf-start-freeze.md) | Done | Debounce counts + coalesce follow-scroll so Start on a busy device doesn't freeze |

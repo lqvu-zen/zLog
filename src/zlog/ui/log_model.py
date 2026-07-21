@@ -27,6 +27,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor
 
+from zlog.core.extract import compile_extractors, extract
 from zlog.core.incidents import classify_incident
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
@@ -43,6 +44,7 @@ PROCESS_ROLE = int(Qt.UserRole) + 2  # resolved process/package name for the row
 MATCH_SPANS_ROLE = int(Qt.UserRole) + 3  # (start, end) spans of the highlight match in message
 DUP_COUNT_ROLE = int(Qt.UserRole) + 4  # run length of a collapsed-duplicate representative row
 FOLD_ROLE = int(Qt.UserRole) + 5  # (has_frames, is_folded, frame_count) for a stack-trace header
+EXTRACT_ROLE = int(Qt.UserRole) + 6  # {name: value} from user regex named-group extractors
 _TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
@@ -72,6 +74,7 @@ class LogTableModel(QAbstractTableModel):
         self._folded: set[int] = set()  # header rows whose frames are currently hidden
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
+        self._extractors = []  # compiled user regexes with named groups (EXTRACT_ROLE)
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
         self._time_col_chars = 0  # Time/PID columns size to content (only grow)
         self._pidtid_col_chars = 0
@@ -117,6 +120,8 @@ class LogTableModel(QAbstractTableModel):
             return entry
         if role == PROCESS_ROLE:
             return self._pid_names.get(entry.pid, "")
+        if role == EXTRACT_ROLE:
+            return extract(entry.message, self._extractors) if self._extractors else {}
         if role == HIGHLIGHT_ROLE:
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
@@ -420,6 +425,16 @@ class LogTableModel(QAbstractTableModel):
         """Install plugin colorize(entry) callables and repaint."""
         self._colorizers = list(fns)
         self._repaint_backgrounds()
+
+    def set_extractors(self, patterns: list[str]) -> None:
+        """Install user regex named-group extractors (see core.extract)."""
+        self._extractors = compile_extractors(list(patterns))
+
+    def extract_fields(self, source_row: int) -> dict[str, str]:
+        """Extracted `{name: value}` for a row ({} if none / no extractors)."""
+        if not self._extractors or not (0 <= source_row < len(self._rows)):
+            return {}
+        return extract(self._rows[source_row].message, self._extractors)
 
     def tag_colors(self) -> dict[str, str]:
         """Current tag highlights as hex strings (for saving)."""

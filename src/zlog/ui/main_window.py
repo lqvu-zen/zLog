@@ -170,6 +170,7 @@ class MainWindow(QMainWindow):
         self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
         self._watch = None  # compiled substring matcher, or None
         self._watch_pattern = ""
+        self._extract_patterns = []  # user regex named-group extractors (see core.extract)
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
         self._sessions: list[LogSession] = []  # capture tabs; re-rooted via properties
@@ -826,6 +827,8 @@ class MainWindow(QMainWindow):
         tag_summary_act.triggered.connect(self._show_tag_summary)
         jank_summary_act = view_menu.addAction("&Jank Summary…")
         jank_summary_act.triggered.connect(self._show_jank_summary)
+        extract_act = view_menu.addAction("&Extract Fields…")
+        extract_act.triggered.connect(self._edit_extractors)
         highlight_rules_act = view_menu.addAction("&Highlight Rules…")
         highlight_rules_act.triggered.connect(self._show_highlight_rules_dialog)
         view_menu.addAction(self.fold_action)  # Fold Stack Traces (checkable)
@@ -2734,18 +2737,39 @@ class MainWindow(QMainWindow):
         self.spark_label.setText(error_rate_sparkline(ranks, LEVEL_RANK["E"]))
 
     # --- detail pane -------------------------------------------------------
+    def _edit_extractors(self) -> None:
+        """Edit the regex field-extractors (one pattern per line, named groups)."""
+        text, ok = QInputDialog.getMultiLineText(
+            self,
+            "Extract fields",
+            "One regex per line, using named groups, e.g.\n"
+            "latency=(?P<ms>\\d+)ms\n\nExtracted fields show in the detail pane.",
+            "\n".join(self._extract_patterns),
+        )
+        if not ok:
+            return
+        self._extract_patterns = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        self.model.set_extractors(self._extract_patterns)
+        self._update_detail(self.table.currentIndex())  # refresh the shown fields
+        self._save_settings()
+
     def _update_detail(self, current, previous=None) -> None:
         if current is None or not current.isValid():
             self.detail.clear()
             return
-        entry = self.model.entry_at(self.proxy.mapToSource(current).row())
+        src = self.proxy.mapToSource(current).row()
+        entry = self.model.entry_at(src)
         dash = "\u2014"
         header = (
             f"Time  {entry.time or dash}    "
             f"PID {entry.pid or dash}  TID {entry.tid or dash}    "
             f"{entry.level or dash}  {entry.tag or dash}"
         )
-        self.detail.setPlainText(header + "\n\n" + entry.message)
+        text = header + "\n\n" + entry.message
+        fields = self.model.extract_fields(src)
+        if fields:
+            text += "\n\nExtracted fields:\n" + "\n".join(f"  {k} = {v}" for k, v in fields.items())
+        self.detail.setPlainText(text)
 
     # --- settings ----------------------------------------------------------
     def _settings_path(self) -> Path:
@@ -2817,6 +2841,11 @@ class MainWindow(QMainWindow):
 
         def set_watch(v):
             self._apply_watch(v if isinstance(v, str) else "", announce=False)
+
+        def set_extract_patterns(v):
+            items = v if isinstance(v, list) else []
+            self._extract_patterns = [str(p) for p in items if str(p).strip()]
+            self.model.set_extractors(self._extract_patterns)
 
         def set_collapse(v):
             self.collapse_action.setChecked(bool(v))
@@ -2941,6 +2970,7 @@ class MainWindow(QMainWindow):
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
             ("watch", lambda: self._watch_pattern, set_watch),
+            ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             ("fold_traces", self.fold_action.isChecked, set_fold),
             (

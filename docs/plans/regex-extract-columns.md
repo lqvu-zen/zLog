@@ -1,6 +1,6 @@
 # Plan: Regex named-group extraction → columns
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-20
 - **Related:** [logcat-style-ui.md](logcat-style-ui.md), [fixed-columns-middle-elide.md](fixed-columns-middle-elide.md), [tag-summary.md](tag-summary.md)
