@@ -201,3 +201,19 @@ def test_remove_span_quoted_token():
     text = 'tag:"two words" boom'
     s, e, _ = token_spans(text)[0]
     assert remove_span(text, s, e) == "boom"
+
+
+def test_device_tokens_parse():
+    from zlog.core.query import parse_query
+
+    spec = parse_query("device:emulator-5554 -device:phone1 boom")
+    assert spec.devices == ("emulator-5554",)
+    assert spec.exclude_devices == ("phone1",)
+    assert spec.search == "boom"
+
+
+def test_device_token_classified():
+    from zlog.core.query import token_spans
+
+    kinds = {t[2] for t in token_spans("device:abc")}
+    assert "device" in kinds

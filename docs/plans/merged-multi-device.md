@@ -1,6 +1,6 @@
 # Plan: Merged multi-device view
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-20
 - **Related:** [device-tabs.md](device-tabs.md), [new-window.md](new-window.md), [process-name-column.md](process-name-column.md)

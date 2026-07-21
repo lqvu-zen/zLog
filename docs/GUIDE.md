@@ -159,6 +159,14 @@ sidebar you can double-click a preset to apply it, preview its contents, **Renam
 **Update to current** (overwrite it with the current filter), or **Delete** it. Presets
 persist across launches.
 
+## Merged multi-device view
+
+**File → Merge All Devices** streams every connected device into one interleaved
+view, tagging each line with its device. Lines are ordered by arrival (devices
+aren't clock-synced). Filter to one device with `device:<serial>` (or hide one with
+`-device:<serial>`); the selected line's device shows in the detail pane. **Stop**
+ends all the device streams at once.
+
 ## Capturing a dumpsys snapshot
 
 **File → Capture dumpsys…** saves a one-shot `adb shell dumpsys` to a text file —

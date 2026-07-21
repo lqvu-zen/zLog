@@ -18,6 +18,7 @@ class LogEntry:
     level: str  # V D I W E F (Verbose..Fatal), or "" if unparsed
     tag: str  # the log tag
     message: str  # the actual text
+    source: str = ""  # device serial in a merged multi-device view ("" = single device)
 
     @property
     def rank(self) -> int:

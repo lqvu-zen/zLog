@@ -171,6 +171,7 @@ class MainWindow(QMainWindow):
         self._watch = None  # compiled substring matcher, or None
         self._watch_pattern = ""
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
+        self._merged_readers = []  # AdbReaders feeding one model in a merged multi-device view
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
         self._sessions: list[LogSession] = []  # capture tabs; re-rooted via properties
@@ -719,6 +720,8 @@ class MainWindow(QMainWindow):
         diff_act.triggered.connect(self._diff_against_file)
         dumpsys_act = file_menu.addAction("Capture &dumpsys…")
         dumpsys_act.triggered.connect(self._capture_dumpsys)
+        merged_act = file_menu.addAction("&Merge All Devices")
+        merged_act.triggered.connect(self.start_merged)
         file_menu.addSeparator()
         self.redact_action = QAction("Redact secrets", self)
         self.redact_action.setCheckable(True)
@@ -1335,6 +1338,10 @@ class MainWindow(QMainWindow):
             )
             if time_ok:
                 self.proxy.set_time_range(since_time, until_time)
+            self.proxy.set_devices(set(spec.devices) if spec.devices else None)
+            self.proxy.set_exclude_devices(
+                set(spec.exclude_devices) if spec.exclude_devices else None
+            )
             self.regex_check.setChecked(spec.regex)  # -> _apply_search
             self.search.setText(spec.search)  # -> _apply_search (search + highlight)
             # Mirror the effective process filter into the package box (the other
@@ -2765,6 +2772,8 @@ class MainWindow(QMainWindow):
             f"PID {entry.pid or dash}  TID {entry.tid or dash}    "
             f"{entry.level or dash}  {entry.tag or dash}"
         )
+        if entry.source:  # merged multi-device view
+            header += f"    device {entry.source}"
         text = header + "\n\n" + entry.message
         fields = self.model.extract_fields(src)
         if fields:
@@ -3077,6 +3086,40 @@ class MainWindow(QMainWindow):
             self._update_package_enabled()
         self.statusBar().showMessage(f"Streaming adb logcat ({serial or 'default'})…")
 
+    def start_merged(self) -> None:
+        """Stream every connected device into one view, tagging lines by serial
+        (merged multi-device view). Filter with `device:<serial>`."""
+        if (self.reader and self.reader.isRunning()) or self._merged_readers:
+            return
+        serials = [d.serial for d in self.devctl.devices if is_serial_streamable(d.serial)]
+        if len(serials) < 2:
+            self.statusBar().showMessage("Merged view needs at least two connected devices.")
+            return
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        self.model.clear_process_names()  # PIDs from several devices — don't cross-wire names
+        buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
+        tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
+        sess = self._active
+        for serial in serials:
+            reader = AdbReader(
+                serial=serial,
+                adb_path=self._adb_path(),
+                buffers=buffers or None,
+                tail=tail,
+                source=serial,
+            )
+            reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
+            reader.error.connect(self.on_error)
+            reader.start()
+            self._merged_readers.append(reader)
+        self.device_box.setEnabled(False)
+        self.refresh_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        _log.info("Merged streaming %d devices: %s", len(serials), ", ".join(serials))
+        self.statusBar().showMessage(f"Merged streaming {len(serials)} devices…")
+
     def stop(self) -> None:
         sess = self._active
         sess.want_stream = False
@@ -3084,6 +3127,9 @@ class MainWindow(QMainWindow):
         if sess.reader:
             sess.reader.stop()
             sess.reader = None
+        for reader in self._merged_readers:
+            reader.stop()
+        self._merged_readers = []
         sess.paused = False
         sess.pause_buffer = []
         self.refresh_btn.setEnabled(True)

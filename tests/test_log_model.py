@@ -760,3 +760,17 @@ def test_exclude_proc_gate(qapp):
     assert _messages(model, proxy) == ["other"]  # PID 100's resolved name is excluded
     proxy.set_exclude_proc("")
     assert _messages(model, proxy) == ["sysui", "other"]
+
+
+def test_device_gate_filters_by_source(qapp):
+    import dataclasses
+
+    model, proxy = _wire(qapp)
+    e_a = dataclasses.replace(_entry(message="from A"), source="devA")
+    e_b = dataclasses.replace(_entry(message="from B"), source="devB")
+    model.append_entries([e_a, e_b])
+    proxy.set_devices({"devA"})
+    assert _messages(model, proxy) == ["from A"]
+    proxy.set_devices(None)
+    proxy.set_exclude_devices({"devA"})
+    assert _messages(model, proxy) == ["from B"]

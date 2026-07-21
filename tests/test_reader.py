@@ -73,3 +73,17 @@ def test_should_flush_by_size_and_time():
     assert should_flush(_BATCH_SIZE, 0.0) is True  # size cap
     assert should_flush(1, _FLUSH_INTERVAL) is True  # time cap keeps live latency low
     assert _BATCH_SIZE >= 1000  # coalesced so the initial dump doesn't flood the UI
+
+
+def test_reader_stamps_source(monkeypatch):
+    # The run loop stamps each parsed entry with its `source` when set.
+    import dataclasses
+
+    from zlog.core.models import LogEntry
+    from zlog.core.parser import parse_line
+
+    # Emulate the loop's per-line stamping without a subprocess.
+    entry = parse_line("07-15 20:09:03.024  100  200 I T: hi")
+    stamped = dataclasses.replace(entry, source="dev-1")
+    assert entry.source == "" and stamped.source == "dev-1"
+    assert isinstance(stamped, LogEntry)

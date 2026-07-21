@@ -45,6 +45,7 @@ MATCH_SPANS_ROLE = int(Qt.UserRole) + 3  # (start, end) spans of the highlight m
 DUP_COUNT_ROLE = int(Qt.UserRole) + 4  # run length of a collapsed-duplicate representative row
 FOLD_ROLE = int(Qt.UserRole) + 5  # (has_frames, is_folded, frame_count) for a stack-trace header
 EXTRACT_ROLE = int(Qt.UserRole) + 6  # {name: value} from user regex named-group extractors
+SOURCE_ROLE = int(Qt.UserRole) + 7  # device serial that produced the row (merged view)
 _TIME_MAX_CHARS = 24  # cap the (content-sized) Time column; full stamp fits in 23
 _PIDTID_MAX_CHARS = 13
 
@@ -122,6 +123,8 @@ class LogTableModel(QAbstractTableModel):
             return self._pid_names.get(entry.pid, "")
         if role == EXTRACT_ROLE:
             return extract(entry.message, self._extractors) if self._extractors else {}
+        if role == SOURCE_ROLE:
+            return entry.source
         if role == HIGHLIGHT_ROLE:
             tag = self._tag_colors.get(entry.tag)
             if tag is not None:
@@ -584,6 +587,8 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._exclude_proc = ""  # process/package-name exclude (-proc: token)
         self._since = None  # since: token — datetime.time, inclusive lower bound
         self._until = None  # until: token — datetime.time, inclusive upper bound
+        self._devices: set[str] | None = None  # device: gate (merged view; None = off)
+        self._exclude_devices: set[str] | None = None  # -device: gate
         self._batching = False  # see batch_update()
 
     def _invalidate(self) -> None:
@@ -684,6 +689,16 @@ class LogFilterProxy(QSortFilterProxyModel):
         self._until = until
         self._invalidate()
 
+    def set_devices(self, serials) -> None:
+        """Keep only rows from these device serials (device: token); None/empty = off."""
+        self._devices = set(serials) if serials else None
+        self._invalidate()
+
+    def set_exclude_devices(self, serials) -> None:
+        """Hide rows from these device serials (-device: token); None/empty = off."""
+        self._exclude_devices = set(serials) if serials else None
+        self._invalidate()
+
     def level_counts(self) -> dict[str, int]:
         """Count of currently-accepted rows per level letter (walks filtered rows,
         unlike LogTableModel.level_counts which is O(1) over the whole buffer)."""
@@ -721,6 +736,11 @@ class LogFilterProxy(QSortFilterProxyModel):
         if self._exclude_pids is not None and entry.pid in self._exclude_pids:
             return False
         if self._exclude_proc and self._exclude_proc in model.process_name(entry.pid).lower():
+            return False
+        # Device gates (device:/-device: tokens) in a merged multi-device view.
+        if self._devices is not None and entry.source not in self._devices:
+            return False
+        if self._exclude_devices is not None and entry.source in self._exclude_devices:
             return False
         # Time-range gate (since:/until: tokens) — an unparseable timestamp
         # always passes, same rule the level gate applies to unparsed lines.

@@ -69,6 +69,8 @@ class QuerySpec:
     exclude_process: str = ""  # -proc:com.foo (last token wins, mirrors `process`)
     since: str = ""  # since:HH:MM:SS — raw value, parsed by the caller
     until: str = ""  # until:HH:MM:SS — raw value, parsed by the caller
+    devices: tuple[str, ...] = field(default_factory=tuple)  # device:<serial> set (merged view)
+    exclude_devices: tuple[str, ...] = field(default_factory=tuple)  # -device:<serial>
 
 
 def _tokenize(text: str) -> list[str]:
@@ -89,6 +91,8 @@ def parse_query(text: str) -> QuerySpec:
     exclude_pids: list[str] = []
     since = ""
     until = ""
+    devices: list[str] = []
+    exclude_devices: list[str] = []
     regex = False
     regex_body: str | None = None
     words: list[str] = []
@@ -110,6 +114,9 @@ def parse_query(text: str) -> QuerySpec:
                     continue
                 if key in _PROC_KEYS and val:
                     exclude_process = val
+                    continue
+                if key == "device" and val:
+                    exclude_devices.append(val)
                     continue
             excludes.append(body)
             continue
@@ -149,6 +156,9 @@ def parse_query(text: str) -> QuerySpec:
             if key == "until" and val:
                 until = val
                 continue
+            if key == "device" and val:
+                devices.append(val)
+                continue
         words.append(tok)
 
     search = regex_body if regex_body is not None else " ".join(words)
@@ -166,6 +176,8 @@ def parse_query(text: str) -> QuerySpec:
         exclude_process=exclude_process,
         since=since,
         until=until,
+        devices=tuple(dict.fromkeys(devices)),
+        exclude_devices=tuple(dict.fromkeys(exclude_devices)),
     )
 
 
@@ -189,6 +201,8 @@ def _classify(token: str) -> str:
             return "pid"
         if key in ("since", "until"):
             return "time"
+        if key == "device":
+            return "device"
     return "word"
 
 

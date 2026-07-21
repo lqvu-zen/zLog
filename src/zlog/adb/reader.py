@@ -8,6 +8,7 @@ thread).
 
 from __future__ import annotations
 
+import dataclasses
 import subprocess
 import time
 
@@ -73,6 +74,7 @@ class AdbReader(QThread):
         buffers: list[str] | None = None,
         tail: int = 0,
         since_time: str | None = None,
+        source: str = "",
         parent=None,
     ):
         super().__init__(parent)
@@ -83,6 +85,9 @@ class AdbReader(QThread):
         self.buffers = buffers
         self.tail = tail
         self.since_time = since_time
+        # In a merged multi-device view, each reader stamps its lines with this
+        # label (the device serial) so the model can tell sources apart.
+        self.source = source
         self._proc: subprocess.Popen | None = None
         self._running = False
 
@@ -123,7 +128,10 @@ class AdbReader(QThread):
             for raw in self._proc.stdout:
                 if not self._running:
                     break
-                batch.append(parse_line(raw.rstrip("\n")))
+                entry = parse_line(raw.rstrip("\n"))
+                if self.source:
+                    entry = dataclasses.replace(entry, source=self.source)
+                batch.append(entry)
                 if should_flush(len(batch), time.monotonic() - last):
                     self.batch_ready.emit(batch)
                     batch = []
