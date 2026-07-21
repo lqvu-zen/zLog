@@ -1,6 +1,6 @@
 # Plan: Timeline histogram
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-20
 - **Related:** [scrollbar-heat.md](scrollbar-heat.md), [error-sparkline.md](error-sparkline.md), [goto-line-time.md](goto-line-time.md)

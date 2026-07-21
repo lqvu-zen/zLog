@@ -87,6 +87,7 @@ from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.highlight_rules import normalize_rules
+from zlog.core.histogram import bucketize
 from zlog.core.history import normalize_history, push_history
 from zlog.core.incidents import format_incident_summary
 from zlog.core.jank import jank_summary
@@ -107,12 +108,13 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
-from zlog.core.timefmt import first_at_or_after, parse_time_of_day
+from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
 from zlog.ui.filter_chips import FilterChipBar
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
+from zlog.ui.histogram_bar import HistogramBar
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
@@ -174,6 +176,10 @@ class MainWindow(QMainWindow):
         self._heat_timer.setSingleShot(True)
         self._heat_timer.setInterval(400)
         self._heat_timer.timeout.connect(self._recompute_heat)
+        self._histogram_timer = QTimer(self)  # debounce timeline-band rebuild
+        self._histogram_timer.setSingleShot(True)
+        self._histogram_timer.setInterval(250)
+        self._histogram_timer.timeout.connect(self._rebuild_histogram)
         # Debounce the status-bar counts/sparkline recompute: a fast buffer dump
         # fires row signals thousands of times, and level_counts() is O(visible)
         # when filtered — recomputing per batch would be O(n^2) and freeze the UI.
@@ -227,6 +233,9 @@ class MainWindow(QMainWindow):
     def _wire_session_signals(self, sess) -> None:
         sess.model.rowsInserted.connect(self._schedule_counts)
         sess.model.modelReset.connect(self._schedule_counts)
+        sess.model.rowsInserted.connect(self._schedule_histogram)
+        sess.model.modelReset.connect(self._schedule_histogram)
+        sess.model.rowsRemoved.connect(self._schedule_histogram)
         for sig in (
             sess.proxy.rowsInserted,
             sess.proxy.rowsRemoved,
@@ -606,11 +615,16 @@ class MainWindow(QMainWindow):
         self.chip_bar = FilterChipBar()
         self.chip_bar.remove_requested.connect(self._remove_query_span)
 
+        self.histogram_bar = HistogramBar()
+        self.histogram_bar.seek_requested.connect(self._seek_to_source_row)
+        self.histogram_bar.hide()  # opt-in, toggled from View
+
         layout = QVBoxLayout()
         layout.addWidget(self.tab_bar)
         layout.addLayout(top_row)
         layout.addLayout(filter_row)
         layout.addWidget(self.chip_bar)
+        layout.addWidget(self.histogram_bar)
         layout.addWidget(self._splitter)
         container = QWidget()
         container.setLayout(layout)
@@ -818,6 +832,10 @@ class MainWindow(QMainWindow):
         reload_plugins_act.triggered.connect(self._load_plugins)
         view_menu.addAction(self.presets_dock.toggleViewAction())
         view_menu.addAction(self.bookmarks_dock.toggleViewAction())
+        self.histogram_action = QAction("Show &Timeline", self)
+        self.histogram_action.setCheckable(True)
+        self.histogram_action.toggled.connect(self._on_histogram_toggled)
+        view_menu.addAction(self.histogram_action)
         self.presets_menu = view_menu.addMenu("Filter &Presets")
         self._rebuild_presets_menu()
 
@@ -1592,6 +1610,35 @@ class MainWindow(QMainWindow):
         marks = heat_marks((self._proxy_rank(r) for r in range(n)), n, LEVEL_RANK["E"])
         self.heat_bar.set_marks(marks, THEMES[self._theme_name].level_text["E"])
 
+    # --- timeline histogram -----------------------------------------------
+    def _on_histogram_toggled(self, checked: bool) -> None:
+        self.histogram_bar.setVisible(bool(checked))
+        if checked:
+            self._rebuild_histogram()
+
+    def _schedule_histogram(self, *args) -> None:
+        if self.histogram_bar.isVisible():
+            self._histogram_timer.start()
+
+    def _rebuild_histogram(self) -> None:
+        if not self.histogram_bar.isVisible():
+            return
+        entries = self.model.all_entries()
+        times = [parse_logcat_time(e.time) for e in entries]
+        levels = [e.level for e in entries]
+        self.histogram_bar.set_data(bucketize(times, levels, self.histogram_bar.bucket_count()))
+
+    def _seek_to_source_row(self, src: int) -> None:
+        """Scroll/select the given source row (from a histogram-band click)."""
+        proxy_row = self.proxy.mapFromSource(self.model.index(int(src), 0)).row()
+        if proxy_row < 0:
+            self.statusBar().showMessage("That point is hidden by the current filter.")
+            return
+        index = self.proxy.index(proxy_row, 0)
+        self.table.setCurrentIndex(index)
+        self.table.selectRow(proxy_row)
+        self.table.scrollTo(index)
+
     def _goto_severity(self, step: int) -> None:
         """Jump to the next/previous visible warning-or-above line, wrapping."""
         n = self.proxy.rowCount()
@@ -2117,6 +2164,7 @@ class MainWindow(QMainWindow):
             theme.row_hover_bg,
             theme.inline_match,
         )
+        self.histogram_bar.set_theme(theme.meta_text, theme.level_text["E"], theme.base)
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
@@ -2851,6 +2899,11 @@ class MainWindow(QMainWindow):
             ("watch", lambda: self._watch_pattern, set_watch),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             ("fold_traces", self.fold_action.isChecked, set_fold),
+            (
+                "show_histogram",
+                self.histogram_action.isChecked,
+                lambda v: self.histogram_action.setChecked(bool(v)),
+            ),
             (
                 "redact_on_export",
                 self.redact_action.isChecked,
