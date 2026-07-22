@@ -162,6 +162,20 @@ def test_editing_active_preset_keeps_button_tracking(window, monkeypatch):
     assert window.save_update_btn.text() == "Update P"  # still tracked after edit
 
 
+def test_clone_preset_duplicates_source(window, monkeypatch):
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("Base", query="tag:A -x"))
+    window._rebuild_presets_list()
+    # Clone dialog is seeded with the source query; user keeps a distinct name.
+    _fake_dialog(monkeypatch, "Base copy", "tag:A -x")
+    window._clone_preset(window._presets[0])
+    names = {p["name"] for p in window._presets}
+    assert names == {"Base", "Base copy"}  # original untouched, a new one added
+    clone = next(p for p in window._presets if p["name"] == "Base copy")
+    assert clone["query"] == "tag:A -x"
+
+
 def test_preset_at_falls_back_to_selection(window, monkeypatch):
     from PySide6.QtCore import QPoint
 

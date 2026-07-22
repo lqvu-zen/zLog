@@ -76,3 +76,11 @@ text; a helper parses it (`core.query.parse_query`) to fill the decomposed field
 - Keep a visible **Add** affordance too (the list is otherwise button-less)? The
   filter-row **Save** button already covers "save current filter", so right-click
   Add is enough; leaning no extra button.
+
+## Follow-up: Add → Clone on a preset (2026-07-22)
+
+Right-clicking a *preset* now offers **Clone…** (duplicate that preset — the editor
+is seeded with its query and a "‹name› copy" name) instead of **Add…**, which read
+oddly there since Add creates from the *current filter*, not the clicked preset.
+**Add…** (new from the current filter) now appears only when right-clicking empty
+space; the filter-row **Save** button remains the primary new-from-current path.

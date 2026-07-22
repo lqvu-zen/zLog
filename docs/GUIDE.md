@@ -161,9 +161,11 @@ the change back. It returns to **Save** when you **Clear filters** or empty the 
 bar. You can also save from **View → Filter Presets → Save current filter as…**.
 
 The **Saved Filters** sidebar lists your presets: double-click one to apply it, or
-**right-click** for **Apply / Add… / Edit… / Rename… / Delete**. *Add…* opens a
-Name + Query editor pre-filled with your current filter; *Edit…* changes a preset's
-query (use *Rename…* to change just its name). Presets persist across launches.
+**right-click** for **Apply / Clone… / Edit… / Rename… / Delete** (right-click empty
+space for **Add…**). *Add…* opens a Name + Query editor pre-filled with your current
+filter; *Clone…* duplicates the clicked preset (seeded with its query and a "‹name›
+copy" name); *Edit…* changes a preset's query (use *Rename…* to change just its name).
+Presets persist across launches.
 
 ## Merged multi-device view
 

@@ -1269,13 +1269,16 @@ class MainWindow(QMainWindow):
         preset = self._preset_at(pos)
         menu = QMenu(self)
         if preset is not None:
+            # On a preset: manage that one. Clone duplicates *it*; Add (from the
+            # current filter) lives on the filter-row Save button + empty-space menu.
             menu.addAction("Apply", lambda: self._apply_preset(preset))
             menu.addSeparator()
-        menu.addAction("Add…", self._add_preset)
-        if preset is not None:
+            menu.addAction("Clone…", lambda: self._clone_preset(preset))
             menu.addAction("Edit…", lambda: self._edit_preset(preset))
             menu.addAction("Rename…", lambda: self._rename_preset(preset))
             menu.addAction("Delete", lambda: self._delete_selected_preset(preset))
+        else:
+            menu.addAction("Add…", self._add_preset)  # new preset from the current filter
         menu.exec(self.presets_list.mapToGlobal(pos))
 
     def _preset_from_query(self, name: str, query: str, base: dict | None = None) -> dict:
@@ -1306,6 +1309,28 @@ class MainWindow(QMainWindow):
         self._refresh_save_update_button()
         self._save_settings()
         self.statusBar().showMessage(f"Saved preset {name!r}.")
+
+    def _clone_preset(self, preset: dict) -> None:
+        """Duplicate a saved filter: the editor is seeded with its query and a
+        '‹name› copy' name so you can save a variant without touching the original."""
+        dlg = PresetDialog(
+            "Clone saved filter",
+            name=f"{preset['name']} copy",
+            query=preset.get("query", ""),
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        name, query = dlg.get_values()
+        if not name:
+            return
+        # Carry the source's case toggle; a distinct name makes it a new preset.
+        clone = self._preset_from_query(name, query, base=preset)
+        self._presets = upsert_preset(self._presets, clone)
+        self._rebuild_presets_menu()
+        self._refresh_save_update_button()
+        self._save_settings()
+        self.statusBar().showMessage(f"Cloned to {name!r}.")
 
     def _edit_preset(self, preset: dict) -> None:
         """Edit a saved filter's query (name stays — use Rename to change it)."""
