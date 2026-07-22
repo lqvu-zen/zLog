@@ -266,12 +266,21 @@ def test_mute_tag(window):
 
 
 def test_query_history(window):
+    # Recent queries are still recorded on Enter (persisted), though the query bar
+    # now uses the context-aware completer instead of a whole-line history dropdown.
     set_query(window, "level:E boom")
     window._commit_query_history()
     set_query(window, "tag:Activity")
     window._commit_query_history()
     assert window._history[:2] == ["tag:Activity", "level:E boom"]
-    assert window._history_model.stringList()[0] == "tag:Activity"
+
+
+def test_query_autocomplete_context(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("t", "42", "2", "I", "MyTag", "hi")])
+    tags, _procs, pids = window._completion_context()
+    assert "MyTag" in tags and "42" in pids
 
 
 def test_level_multiselect(window):

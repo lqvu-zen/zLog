@@ -77,6 +77,8 @@ class LogTableModel(QAbstractTableModel):
         self._colorizers = []  # plugin colorize(entry) callables
         self._extractors = []  # compiled user regexes with named groups (EXTRACT_ROLE)
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
+        self._tags: set[str] = set()  # distinct tags seen (query autocomplete)
+        self._pids: set[str] = set()  # distinct PIDs seen (query autocomplete)
         self._time_col_chars = 0  # Time/PID columns size to content (only grow)
         self._pidtid_col_chars = 0
         self.set_level_colors(LIGHT.level_colors)
@@ -221,6 +223,10 @@ class LogTableModel(QAbstractTableModel):
             if hit is not None:
                 pid, name = hit
                 self._pid_names[pid] = name
+            if entry.tag:
+                self._tags.add(entry.tag)
+            if entry.pid:
+                self._pids.add(entry.pid)
         self.endInsertRows()
         self._enforce_cap()
 
@@ -293,6 +299,8 @@ class LogTableModel(QAbstractTableModel):
         self._frame_header.clear()
         self._header_frames.clear()
         self._folded.clear()
+        self._tags.clear()
+        self._pids.clear()
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
         self.endResetModel()
@@ -367,6 +375,14 @@ class LogTableModel(QAbstractTableModel):
         'Start proc' lines and any merged `adb ps` snapshot). Drives the
         log-driven package selector."""
         return sorted({name for name in self._pid_names.values() if name})
+
+    def known_tags(self) -> list[str]:
+        """Distinct tags seen (sorted) — feeds query autocomplete."""
+        return sorted(self._tags)
+
+    def known_pids(self) -> list[str]:
+        """Distinct PIDs seen (numeric order) — feeds query autocomplete."""
+        return sorted(self._pids, key=lambda p: (len(p), p))
 
     def clear_process_names(self) -> None:
         """Forget the pid -> name map (used when loading an offline log, whose

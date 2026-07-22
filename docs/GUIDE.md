@@ -71,6 +71,12 @@ level:E tag:Activity -Gnss
 
 ![Filtering with the query bar](images/guide-query.png)
 
+As you type, an **autocomplete** popup suggests field keys (`level:`, `tag:`, `pid:`,
+`proc:`, …) when you start a token, level names (with "Filter by ERROR or higher"
+hints) after `level:`, and the tags / PIDs / process names seen in the current log
+after `tag:` / `pid:` / `proc:`. Press **Enter** or **Tab** to insert the highlighted
+suggestion (it replaces just the token you're typing).
+
 The **Level** dropdown and the query's `level:` token stay in sync — pick a level and
 it appears in the query; type `level:W` and the dropdown follows.
 

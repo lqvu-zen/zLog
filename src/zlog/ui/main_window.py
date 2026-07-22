@@ -23,7 +23,6 @@ from PySide6.QtCore import (
     QEvent,
     QMimeData,
     QStandardPaths,
-    QStringListModel,
     Qt,
     QTimer,
     QUrl,
@@ -45,7 +44,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
-    QCompleter,
     QDialog,
     QDockWidget,
     QFileDialog,
@@ -547,11 +545,9 @@ class MainWindow(QMainWindow):
             "Filter — e.g. level:E tag:Activity package:com.x -noise text"
         )
         self.query.setClearButtonEnabled(True)
-        self._history_model = QStringListModel(self)
-        completer = QCompleter(self._history_model, self)
-        completer.setCaseSensitivity(Qt.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchContains)
-        self.query.setCompleter(completer)
+        # Context-aware autocomplete (keys / level names / live tag+pid+proc values).
+        # Replaces the old whole-line history completer; the query bar owns its own.
+        self.query.set_context_provider(self._completion_context)
 
     def _build_layout(self) -> None:
         """Arrange the widgets built in _build_widgets into the window."""
@@ -1450,6 +1446,15 @@ class MainWindow(QMainWindow):
         """A filter chip's × was clicked: slice that token span out of the query."""
         self._set_query_text(remove_span(self.query.text(), start, end))
 
+    def _completion_context(self):
+        """Live values for the query-bar autocomplete: (tags, procs, pids), each
+        capped so the popup stays snappy on huge captures."""
+        return (
+            self.model.known_tags()[:300],
+            self.model.process_names()[:300],
+            self.model.known_pids()[:300],
+        )
+
     def _apply_query(self) -> None:
         """Parse the single query bar and drive the (hidden) filter widgets +
         proxy gates. This is the one place filtering is applied in the new UI."""
@@ -1521,8 +1526,7 @@ class MainWindow(QMainWindow):
         text = self.query.text().strip()
         if not text:
             return
-        self._history = push_history(self._history, text)
-        self._history_model.setStringList(self._history)
+        self._history = push_history(self._history, text)  # persisted; kept for future use
         self._save_settings()
 
     def _on_case_toggled(self, checked: bool) -> None:
@@ -2364,6 +2368,7 @@ class MainWindow(QMainWindow):
             theme.inline_match,
         )
         self.histogram_bar.set_theme(theme.meta_text, theme.level_text["E"], theme.base)
+        self.query.set_muted_color(theme.muted)  # autocomplete description color
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
@@ -2987,7 +2992,6 @@ class MainWindow(QMainWindow):
 
         def set_search_history(v):
             self._history = normalize_history(v)
-            self._history_model.setStringList(self._history)
 
         def set_recent(v):
             self._recent = normalize_history(v, limit=10)
