@@ -153,11 +153,15 @@ From the **File** menu:
 
 ## Filter presets
 
-Save a query you use often via **View → Filter Presets → Save current filter as…**,
-or the **Save current filter…** button on the **Saved Filters** sidebar. From the
-sidebar you can double-click a preset to apply it, preview its contents, **Rename** it,
-**Update to current** (overwrite it with the current filter), or **Delete** it. Presets
-persist across launches.
+The **Save/Update** button on the filter row (left of **Clear filters**) adapts to
+context: with an unsaved filter it reads **Save filter…** and creates a new preset;
+once you've applied a saved filter it reads **Update ‹name›** and overwrites that
+preset with your current (edited) query — so you can tweak a loaded filter and save
+the change back. It returns to **Save** when you **Clear filters** or empty the query
+bar. You can also save from **View → Filter Presets → Save current filter as…**.
+
+The **Saved Filters** sidebar lists your presets: double-click one to apply it,
+preview its contents, **Rename** it, or **Delete** it. Presets persist across launches.
 
 ## Merged multi-device view
 

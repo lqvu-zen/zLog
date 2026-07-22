@@ -172,6 +172,7 @@ class MainWindow(QMainWindow):
         self._watch_pattern = ""
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
         self._merged_readers = []  # AdbReaders feeding one model in a merged multi-device view
+        self._active_preset_name = None  # the applied preset the Save/Update button targets
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
         self._sessions: list[LogSession] = []  # capture tabs; re-rooted via properties
@@ -225,6 +226,7 @@ class MainWindow(QMainWindow):
         self.refresh_devices()
         self._load_and_apply_settings()
         self._update_placeholder()
+        self._refresh_save_update_button()  # initial Save/Update label from restored state
         self._maybe_reopen_last()
         self._load_plugins()
 
@@ -517,17 +519,15 @@ class MainWindow(QMainWindow):
         self.search_mode_box.addItem("Filter", "filter")
         self.search_mode_box.addItem("Highlight", "highlight")
         self.search_mode_box.setToolTip("Filter hides non-matches; Highlight tints matches")
+        # Context-aware: "Save filter…" for an unsaved filter, "Update ‹name›" once a
+        # saved filter is applied (see _refresh_save_update_button).
+        self.save_update_btn = QPushButton("Save filter…")
         self.clear_filters_btn = QPushButton("Clear filters")
         self.clear_filters_btn.setToolTip("Reset all filters (level, search, tag, package, time…)")
 
         self.count_label = QLabel("0 lines")
         self.presets_list = QListWidget()
         self.presets_list.setToolTip("Double-click a saved filter to apply it")
-        self.save_filter_btn = QPushButton("Save current filter…")
-        self.update_filter_btn = QPushButton("Update to current")
-        self.update_filter_btn.setToolTip(
-            "Overwrite the selected saved filter with the current filter"
-        )
         self.rename_filter_btn = QPushButton("Rename")
         self.delete_filter_btn = QPushButton("Delete")
         self.preset_preview = QLabel("")
@@ -615,6 +615,7 @@ class MainWindow(QMainWindow):
         filter_row.addWidget(self.match_prev_btn)
         filter_row.addWidget(self.match_next_btn)
         filter_row.addWidget(self.match_label)
+        filter_row.addWidget(self.save_update_btn)
         filter_row.addWidget(self.clear_filters_btn)
 
         self.chip_bar = FilterChipBar()
@@ -641,10 +642,8 @@ class MainWindow(QMainWindow):
         panel_layout.addWidget(QLabel("Saved Filters"))
         panel_layout.addWidget(self.presets_list)
         panel_layout.addWidget(self.preset_preview)
-        row1 = QHBoxLayout()
-        row1.addWidget(self.save_filter_btn)
-        row1.addWidget(self.update_filter_btn)
-        panel_layout.addLayout(row1)
+        # Save/Update moved to the filter-row button; the sidebar keeps manage-only
+        # actions (double-click a preset to apply it).
         row2 = QHBoxLayout()
         row2.addWidget(self.rename_filter_btn)
         row2.addWidget(self.delete_filter_btn)
@@ -917,8 +916,8 @@ class MainWindow(QMainWindow):
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
-        self.save_filter_btn.clicked.connect(self.save_current_preset)
-        self.update_filter_btn.clicked.connect(self._update_preset_to_current)
+        self.save_update_btn.clicked.connect(self._save_or_update_active)
+        self.query.textChanged.connect(self._on_query_changed_for_preset)
         self.rename_filter_btn.clicked.connect(self._rename_preset)
         self.delete_filter_btn.clicked.connect(self._delete_selected_preset)
         self.presets_list.currentRowChanged.connect(self._update_preset_preview)
@@ -1092,6 +1091,8 @@ class MainWindow(QMainWindow):
         # (via _apply_query) resets level/tag/search/exclude/package together.
         self._clear_isolate_state()  # don't resurrect a query the user just cleared
         self._set_query_text("")
+        self._active_preset_name = None  # detach any applied preset (back to Save)
+        self._refresh_save_update_button()
         self.statusBar().showMessage("Filters cleared.")
 
     def _on_level_box_changed(self) -> None:
@@ -1160,8 +1161,49 @@ class MainWindow(QMainWindow):
         )
         self._presets = upsert_preset(self._presets, preset)
         self._rebuild_presets_menu()
+        self._active_preset_name = name  # now editing that saved filter
+        self._refresh_save_update_button()
         self._save_settings()
         self.statusBar().showMessage(f"Saved preset {name!r}.")
+
+    # --- Save/Update filter button ----------------------------------------
+    def _active_preset(self) -> dict | None:
+        """The applied preset the Save/Update button targets, re-checked against
+        the current presets so a deleted/renamed name falls back to None."""
+        if not self._active_preset_name:
+            return None
+        return next((p for p in self._presets if p["name"] == self._active_preset_name), None)
+
+    def _refresh_save_update_button(self) -> None:
+        """Toggle the filter-row button between Save (unsaved filter) and Update
+        (a saved filter is applied)."""
+        preset = self._active_preset()
+        if preset is None:
+            self.save_update_btn.setText("Save filter…")
+            self.save_update_btn.setToolTip("Save the current filter as a new preset")
+            self.save_update_btn.setEnabled(bool(self.query.text().strip()))
+        else:
+            name = preset["name"]
+            label = name if len(name) <= 18 else name[:17] + "…"
+            self.save_update_btn.setText(f"Update {label}")
+            self.save_update_btn.setToolTip(f"Overwrite “{name}” with the current filter")
+            self.save_update_btn.setEnabled(True)
+
+    def _save_or_update_active(self) -> None:
+        """Filter-row button: update the applied preset, else save a new one."""
+        preset = self._active_preset()
+        if preset is None:
+            self.save_current_preset()
+        else:
+            self._update_preset_to_current(preset)
+
+    def _on_query_changed_for_preset(self, text: str) -> None:
+        """Emptying the query bar detaches the applied preset (back to Save); a
+        non-empty edit keeps it (so Update captures the edits). Only user edits
+        reach here — _set_query_text blocks signals during programmatic changes."""
+        if not text.strip():
+            self._active_preset_name = None
+        self._refresh_save_update_button()
 
     def _apply_preset(self, preset: dict) -> None:
         self.case_check.setChecked(bool(preset.get("case")))
@@ -1184,12 +1226,17 @@ class MainWindow(QMainWindow):
         # in sync (unless a level: token is already present).
         if level and level != "V" and "level:" not in text.lower():
             text = f"level:{level} {text}".strip()
-        self._set_query_text(text)  # drives the dropdown + proxy
+        self._set_query_text(text)  # drives the dropdown + proxy (signals blocked)
+        # Set *after* _set_query_text so its (blocked) textChanged can't clear this,
+        # and so the button now offers to Update this preset.
+        self._active_preset_name = preset.get("name") or None
+        self._refresh_save_update_button()
         self.statusBar().showMessage(f"Applied preset {preset.get('name', '')!r}.")
 
     def _delete_preset(self, name: str) -> None:
         self._presets = remove_preset(self._presets, name)
         self._rebuild_presets_menu()
+        self._refresh_save_update_button()  # if the active preset was deleted -> Save
         self._save_settings()
         self.statusBar().showMessage(f"Deleted preset {name!r}.")
 
@@ -1225,8 +1272,8 @@ class MainWindow(QMainWindow):
         preset = self._selected_preset()
         self.preset_preview.setText(preset_summary(preset) if preset else "")
 
-    def _update_preset_to_current(self) -> None:
-        preset = self._selected_preset()
+    def _update_preset_to_current(self, preset: dict | None = None) -> None:
+        preset = preset if preset is not None else self._selected_preset()
         if preset is None:
             self.statusBar().showMessage("Select a saved filter to update.")
             return
@@ -1241,6 +1288,8 @@ class MainWindow(QMainWindow):
         )
         self._presets = upsert_preset(self._presets, updated)
         self._rebuild_presets_menu()
+        self._active_preset_name = preset["name"]  # stays the applied filter
+        self._refresh_save_update_button()
         self._save_settings()
         self.statusBar().showMessage(f"Updated {preset['name']!r} to the current filter.")
 
@@ -1262,7 +1311,10 @@ class MainWindow(QMainWindow):
             query=preset.get("query", ""),
         )
         self._presets = upsert_preset(remove_preset(self._presets, preset["name"]), renamed)
+        if self._active_preset_name == preset["name"]:
+            self._active_preset_name = name  # keep the applied filter tracked
         self._rebuild_presets_menu()
+        self._refresh_save_update_button()
         self._save_settings()
         self.statusBar().showMessage(f"Renamed to {name!r}.")
 

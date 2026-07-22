@@ -49,6 +49,65 @@ def test_delete_preset(window, monkeypatch):
     assert window._presets == []
 
 
+def test_save_update_button_reflects_state(window, monkeypatch):
+    # Fresh, empty query: Save label, disabled (nothing to save).
+    window._set_query_text("")
+    window._refresh_save_update_button()
+    assert window.save_update_btn.text() == "Save filter…"
+    assert window.save_update_btn.isEnabled() is False
+
+    # A non-empty unsaved query: still Save, now enabled.
+    window.query.setText("tag:Activity")
+    assert window.save_update_btn.text() == "Save filter…"
+    assert window.save_update_btn.isEnabled() is True
+
+    # Save it via the button -> becomes "Update <name>".
+    _prompt(monkeypatch, "Acts")
+    window._save_or_update_active()
+    assert window.save_update_btn.text() == "Update Acts"
+    assert window._active_preset_name == "Acts"
+
+
+def test_button_update_rewrites_active_preset(window, monkeypatch):
+    _prompt(monkeypatch, "P")
+    window.query.setText("tag:A")
+    window._save_or_update_active()  # creates P, now active
+    # edit the query — button stays Update, so the edit can be saved back
+    window.query.setText("tag:B -noise")
+    assert window.save_update_btn.text() == "Update P"
+    window._save_or_update_active()  # Update path
+    saved = next(p for p in window._presets if p["name"] == "P")
+    assert saved["query"] == "tag:B -noise"  # preset rewritten with the edits
+
+
+def test_clearing_or_emptying_query_reverts_to_save(window, monkeypatch):
+    _prompt(monkeypatch, "P")
+    window.query.setText("tag:A")
+    window._save_or_update_active()
+    assert window.save_update_btn.text() == "Update P"
+
+    window.query.setText("")  # user empties the bar -> detach
+    assert window._active_preset_name is None
+    assert window.save_update_btn.text() == "Save filter…"
+
+    # re-apply, then Clear filters detaches too
+    window._apply_preset(window._presets[0])
+    assert window.save_update_btn.text() == "Update P"
+    window.clear_filters()
+    assert window._active_preset_name is None
+    assert window.save_update_btn.text() == "Save filter…"
+
+
+def test_deleting_active_preset_reverts_to_save(window, monkeypatch):
+    _prompt(monkeypatch, "P")
+    window.query.setText("tag:A")
+    window._save_or_update_active()
+    assert window.save_update_btn.text() == "Update P"
+    window._delete_preset("P")
+    assert window._active_preset() is None
+    assert window.save_update_btn.text() == "Save filter…"
+
+
 def test_presets_round_trip(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
 

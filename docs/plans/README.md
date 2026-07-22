@@ -62,6 +62,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [self-diagnostics-log.md](self-diagnostics-log.md) | Done | zLog logs its own behavior to a rotating zlog.log (banner, adb errors, excepthook); Help → Open Log Folder |
 | [cli-tail.md](cli-tail.md) | Done | Headless `zlog --tail --filter '<query>'` streams filtered logcat to stdout (no GUI) |
 | [dumpsys-snapshot.md](dumpsys-snapshot.md) | Done | File → Capture dumpsys… saves a one-shot device snapshot to a text file |
+| [save-update-filter-button.md](save-update-filter-button.md) | Done | Context-aware Save/Update filter button on the filter row (left of Clear filters) |
 | [timeline-histogram.md](timeline-histogram.md) | Done | Volume/error band above the log; click-to-seek (deferred bigger bet) |
 | [sticky-header-line.md](sticky-header-line.md) | Done | Pin the selected/nearest-bookmark line at the top while scrolling |
 | [regex-extract-columns.md](regex-extract-columns.md) | Done | Named-group regex extracts ad-hoc fields; detail-pane + summary first |
