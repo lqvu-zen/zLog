@@ -465,8 +465,10 @@ class MainWindow(QMainWindow):
         self.device_box = QComboBox()
         self.device_box.setMinimumWidth(180)
         self.refresh_btn = QPushButton("Refresh")
-        self.connect_btn = QPushButton("Connect…")
-        self.connect_btn.setToolTip("adb connect host:port — pair a Wi-Fi device/emulator")
+        self.connect_btn = QPushButton("Wi-Fi…")
+        self.connect_btn.setToolTip(
+            "Add a device over Wi-Fi (adb connect host:port) — not the log stream control"
+        )
         self.start_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.pause_btn = QPushButton("Pause")
