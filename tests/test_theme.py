@@ -78,6 +78,16 @@ def test_level_text_colors():
             assert c.startswith("#") and len(c) == 7
 
 
+def test_scrollbar_handle_is_styled():
+    # The global QWidget background flattens native scrollbars, so the handle must be
+    # styled explicitly or it's invisible (see "I can't see the scroller").
+    for theme in THEMES.values():
+        qss = build_stylesheet(theme)
+        assert "QScrollBar::handle:vertical" in qss
+        assert "QScrollBar::handle:horizontal" in qss
+        assert theme.muted in qss  # the handle thumb color
+
+
 def test_checkbox_indicator_has_checked_state():
     # Styling the indicator border replaces Qt's native check glyph, so the
     # checked state must be styled explicitly or on/off look identical.

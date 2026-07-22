@@ -207,4 +207,19 @@ def build_stylesheet(theme: Theme) -> str:
         f"    border: 1px solid {theme.muted}; background-color: {theme.base}; }}\n"
         f"QCheckBox::indicator:checked {{ background-color: {theme.selection_bg};\n"
         f"    border-color: {theme.selection_bg}; }}\n"
+        # The global `QWidget { background-color }` above cascades onto scrollbars and
+        # flattens them, so the draggable handle becomes invisible against the groove.
+        # Style the handle explicitly (a `muted` thumb over a `header` groove) so it
+        # reads as a real scrollbar; the HeatScrollBar still paints its error ticks on
+        # top. Hidden arrow buttons keep it clean.
+        f"QScrollBar:vertical {{ background: {theme.header}; width: 14px; margin: 0; }}\n"
+        f"QScrollBar::handle:vertical {{ background: {theme.muted}; min-height: 28px;\n"
+        f"    border-radius: 3px; margin: 1px; }}\n"
+        f"QScrollBar::handle:vertical:hover {{ background: {theme.meta_text}; }}\n"
+        f"QScrollBar:horizontal {{ background: {theme.header}; height: 14px; margin: 0; }}\n"
+        f"QScrollBar::handle:horizontal {{ background: {theme.muted}; min-width: 28px;\n"
+        f"    border-radius: 3px; margin: 1px; }}\n"
+        f"QScrollBar::handle:horizontal:hover {{ background: {theme.meta_text}; }}\n"
+        f"QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}\n"
+        f"QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}\n"
     )
