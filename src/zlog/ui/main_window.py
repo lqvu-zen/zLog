@@ -279,10 +279,17 @@ class MainWindow(QMainWindow):
         self._set_query_text(sess.query)
 
     def _set_tab_label(self, sess) -> None:
-        if sess in self._sessions:
-            i = self._sessions.index(sess)
-            name = sess.serial or "Device"
-            self.tab_bar.setTabText(i, f"\u25cf {name}" if sess.reader is not None else name)
+        if sess not in self._sessions:
+            return
+        i = self._sessions.index(sess)
+        if sess.reader is not None:  # streaming wins over any loaded-file title
+            self.tab_bar.setTabText(i, f"\u25cf {sess.serial or 'Device'}")
+            self.tab_bar.setTabToolTip(i, sess.serial or "")
+            return
+        name = sess.title or sess.serial or "Device"
+        label = name if len(name) <= 22 else name[:21] + "\u2026"
+        self.tab_bar.setTabText(i, label)
+        self.tab_bar.setTabToolTip(i, sess.title or sess.serial or "")
 
     def _update_tab_closability(self) -> None:
         """Only show a close (x) on a tab when there's another one to fall back
@@ -295,6 +302,14 @@ class MainWindow(QMainWindow):
             # including the one that was hidden while alone.
             self.tab_bar.setTabsClosable(False)
             self.tab_bar.setTabsClosable(True)
+
+    def _clear_active_view(self) -> None:
+        """Clear button: empty the active tab's view and drop a loaded-file label
+        so the tab no longer claims to hold that file (and becomes reusable)."""
+        self.model.clear()
+        if self._active.title:
+            self._active.title = ""
+            self._set_tab_label(self._active)
 
     def _new_tab(self) -> None:
         self._save_toolbar(self._active)
@@ -409,6 +424,11 @@ class MainWindow(QMainWindow):
         self.tab_bar.setDocumentMode(True)
         self.tab_bar.addTab("Device")
         self._update_tab_closability()
+        self.new_tab_btn = QPushButton("+")
+        self.new_tab_btn.setToolTip("New tab (Ctrl+T)")
+        self.new_tab_btn.setFixedWidth(28)
+        self.new_tab_btn.setFocusPolicy(Qt.NoFocus)
+        self.new_tab_btn.clicked.connect(self._new_tab)
 
         self.table = LogTableView()
         self.table.setModel(self.proxy)
@@ -623,8 +643,15 @@ class MainWindow(QMainWindow):
         self.histogram_bar.seek_requested.connect(self._seek_to_source_row)
         self.histogram_bar.hide()  # opt-in, toggled from View
 
+        tab_row = QHBoxLayout()
+        tab_row.setContentsMargins(0, 0, 0, 0)
+        tab_row.setSpacing(2)
+        tab_row.addWidget(self.tab_bar)
+        tab_row.addWidget(self.new_tab_btn)
+        tab_row.addStretch(1)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.tab_bar)
+        layout.addLayout(tab_row)
         layout.addLayout(top_row)
         layout.addLayout(filter_row)
         layout.addWidget(self.chip_bar)
@@ -920,7 +947,7 @@ class MainWindow(QMainWindow):
         self.device_box.currentIndexChanged.connect(self._update_start_enabled)
         self.start_btn.clicked.connect(self.start)
         self.stop_btn.clicked.connect(self.stop)
-        self.clear_btn.clicked.connect(self.model.clear)
+        self.clear_btn.clicked.connect(self._clear_active_view)
         self.clear_device_btn.clicked.connect(self._clear_device_buffer)
         self.connect_btn.clicked.connect(self._connect_over_wifi)
         self.pause_btn.clicked.connect(self._toggle_pause)
@@ -2690,7 +2717,10 @@ class MainWindow(QMainWindow):
         """On launch, reopen the most-recent log if the user opted in (and no live
         stream is running)."""
         if self.reopen_last_action.isChecked() and self._recent and self.reader is None:
-            self._load_log_file(self._recent[0])
+            path = self._recent[0]
+            self._load_log_file(path)  # launch: reuse the first tab, no new tab
+            self._active.title = Path(path).name
+            self._set_tab_label(self._active)
 
     # --- autosave ----------------------------------------------------------
     def _autosave_path(self) -> str:
@@ -2728,7 +2758,27 @@ class MainWindow(QMainWindow):
             self, "Open Log", "", "Log files (*.log);;All files (*)"
         )
         if path:
-            self._load_log_file(path)
+            self._open_log_in_tab(path)
+
+    def _tab_is_reusable(self, sess) -> bool:
+        """A tab is safe to load a file into only when it holds nothing worth
+        keeping: no reader, no intent to stream, an empty model, and no
+        loaded-file title. Anything else would blow away a recording or a log."""
+        return (
+            sess.reader is None
+            and not sess.want_stream
+            and sess.model.rowCount() == 0
+            and not sess.title
+        )
+
+    def _open_log_in_tab(self, path: str) -> None:
+        """Open a saved log in a new tab (reusing the current one when it's idle
+        and empty), so existing recordings/logs in other tabs stay intact."""
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        self._load_log_file(path)
+        self._active.title = Path(path).name
+        self._set_tab_label(self._active)
 
     _LARGE_FILE_BYTES = 5_000_000  # above this, load in the background with progress
 
@@ -2828,7 +2878,7 @@ class MainWindow(QMainWindow):
         for path in self._recent:
             act = self._recent_menu.addAction(Path(path).name)
             act.setToolTip(path)
-            act.triggered.connect(lambda _checked=False, p=path: self._load_log_file(p))
+            act.triggered.connect(lambda _checked=False, p=path: self._open_log_in_tab(p))
         self._recent_menu.addSeparator()
         self._recent_menu.addAction("Clear Recent").triggered.connect(self._clear_recent)
 
@@ -3221,6 +3271,7 @@ class MainWindow(QMainWindow):
         reader.start()
         sess.reader = reader
         sess.serial = serial or ""
+        sess.title = ""  # a stream owns the tab label now; drop any stale file name
         sess.paused = False
         sess.pause_buffer = []
         self._set_tab_label(sess)

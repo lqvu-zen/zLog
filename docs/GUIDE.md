@@ -29,8 +29,12 @@ through everyday use.
   sessions, and export; View holds commands and navigation (clear filters, problems,
   bookmarks, zoom, presets, tag summary); **Settings…** opens the preferences dialog.
 - A **Saved Filters** sidebar (left) lists your saved query presets for one-click use.
-- Each device you stream from opens in its own **tab** (Ctrl+T for a new tab), and
-  **File → New Window** (Ctrl+Shift+N) opens a second, independent window.
+- Work in **tabs**: the **+** button on the tab bar (or Ctrl+T) starts a fresh tab
+  so you can record another device without losing what's already there. **Open Log…**
+  and **Open Recent** open the file in a new tab too (reusing the current tab only
+  when it's still empty and idle), labeled by the file name — so an existing recording
+  or log stays intact. Close a tab with its ×. For fully separate windows, use
+  **File → New Window** (Ctrl+Shift+N).
 - The **log view** shows one line per entry — `time  pid-tid  tag  level  message`
   — with each level in its own color (I green, D blue, W amber, E/F red).
 

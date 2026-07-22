@@ -21,6 +21,7 @@ class LogSession:
         self.proxy.setSourceModel(self.model)
         self.reader = None
         self.serial = ""  # device this tab targets
+        self.title = ""  # explicit tab label (a loaded file's name); "" = derive from device
         self.query = ""  # this tab's query-bar text
         self.level = "V"  # this tab's min-level selection
         self.package = ""  # this tab's package-box text
