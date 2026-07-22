@@ -425,6 +425,7 @@ class MainWindow(QMainWindow):
         self.tab_bar.addTab("Device")
         self._update_tab_closability()
         self.new_tab_btn = QPushButton("+")
+        self.new_tab_btn.setObjectName("newTabButton")
         self.new_tab_btn.setToolTip("New tab (Ctrl+T)")
         self.new_tab_btn.setFixedWidth(28)
         self.new_tab_btn.setFocusPolicy(Qt.NoFocus)

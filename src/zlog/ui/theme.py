@@ -197,6 +197,23 @@ def build_stylesheet(theme: Theme) -> str:
         f"QPushButton:hover {{ background-color: {theme.button_hover}; }}\n"
         f"QPushButton:pressed {{ background-color: {theme.button_pressed}; }}\n"
         f"QPushButton:disabled {{ color: {theme.muted}; }}\n"
+        # A bare QTabBar (no QTabWidget pane) renders its selected tab as a
+        # floating bordered pill in the native style — which looks like a stray
+        # text box when there's only one tab. Flatten tabs to an underline style
+        # (transparent tab, accent bottom-border when selected) so one tab reads
+        # as a plain label and many tabs read as a clean strip.
+        f"QTabBar {{ border: none; }}\n"
+        f"QTabBar::tab {{ background: transparent; color: {theme.muted};\n"
+        f"    border: none; border-bottom: 2px solid transparent; padding: 4px 12px; }}\n"
+        f"QTabBar::tab:selected {{ color: {theme.text};\n"
+        f"    border-bottom: 2px solid {theme.selection_bg}; }}\n"
+        f"QTabBar::tab:hover {{ color: {theme.text}; }}\n"
+        # The new-tab (+) button sits in the tab strip, so it's flat too — a
+        # bordered button there would reintroduce the boxy look we just removed.
+        f"QPushButton#newTabButton {{ border: none; background: transparent;\n"
+        f"    color: {theme.muted}; padding: 0; font-weight: bold; }}\n"
+        f"QPushButton#newTabButton:hover {{ color: {theme.text};\n"
+        f"    background-color: {theme.button_hover}; }}\n"
         f"QMenuBar, QMenu {{ background-color: {theme.window}; color: {theme.text}; }}\n"
         f"QStatusBar {{ color: {theme.text}; }}\n"
         # Styling the indicator's border replaces Qt's native check glyph, so the
