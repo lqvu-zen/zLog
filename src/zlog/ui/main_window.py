@@ -119,6 +119,7 @@ from zlog.ui.histogram_bar import HistogramBar
 from zlog.ui.log_delegate import LogItemDelegate
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
+from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
@@ -527,9 +528,8 @@ class MainWindow(QMainWindow):
 
         self.count_label = QLabel("0 lines")
         self.presets_list = QListWidget()
-        self.presets_list.setToolTip("Double-click a saved filter to apply it")
-        self.rename_filter_btn = QPushButton("Rename")
-        self.delete_filter_btn = QPushButton("Delete")
+        self.presets_list.setToolTip("Double-click to apply; right-click to Add/Edit/Rename/Delete")
+        self.presets_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.preset_preview = QLabel("")
         self.preset_preview.setWordWrap(True)
         self.spark_label = QLabel("")
@@ -642,12 +642,8 @@ class MainWindow(QMainWindow):
         panel_layout.addWidget(QLabel("Saved Filters"))
         panel_layout.addWidget(self.presets_list)
         panel_layout.addWidget(self.preset_preview)
-        # Save/Update moved to the filter-row button; the sidebar keeps manage-only
-        # actions (double-click a preset to apply it).
-        row2 = QHBoxLayout()
-        row2.addWidget(self.rename_filter_btn)
-        row2.addWidget(self.delete_filter_btn)
-        panel_layout.addLayout(row2)
+        # Manage presets from the list's right-click menu (Add/Edit/Rename/Delete);
+        # double-click applies. Save/Update the current filter uses the filter-row button.
         self.presets_dock = QDockWidget("Saved Filters", self)
         self.presets_dock.setObjectName("presetsDock")
         self.presets_dock.setWidget(panel)
@@ -916,10 +912,9 @@ class MainWindow(QMainWindow):
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
+        self.presets_list.customContextMenuRequested.connect(self._show_presets_menu)
         self.save_update_btn.clicked.connect(self._save_or_update_active)
         self.query.textChanged.connect(self._on_query_changed_for_preset)
-        self.rename_filter_btn.clicked.connect(self._rename_preset)
-        self.delete_filter_btn.clicked.connect(self._delete_selected_preset)
         self.presets_list.currentRowChanged.connect(self._update_preset_preview)
         self.to_top_btn.clicked.connect(self.table.scrollToTop)
         self.to_latest_btn.clicked.connect(self._jump_to_latest)
@@ -1256,10 +1251,81 @@ class MainWindow(QMainWindow):
                 self._apply_preset(preset)
                 return
 
-    def _delete_selected_preset(self) -> None:
-        item = self.presets_list.currentItem()
-        if item is not None:
-            self._delete_preset(item.data(Qt.UserRole))
+    def _delete_selected_preset(self, preset: dict | None = None) -> None:
+        preset = preset if preset is not None else self._selected_preset()
+        if preset is not None:
+            self._delete_preset(preset["name"])
+
+    # --- Saved-filter right-click menu ------------------------------------
+    def _preset_at(self, pos) -> dict | None:
+        """The preset under a right-click position (falls back to the selection)."""
+        item = self.presets_list.itemAt(pos) or self.presets_list.currentItem()
+        if item is None:
+            return None
+        name = item.data(Qt.UserRole)
+        return next((p for p in self._presets if p["name"] == name), None)
+
+    def _show_presets_menu(self, pos) -> None:
+        preset = self._preset_at(pos)
+        menu = QMenu(self)
+        if preset is not None:
+            menu.addAction("Apply", lambda: self._apply_preset(preset))
+            menu.addSeparator()
+        menu.addAction("Add…", self._add_preset)
+        if preset is not None:
+            menu.addAction("Edit…", lambda: self._edit_preset(preset))
+            menu.addAction("Rename…", lambda: self._rename_preset(preset))
+            menu.addAction("Delete", lambda: self._delete_selected_preset(preset))
+        menu.exec(self.presets_list.mapToGlobal(pos))
+
+    def _preset_from_query(self, name: str, query: str, base: dict | None = None) -> dict:
+        """Build a preset dict from a raw query string (source of truth), parsing it
+        to fill the decomposed summary/legacy fields. `case` carries over from `base`
+        (Edit) or the current toggle (Add)."""
+        spec = parse_query(query)
+        return make_preset(
+            name,
+            min_level=spec.level or "V",
+            search=spec.search,
+            regex=spec.regex,
+            case=bool(base["case"]) if base else self.case_check.isChecked(),
+            package=spec.package,
+            query=query,
+        )
+
+    def _add_preset(self) -> None:
+        """Create a new preset from a Name+Query editor, seeded with the current filter."""
+        dlg = PresetDialog("Add saved filter", query=self.query.text(), parent=self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        name, query = dlg.get_values()
+        if not name:
+            return
+        self._presets = upsert_preset(self._presets, self._preset_from_query(name, query))
+        self._rebuild_presets_menu()
+        self._refresh_save_update_button()
+        self._save_settings()
+        self.statusBar().showMessage(f"Saved preset {name!r}.")
+
+    def _edit_preset(self, preset: dict) -> None:
+        """Edit a saved filter's query (name stays — use Rename to change it)."""
+        dlg = PresetDialog(
+            "Edit saved filter",
+            name=preset["name"],
+            query=preset.get("query", ""),
+            name_editable=False,
+            parent=self,
+        )
+        if dlg.exec() != QDialog.Accepted:
+            return
+        _name, query = dlg.get_values()
+        self._presets = upsert_preset(
+            self._presets, self._preset_from_query(preset["name"], query, base=preset)
+        )
+        self._rebuild_presets_menu()
+        self._refresh_save_update_button()  # active preset (same name) keeps tracking
+        self._save_settings()
+        self.statusBar().showMessage(f"Updated preset {preset['name']!r}.")
 
     def _selected_preset(self) -> dict | None:
         item = self.presets_list.currentItem()
@@ -1293,8 +1359,8 @@ class MainWindow(QMainWindow):
         self._save_settings()
         self.statusBar().showMessage(f"Updated {preset['name']!r} to the current filter.")
 
-    def _rename_preset(self) -> None:
-        preset = self._selected_preset()
+    def _rename_preset(self, preset: dict | None = None) -> None:
+        preset = preset if preset is not None else self._selected_preset()
         if preset is None:
             return
         name, ok = QInputDialog.getText(self, "Rename Filter", "New name:", text=preset["name"])

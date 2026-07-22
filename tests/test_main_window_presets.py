@@ -108,6 +108,72 @@ def test_deleting_active_preset_reverts_to_save(window, monkeypatch):
     assert window.save_update_btn.text() == "Save filter…"
 
 
+def _fake_dialog(monkeypatch, name, query, accepted=True):
+    from PySide6.QtWidgets import QDialog
+
+    import zlog.ui.main_window as mw
+
+    class Fake:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.Accepted if accepted else QDialog.Rejected
+
+        def get_values(self):
+            return (name, query)
+
+    monkeypatch.setattr(mw, "PresetDialog", Fake)
+
+
+def test_add_preset_from_dialog(window, monkeypatch):
+    _fake_dialog(monkeypatch, "Errors", "level:E -Gnss")
+    window._add_preset()
+    p = next(x for x in window._presets if x["name"] == "Errors")
+    assert p["query"] == "level:E -Gnss"
+    assert p["min_level"] == "E"  # parsed from the typed query
+
+
+def test_add_preset_cancel_is_noop(window, monkeypatch):
+    _fake_dialog(monkeypatch, "X", "tag:A", accepted=False)
+    window._add_preset()
+    assert window._presets == []
+
+
+def test_edit_preset_rewrites_query_keeps_name(window, monkeypatch):
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("P", query="tag:A"))
+    window._rebuild_presets_list()
+    _fake_dialog(monkeypatch, "ignored-name", "tag:B -noise")
+    window._edit_preset(window._presets[0])
+    p = next(x for x in window._presets if x["name"] == "P")
+    assert p["query"] == "tag:B -noise" and p["name"] == "P"  # name unchanged by Edit
+
+
+def test_editing_active_preset_keeps_button_tracking(window, monkeypatch):
+    _fake_dialog(monkeypatch, "P", "tag:A")
+    window._add_preset()
+    window._apply_preset(window._presets[0])  # P is now the active/tracked preset
+    assert window.save_update_btn.text() == "Update P"
+    _fake_dialog(monkeypatch, "P", "tag:Z")
+    window._edit_preset(window._presets[0])
+    assert window._active_preset_name == "P"
+    assert window.save_update_btn.text() == "Update P"  # still tracked after edit
+
+
+def test_preset_at_falls_back_to_selection(window, monkeypatch):
+    from PySide6.QtCore import QPoint
+
+    from zlog.core.presets import make_preset, upsert_preset
+
+    window._presets = upsert_preset([], make_preset("Sel", query="tag:A"))
+    window._rebuild_presets_list()
+    window.presets_list.setCurrentRow(0)
+    # A click that misses any row still resolves to the current selection.
+    assert window._preset_at(QPoint(9999, 9999))["name"] == "Sel"
+
+
 def test_presets_round_trip(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
 

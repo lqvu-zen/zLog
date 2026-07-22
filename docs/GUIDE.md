@@ -160,8 +160,10 @@ preset with your current (edited) query — so you can tweak a loaded filter and
 the change back. It returns to **Save** when you **Clear filters** or empty the query
 bar. You can also save from **View → Filter Presets → Save current filter as…**.
 
-The **Saved Filters** sidebar lists your presets: double-click one to apply it,
-preview its contents, **Rename** it, or **Delete** it. Presets persist across launches.
+The **Saved Filters** sidebar lists your presets: double-click one to apply it, or
+**right-click** for **Apply / Add… / Edit… / Rename… / Delete**. *Add…* opens a
+Name + Query editor pre-filled with your current filter; *Edit…* changes a preset's
+query (use *Rename…* to change just its name). Presets persist across launches.
 
 ## Merged multi-device view
 
