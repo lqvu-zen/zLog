@@ -52,9 +52,13 @@ def parse_bundle(text: str) -> dict:
     marks: dict[int, str] = {}
     if isinstance(raw_marks, dict):  # v2: {row: label}
         for k, v in raw_marks.items():
+            # Split into two except clauses on purpose — the installed ruff
+            # formatter mangles a parenthesized `except (TypeError, ValueError)`.
             try:
                 marks[int(k)] = str(v)
-            except (TypeError, ValueError):
+            except TypeError:
+                continue
+            except ValueError:
                 continue
     elif isinstance(raw_marks, list):  # v1: [row, ...]
         for m in raw_marks:
