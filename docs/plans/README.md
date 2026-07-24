@@ -161,4 +161,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [quick-filter-pid-package.md](quick-filter-pid-package.md) | Done | Right-click Filter to… PID / Package (pid: and proc: query tokens) |
 | [wrap-messages.md](wrap-messages.md) | Done | Optional multi-line wrap of long messages in the log list (Settings → Log view) |
 | [open-in-new-tab.md](open-in-new-tab.md) | Done | Open Log / Open Recent open in a new tab (reuse an idle one); + button on the tab bar starts a fresh recording tab |
-| [windows-event-log.md](windows-event-log.md) | Draft | Stream the Windows Event Log (Application/System/Security channels) as a log source, reusing the view/filters |
+| [windows-debug-output.md](windows-debug-output.md) | Draft | Capture any Windows app's OutputDebugString stream (DebugView-style), tagged by PID/process |
