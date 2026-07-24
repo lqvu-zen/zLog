@@ -50,6 +50,21 @@ Pick your device from **Device** (press refresh if it isn't listed yet), then cl
   go to the oldest / newest line at any time.
 - **Clear** empties the view; **Stop** ends streaming.
 
+## Debugging a Windows app (OutputDebugString)
+
+**File → Capture Windows Debug Output** turns zLog into a live capture of the
+Windows debug channel — the `OutputDebugString` output that most Windows apps and
+frameworks (C/C++, .NET `Debug`/`Trace`, Qt, and others) emit. It opens in a new
+tab (labeled **● Debug Output**), and every line is tagged with the emitting
+process, so you focus on the app you're debugging with the usual query bar —
+`proc:myapp.exe` or `pid:1234`. **Stop** ends the capture.
+
+This is the same mechanism Sysinternals DebugView uses, so a few things follow
+from it: only one capturer can run at a time (close DebugView or a debugger first),
+an app already attached to a debugger sends its output there instead, and
+capturing Windows **services** needs to run zLog as administrator. It's a
+Windows-only feature; on other platforms the action reports that and does nothing.
+
 ## Filtering with the query bar
 
 Type in the **query bar** to narrow the view. Terms combine — a line must match all

@@ -283,8 +283,9 @@ class MainWindow(QMainWindow):
             return
         i = self._sessions.index(sess)
         if sess.reader is not None:  # streaming wins over any loaded-file title
-            self.tab_bar.setTabText(i, f"\u25cf {sess.serial or 'Device'}")
-            self.tab_bar.setTabToolTip(i, sess.serial or "")
+            name = sess.stream_label or sess.serial or "Device"
+            self.tab_bar.setTabText(i, f"\u25cf {name}")
+            self.tab_bar.setTabToolTip(i, name)
             return
         name = sess.title or sess.serial or "Device"
         label = name if len(name) <= 22 else name[:21] + "\u2026"
@@ -743,6 +744,12 @@ class MainWindow(QMainWindow):
         dumpsys_act.triggered.connect(self._capture_dumpsys)
         merged_act = file_menu.addAction("&Merge All Devices")
         merged_act.triggered.connect(self.start_merged)
+        self.capture_debug_act = file_menu.addAction("Capture Windows Debug &Output")
+        self.capture_debug_act.setToolTip(
+            "Capture OutputDebugString from Windows apps (DebugView-style); "
+            "filter to yours with proc: / pid:"
+        )
+        self.capture_debug_act.triggered.connect(self.capture_debug_output)
         file_menu.addSeparator()
         self.redact_action = QAction("Redact secrets", self)
         self.redact_action.setCheckable(True)
@@ -3273,6 +3280,7 @@ class MainWindow(QMainWindow):
         sess.reader = reader
         sess.serial = serial or ""
         sess.title = ""  # a stream owns the tab label now; drop any stale file name
+        sess.stream_label = ""  # a device stream labels by serial, not a source name
         sess.paused = False
         sess.pause_buffer = []
         self._set_tab_label(sess)
@@ -3321,6 +3329,43 @@ class MainWindow(QMainWindow):
         _log.info("Merged streaming %d devices: %s", len(serials), ", ".join(serials))
         self.statusBar().showMessage(f"Merged streaming {len(serials)} devices…")
 
+    def capture_debug_output(self) -> None:
+        """Capture the OutputDebugString stream of Windows apps into a tab
+        (DebugView-style). Focus on your target with `proc:` / `pid:`. Opens a
+        fresh tab when the current one is busy, so existing logs/streams stay put."""
+        from zlog.winlog.dbwin_reader import DebugOutputReader, is_supported
+
+        if not is_supported():
+            self.statusBar().showMessage("Capturing debug output is only available on Windows.")
+            return
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if sess.reader and sess.reader.isRunning():
+            return
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        reader = DebugOutputReader()
+        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
+        reader.error.connect(self.on_error)
+        reader.start()
+        sess.reader = reader
+        sess.serial = ""
+        sess.title = ""
+        sess.stream_label = "Debug Output"
+        sess.paused = False
+        sess.pause_buffer = []
+        self._set_tab_label(sess)
+        # Mirror _start_reader's active-tab control state (Stop/pause on, Start off).
+        self.device_box.setEnabled(False)
+        self.refresh_btn.setEnabled(False)
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        self.pause_btn.setEnabled(True)
+        self.pause_btn.setText("Pause")
+        _log.info("DBWIN capture requested")
+        self.statusBar().showMessage("Capturing Windows debug output (OutputDebugString)…")
+
     def stop(self) -> None:
         sess = self._active
         sess.want_stream = False
@@ -3331,6 +3376,7 @@ class MainWindow(QMainWindow):
         for reader in self._merged_readers:
             reader.stop()
         self._merged_readers = []
+        sess.stream_label = ""
         sess.paused = False
         sess.pause_buffer = []
         self.refresh_btn.setEnabled(True)
