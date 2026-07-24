@@ -64,6 +64,8 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | `LogEntry`, `LEVEL_RANK`, severity `rank` | `src/zlog/core/models.py` |
 | logcat line parsing (`parse_line`) | `src/zlog/core/parser.py` |
 | `adb logcat` streaming thread (`AdbReader`) | `src/zlog/adb/reader.py` |
+| Windows `OutputDebugString` (DBWIN) parse | `src/zlog/core/dbwin.py` |
+| Windows debug-output capture thread (`DebugOutputReader`) | `src/zlog/winlog/dbwin_reader.py` |
 | Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
 | one-line-per-entry paint delegate | `src/zlog/ui/log_delegate.py` |
 | query-bar parser (`level: tag: package: -exclude /regex/`) | `src/zlog/core/query.py` |

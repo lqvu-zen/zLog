@@ -1,6 +1,6 @@
 # Plan: Capture Windows app debug output (OutputDebugString) as a source
 
-- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [merged-multidevice.md](merged-multidevice.md), [device-tabs.md](device-tabs.md), [open-in-new-tab.md](open-in-new-tab.md)
