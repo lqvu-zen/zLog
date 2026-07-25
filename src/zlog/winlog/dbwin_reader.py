@@ -67,6 +67,9 @@ class DebugOutputReader(QThread):
     def __init__(self, global_capture: bool = False, parent=None):
         super().__init__(parent)
         self.global_capture = global_capture
+        # Not a device stream, but the UI reads `reader.serial` in a few adb paths
+        # (process-map refresh, current-serial); "" keeps those safe/no-ops.
+        self.serial = ""
         self._running = False
         self._names = ProcessNameCache()
 
