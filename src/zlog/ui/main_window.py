@@ -97,6 +97,7 @@ from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.ui.build import build_layout, build_widgets
+from zlog.ui.capture_controller import CaptureController
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
@@ -151,7 +152,11 @@ class MainWindow(QMainWindow):
         self._watch = None  # compiled substring matcher, or None
         self._watch_pattern = ""
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
-        self._merged_readers = []  # extra readers feeding one model (merged view / DBWIN)
+        # Owns reader attach/detach for every capture kind (see CaptureController);
+        # `capture.extra_readers` holds the merged-view / DBWIN companions.
+        self.capture = CaptureController(
+            self._on_batch, self.on_error, self._on_stream_ended, parent=self
+        )
         self._last_launch = None  # (exe, args, cwd) prefilled into the Launch App dialog
         self._active_preset_name = None  # the applied preset the Save/Update button targets
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
@@ -2762,16 +2767,8 @@ class MainWindow(QMainWindow):
             tail=tail,
             since_time=since_time,
         )
-        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
-        reader.error.connect(self.on_error)
-        reader.stream_ended.connect(lambda x=sess: self._on_stream_ended(x))
-        reader.start()
-        sess.reader = reader
-        sess.serial = serial or ""
-        sess.title = ""  # a stream owns the tab label now; drop any stale file name
-        sess.stream_label = ""  # a device stream labels by serial, not a source name
-        sess.paused = False
-        sess.pause_buffer = []
+        # A device stream labels by serial, so no stream_label.
+        self.capture.attach(sess, reader, serial=serial or "", track_end=True)
         self._set_tab_label(sess)
         if sess is self._active:
             # Lock device selection while streaming; switching needs Stop first.
@@ -2787,7 +2784,7 @@ class MainWindow(QMainWindow):
     def start_merged(self) -> None:
         """Stream every connected device into one view, tagging lines by serial
         (merged multi-device view). Filter with `device:<serial>`."""
-        if (self.reader and self.reader.isRunning()) or self._merged_readers:
+        if (self.reader and self.reader.isRunning()) or self.capture.streaming:
             return
         serials = [d.serial for d in self.devctl.devices if is_serial_streamable(d.serial)]
         if len(serials) < 2:
@@ -2807,10 +2804,7 @@ class MainWindow(QMainWindow):
                 tail=tail,
                 source=serial,
             )
-            reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
-            reader.error.connect(self.on_error)
-            reader.start()
-            self._merged_readers.append(reader)
+            self.capture.attach(sess, reader, primary=False)
         self.device_box.setEnabled(False)
         self.refresh_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
@@ -2834,16 +2828,7 @@ class MainWindow(QMainWindow):
             return
         if self.clear_on_start_action.isChecked():
             self.model.clear()
-        reader = DebugOutputReader()
-        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
-        reader.error.connect(self.on_error)
-        reader.start()
-        sess.reader = reader
-        sess.serial = ""
-        sess.title = ""
-        sess.stream_label = "Debug Output"
-        sess.paused = False
-        sess.pause_buffer = []
+        self.capture.attach(sess, DebugOutputReader(), stream_label="Debug Output")
         self._set_tab_label(sess)
         self._set_streaming_controls()  # Stop/pause on, Start off (as _start_reader does)
         _log.info("DBWIN capture requested")
@@ -2894,20 +2879,16 @@ class MainWindow(QMainWindow):
         if self.clear_on_start_action.isChecked():
             self.model.clear()
         reader = LaunchReader(build_argv(exe, arguments), cwd or None)
-        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
-        reader.error.connect(self.on_error)
-        reader.stream_ended.connect(lambda x=sess: self._on_launched_app_exited(x))
-        reader.start()
-        sess.reader = reader
-        sess.serial = ""
-        sess.title = ""
-        sess.stream_label = reader.app_name or "App"
-        sess.paused = False
-        sess.pause_buffer = []
+        self.capture.attach(
+            sess,
+            reader,
+            stream_label=reader.app_name or "App",
+            on_end=self._on_launched_app_exited,
+        )
         self._set_tab_label(sess)
         # On Windows the app's OutputDebugString tracing is a separate channel;
-        # capture it alongside so "launch and watch" catches both. Parked in
-        # _merged_readers so the existing stop() tears it down too.
+        # capture it alongside so "launch and watch" catches both. Attached as an
+        # extra, so the shared detach() tears it down too.
         self._start_dbwin_alongside()
         # Focus on the launched app by name (survives it restarting itself).
         if reader.app_name:
@@ -2923,14 +2904,14 @@ class MainWindow(QMainWindow):
 
         if not is_supported():
             return
-        sess = self._active
-        extra = DebugOutputReader()
-        extra.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
-        # A contended DBWIN buffer must not kill the console capture, so its
-        # errors are reported without tearing the tab down.
-        extra.error.connect(self.statusBar().showMessage)
-        extra.start()
-        self._merged_readers.append(extra)
+        # A contended DBWIN buffer must not kill the console capture, so its errors
+        # only reach the status bar rather than on_error (which stops everything).
+        self.capture.attach(
+            self._active,
+            DebugOutputReader(),
+            primary=False,
+            on_error=self.statusBar().showMessage,
+        )
 
     def _on_launched_app_exited(self, sess) -> None:
         """The launched app closed by itself — keep its output on screen and just
@@ -2951,15 +2932,7 @@ class MainWindow(QMainWindow):
         sess = self._active
         sess.want_stream = False
         sess.reconnect_timer.stop()
-        if sess.reader:
-            sess.reader.stop()
-            sess.reader = None
-        for reader in self._merged_readers:
-            reader.stop()
-        self._merged_readers = []
-        sess.stream_label = ""
-        sess.paused = False
-        sess.pause_buffer = []
+        self.capture.detach(sess)  # primary reader + any extras, in one place
         self.refresh_btn.setEnabled(True)
         self.device_box.setEnabled(bool(self.devctl.devices))
         self.stop_btn.setEnabled(False)
