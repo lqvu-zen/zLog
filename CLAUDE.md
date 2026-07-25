@@ -73,7 +73,10 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | query-bar parser (`level: tag: package: -exclude /regex/`) | `src/zlog/core/query.py` |
 | device picker + package/PID filter state (`DeviceController`) | `src/zlog/ui/device_controller.py` |
 | color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
-| main window, query bar, device bar, menus, wiring | `src/zlog/ui/main_window.py` |
+| main window, query bar, device bar, wiring | `src/zlog/ui/main_window.py` |
+| widget creation + layout (`build_widgets`, `build_layout`) | `src/zlog/ui/build.py` |
+| menu bar (`build_menus`) | `src/zlog/ui/menus.py` |
+| reader attach/detach per session (`CaptureController`) | `src/zlog/ui/capture_controller.py` |
 | headless-Qt test setup (`offscreen` qapp fixture) | `tests/conftest.py` |
 | self-diagnostics log (`configure`, `get_logger`) | `src/zlog/core/applog.py` |
 | `QApplication` bootstrap (`main`) + logging setup | `src/zlog/app.py` |
