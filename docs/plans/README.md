@@ -162,4 +162,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [wrap-messages.md](wrap-messages.md) | Done | Optional multi-line wrap of long messages in the log list (Settings → Log view) |
 | [open-in-new-tab.md](open-in-new-tab.md) | Done | Open Log / Open Recent open in a new tab (reuse an idle one); + button on the tab bar starts a fresh recording tab |
 | [windows-debug-output.md](windows-debug-output.md) | Done | Capture any Windows app's OutputDebugString stream (DebugView-style), tagged by PID/process |
-| [windows-app-focus.md](windows-app-focus.md) | Draft | Process picker to focus one Windows app + File → Launch App… (captures its stdout/stderr and debug output) |
+| [windows-app-focus.md](windows-app-focus.md) | Done | Process picker to focus one Windows app + File → Launch App… (captures its stdout/stderr and debug output) |

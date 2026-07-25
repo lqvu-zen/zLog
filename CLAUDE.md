@@ -66,6 +66,8 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | `adb logcat` streaming thread (`AdbReader`) | `src/zlog/adb/reader.py` |
 | Windows `OutputDebugString` (DBWIN) parse | `src/zlog/core/dbwin.py` |
 | Windows debug-output capture thread (`DebugOutputReader`) | `src/zlog/winlog/dbwin_reader.py` |
+| launch an app + capture its console (`LaunchReader`) | `src/zlog/winlog/launcher.py` |
+| running-process list + focus-query rewrite | `src/zlog/core/procinfo.py` |
 | Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
 | one-line-per-entry paint delegate | `src/zlog/ui/log_delegate.py` |
 | query-bar parser (`level: tag: package: -exclude /regex/`) | `src/zlog/core/query.py` |

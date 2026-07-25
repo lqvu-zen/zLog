@@ -1,6 +1,6 @@
 # Plan: Pick a Windows app to focus, and launch one from zLog
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [windows-debug-output.md](windows-debug-output.md), [package-filter.md](package-filter.md), [device-picker.md](device-picker.md)
