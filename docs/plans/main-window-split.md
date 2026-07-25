@@ -1,6 +1,6 @@
 # Plan: Split main_window.py (construction + capture controller)
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [refactor-main-window.md](refactor-main-window.md), [tech-debt-refactor.md](tech-debt-refactor.md), [windows-app-focus.md](windows-app-focus.md), [windows-debug-output.md](windows-debug-output.md)

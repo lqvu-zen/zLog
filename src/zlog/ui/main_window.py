@@ -29,7 +29,6 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
-    QActionGroup,
     QColor,
     QDesktopServices,
     QFont,
@@ -41,14 +40,9 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QCheckBox,
     QColorDialog,
-    QComboBox,
     QDialog,
-    QDockWidget,
     QFileDialog,
-    QFrame,
-    QHBoxLayout,
     QHeaderView,
     QInputDialog,
     QLabel,
@@ -57,17 +51,11 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QPlainTextEdit,
     QProgressDialog,
-    QPushButton,
-    QSplitter,
-    QStatusBar,
     QTabBar,
-    QTableView,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 
 from zlog.adb.connect import connect as adb_connect
@@ -83,7 +71,7 @@ from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.density import DEFAULT_DENSITY, DENSITY_NAMES, density_pad
 from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
 from zlog.core.diff import diff_logs, line_key
-from zlog.core.export import to_csv, to_html, to_json, to_markdown, to_messages
+from zlog.core.export import to_html, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.highlight_rules import normalize_rules
 from zlog.core.histogram import bucketize
@@ -108,26 +96,19 @@ from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
+from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
-from zlog.ui.filter_chips import FilterChipBar
-from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
-from zlog.ui.histogram_bar import HistogramBar
-from zlog.ui.log_delegate import LogItemDelegate
-from zlog.ui.log_model import COLUMNS
 from zlog.ui.log_session import LogSession
+from zlog.ui.menus import build_menus
 from zlog.ui.preset_dialog import PresetDialog
-from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
-from zlog.ui.table_view import LogTableView
 from zlog.ui.theme import THEMES, build_stylesheet
 
 _log = get_logger()
 
-LEVELS = ["V", "D", "I", "W", "E", "F"]
-LEVEL_NAMES = {"V": "Verbose", "D": "Debug", "I": "Info", "W": "Warn", "E": "Error", "F": "Fatal"}
 
 # Preferred monospace faces for the log, first available wins (Consolas on
 # Windows, DejaVu Sans Mono on Linux); Courier New + the Monospace style hint
@@ -417,519 +398,16 @@ class MainWindow(QMainWindow):
 
     # --- construction (called once, in order, from __init__) ---------------
     def _build_widgets(self) -> None:
-        """Create the model/proxy/view and every toolbar widget (no layout yet)."""
-        self._sessions = [self._make_session()]
-        self._active_index = 0
-        self.tab_bar = QTabBar()
-        self.tab_bar.setTabsClosable(True)
-        self.tab_bar.setExpanding(False)
-        self.tab_bar.setDocumentMode(True)
-        self.tab_bar.addTab("Device")
-        self._update_tab_closability()
-        self.new_tab_btn = QPushButton("+")
-        self.new_tab_btn.setObjectName("newTabButton")
-        self.new_tab_btn.setToolTip("New tab (Ctrl+T)")
-        self.new_tab_btn.setFixedWidth(28)
-        self.new_tab_btn.setFocusPolicy(Qt.NoFocus)
-        self.new_tab_btn.clicked.connect(self._new_tab)
-
-        self.table = LogTableView()
-        self.table.setModel(self.proxy)
-        self.heat_bar = HeatScrollBar()  # scrollbar with error-position ticks
-        self.table.setVerticalScrollBar(self.heat_bar)
-        self.table.setSelectionBehavior(QTableView.SelectRows)
-        self.table.verticalHeader().setVisible(False)
-        self.table.horizontalHeader().setVisible(False)
-        self.table.setShowGrid(False)
-        self.table.setAlternatingRowColors(False)
-        # Android-Studio-style dense view: one line per entry. Show only column 0
-        # stretched full-width and paint the whole entry with a delegate (the model
-        # stays virtualized — the delegate runs only for visible rows).
-        self.table.setFont(self._make_log_font())
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        for col in range(1, len(COLUMNS)):
-            self.table.setColumnHidden(col, True)
-        self.log_delegate = LogItemDelegate(self)
-        self.table.setItemDelegateForColumn(0, self.log_delegate)
-        self.log_delegate.view = self.table
-        # Copy (Ctrl+C) and Select All: keyboard shortcuts via addAction, plus a
-        # custom right-click menu that also offers per-tag highlighting.
-        self.copy_action = QAction("Copy", self)
-        self.copy_action.setShortcut(QKeySequence.Copy)
-        # Only handle Ctrl+C when the table (or a child) has focus, so a selection
-        # in the detail pane copies its own text instead of the whole log line.
-        self.copy_action.setShortcutContext(Qt.WidgetWithChildrenShortcut)
-        self.copy_action.triggered.connect(self.copy_selection)
-        self.select_all_action = QAction("Select All", self)
-        self.select_all_action.triggered.connect(self.table.selectAll)
-        self.bookmark_action = QAction("Toggle Bookmark", self)
-        self.bookmark_action.setShortcut("Ctrl+B")
-        self.bookmark_action.triggered.connect(self._toggle_bookmark)
-        self.isolate_action = QAction("Isolate", self)
-        self.isolate_action.setShortcut("Ctrl+I")
-        self.isolate_action.triggered.connect(lambda: self._toggle_isolate(self._current_entry()))
-        self.table.addAction(self.copy_action)
-        self.table.addAction(self.select_all_action)
-        self.table.addAction(self.bookmark_action)
-        self.table.addAction(self.isolate_action)
-        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self._show_table_menu)
-        self.table.fold_toggle_requested.connect(self._on_fold_toggle_requested)
-
-        # Detail pane: full, wrapped text of the selected row (read-only).
-        self.detail = QPlainTextEdit()
-        self.detail.setReadOnly(True)
-        self.detail.setPlaceholderText("Select a line to see its full message here.")
-        self.detail.setMaximumBlockCount(0)
-
-        # Row 1: device + stream controls.
-        self.device_box = QComboBox()
-        self.device_box.setMinimumWidth(180)
-        self.refresh_btn = QPushButton("Refresh")
-        self.connect_btn = QPushButton("Wi-Fi…")
-        self.connect_btn.setToolTip(
-            "Add a device over Wi-Fi (adb connect host:port) — not the log stream control"
-        )
-        self.start_btn = QPushButton("Start")
-        self.stop_btn = QPushButton("Stop")
-        self.pause_btn = QPushButton("Pause")
-        self.pause_btn.setToolTip("Pause the view (keep capturing; new lines buffer until Resume)")
-        self.pause_btn.setEnabled(False)
-        self.clear_btn = QPushButton("Clear")
-        self.clear_device_btn = QPushButton("Clear device")
-        self.clear_device_btn.setToolTip("Wipe the device's logcat buffer (adb logcat -c)")
-        self.follow_check = QCheckBox("Follow")
-        self.follow_check.setChecked(True)
-        self.to_top_btn = QPushButton("Top")
-        self.to_top_btn.setToolTip("Scroll to the oldest line")
-        self.to_latest_btn = QPushButton("Latest")
-        self.to_latest_btn.setToolTip("Scroll to the newest line")
-        self.stop_btn.setEnabled(False)
-
-        # Row 2: filters.
-        self.package_box = QComboBox()
-        self.package_box.setEditable(True)
-        self.package_box.setMinimumWidth(220)
-        self.package_box.lineEdit().setPlaceholderText("Package, e.g. com.example.app")
-        self.load_pkgs_btn = QPushButton("Load")
-        self.apply_pkg_btn = QPushButton("Apply")
-        self.clear_pkg_btn = QPushButton("Clear pkg")
-        self.focus_app_btn = QPushButton("Focus App…")
-        self.focus_app_btn.setToolTip("Pick a running Windows app to focus the view on")
-        self.focus_app_btn.clicked.connect(self.focus_app)
-
-        self.level_box = QComboBox()
-        for letter in LEVELS:
-            self.level_box.addItem(LEVEL_NAMES[letter], letter)  # text = name, data = letter
-        self.level_box.setToolTip(
-            "Minimum log level (V \u2264 D \u2264 I \u2264 W \u2264 E \u2264 F)"
-        )
-
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Filter by tag or message…")
-        self.exclude = QLineEdit()
-        self.exclude.setPlaceholderText("Exclude…")
-        self.exclude.setToolTip("Hide lines matching this term (uses the Regex/Case toggles)")
-        self.exclude.setMinimumWidth(150)
-        self.match_prev_btn = QPushButton("<")
-        self.match_prev_btn.setMaximumWidth(28)
-        self.match_prev_btn.setToolTip("Previous match (Shift+F3)")
-        self.match_next_btn = QPushButton(">")
-        self.match_next_btn.setMaximumWidth(28)
-        self.match_next_btn.setToolTip("Next match (F3)")
-        self.match_label = QLabel("")
-        self.match_label.setMinimumWidth(64)
-        self.regex_check = QCheckBox("Regex")
-        self.case_check = QCheckBox("Case")
-        self.case_check.setToolTip("Match the search case-sensitively")
-        self.search_mode_box = QComboBox()
-        self.search_mode_box.addItem("Filter", "filter")
-        self.search_mode_box.addItem("Highlight", "highlight")
-        self.search_mode_box.setToolTip("Filter hides non-matches; Highlight tints matches")
-        # Context-aware: "Save filter…" for an unsaved filter, "Update ‹name›" once a
-        # saved filter is applied (see _refresh_save_update_button).
-        self.save_update_btn = QPushButton("Save filter…")
-        self.clear_filters_btn = QPushButton("Clear filters")
-        self.clear_filters_btn.setToolTip("Reset all filters (level, search, tag, package, time…)")
-
-        self.count_label = QLabel("0 lines")
-        self.presets_list = QListWidget()
-        self.presets_list.setToolTip("Double-click to apply; right-click to Add/Edit/Rename/Delete")
-        self.presets_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.preset_preview = QLabel("")
-        self.preset_preview.setWordWrap(True)
-        self.spark_label = QLabel("")
-        self.spark_label.setToolTip("Error rate over the last 500 lines")
-        self.incident_label = QLabel("")
-        self.incident_label.setToolTip(
-            "Detected crashes/ANRs — View → Next/Previous Incident to jump to one"
-        )
-
-        # Single query bar, parsed into the filters.
-        self.query = QueryLineEdit()
-        self.query.setPlaceholderText(
-            "Filter — e.g. level:E tag:Activity package:com.x -noise text"
-        )
-        self.query.setClearButtonEnabled(True)
-        # Context-aware autocomplete (keys / level names / live tag+pid+proc values).
-        # Replaces the old whole-line history completer; the query bar owns its own.
-        self.query.set_context_provider(self._completion_context)
+        """Create the model/proxy/view and every toolbar widget (see zlog.ui.build)."""
+        build_widgets(self)
 
     def _build_layout(self) -> None:
-        """Arrange the widgets built in _build_widgets into the window."""
-        self._splitter = QSplitter(Qt.Vertical)
-        self._splitter.addWidget(self.table)
-        self._splitter.addWidget(self.detail)
-        self._splitter.setStretchFactor(0, 1)
-        self._splitter.setStretchFactor(1, 0)
-        self._splitter.setSizes([520, 150])
-
-        # Compact glyph buttons for the stream/device actions.
-        for btn, glyph, tip in (
-            (self.refresh_btn, "\u21bb", "Refresh devices"),
-            (self.start_btn, "\u25b6", "Start streaming"),
-            (self.stop_btn, "\u25a0", "Stop streaming"),
-            (self.clear_btn, "\u2715", "Clear the log view"),
-            (self.to_top_btn, "\u2912", "Scroll to the oldest line"),
-            (self.to_latest_btn, "\u2913", "Scroll to the newest line"),
-        ):
-            btn.setText(glyph)
-            btn.setToolTip(tip)
-            btn.setFixedWidth(34)
-
-        # Control bar: device/stream controls and package controls on one row,
-        # split by a vertical divider (there's room, and it saves a stacked row).
-        top_row = QHBoxLayout()
-        top_row.addWidget(QLabel("Device:"))
-        top_row.addWidget(self.device_box)
-        top_row.addWidget(self.refresh_btn)
-        top_row.addWidget(self.connect_btn)
-        top_row.addSpacing(12)
-        top_row.addWidget(self.start_btn)
-        top_row.addWidget(self.stop_btn)
-        top_row.addWidget(self.pause_btn)
-        top_row.addWidget(self.clear_btn)
-        top_row.addSpacing(12)
-        top_row.addWidget(self._vsep())
-        top_row.addSpacing(12)
-        top_row.addWidget(self.clear_device_btn)
-        top_row.addWidget(self.follow_check)
-        top_row.addSpacing(12)
-        top_row.addWidget(self.to_top_btn)
-        top_row.addWidget(self.to_latest_btn)
-        top_row.addSpacing(12)
-        top_row.addWidget(self._vsep())
-        top_row.addSpacing(12)
-        top_row.addWidget(QLabel("Package:"))
-        top_row.addWidget(self.package_box)
-        top_row.addWidget(self.load_pkgs_btn)
-        top_row.addWidget(self.apply_pkg_btn)
-        top_row.addWidget(self.clear_pkg_btn)
-        top_row.addWidget(self.focus_app_btn)
-        top_row.addSpacing(12)
-        top_row.addWidget(self._vsep())
-        top_row.addSpacing(12)
-        top_row.addWidget(QLabel("Level:"))
-        top_row.addWidget(self.level_box)
-        top_row.addStretch(1)
-
-        # Filter bar: the query box on its own full-width row, plus match
-        # navigation (F3/Shift+F3) feedback for the free-text portion of it.
-        filter_row = QHBoxLayout()
-        filter_row.addWidget(self.query)
-        filter_row.addWidget(self.match_prev_btn)
-        filter_row.addWidget(self.match_next_btn)
-        filter_row.addWidget(self.match_label)
-        filter_row.addWidget(self.save_update_btn)
-        filter_row.addWidget(self.clear_filters_btn)
-
-        self.chip_bar = FilterChipBar()
-        self.chip_bar.remove_requested.connect(self._remove_query_span)
-
-        self.histogram_bar = HistogramBar()
-        self.histogram_bar.seek_requested.connect(self._seek_to_source_row)
-        self.histogram_bar.hide()  # opt-in, toggled from View
-
-        tab_row = QHBoxLayout()
-        tab_row.setContentsMargins(0, 0, 0, 0)
-        tab_row.setSpacing(2)
-        tab_row.addWidget(self.tab_bar)
-        tab_row.addWidget(self.new_tab_btn)
-        tab_row.addStretch(1)
-
-        layout = QVBoxLayout()
-        layout.addLayout(tab_row)
-        layout.addLayout(top_row)
-        layout.addLayout(filter_row)
-        layout.addWidget(self.chip_bar)
-        layout.addWidget(self.histogram_bar)
-        layout.addWidget(self._splitter)
-        container = QWidget()
-        container.setLayout(layout)
-        self.setCentralWidget(container)
-
-        panel = QWidget()
-        panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(6, 6, 6, 6)
-        panel_layout.addWidget(QLabel("Saved Filters"))
-        panel_layout.addWidget(self.presets_list)
-        panel_layout.addWidget(self.preset_preview)
-        # Manage presets from the list's right-click menu (Add/Edit/Rename/Delete);
-        # double-click applies. Save/Update the current filter uses the filter-row button.
-        self.presets_dock = QDockWidget("Saved Filters", self)
-        self.presets_dock.setObjectName("presetsDock")
-        self.presets_dock.setWidget(panel)
-        self.addDockWidget(Qt.LeftDockWidgetArea, self.presets_dock)
-
-        # Bookmarks dock (right side): navigable, labelable landmarks. Hidden by
-        # default so the window isn't busier out of the box (open from View).
-        bpanel = QWidget()
-        blayout = QVBoxLayout(bpanel)
-        blayout.setContentsMargins(6, 6, 6, 6)
-        blayout.addWidget(QLabel("Bookmarks"))
-        self.bookmarks_list = QListWidget()
-        self.bookmarks_list.setToolTip("Double-click to jump; use the buttons to label or remove")
-        self.bookmarks_list.itemActivated.connect(self._jump_to_bookmark_item)
-        blayout.addWidget(self.bookmarks_list)
-        brow = QHBoxLayout()
-        self.edit_note_btn = QPushButton("Edit note…")
-        self.edit_note_btn.clicked.connect(self._edit_bookmark_note)
-        self.remove_bookmark_btn = QPushButton("Remove")
-        self.remove_bookmark_btn.clicked.connect(self._remove_selected_bookmark)
-        brow.addWidget(self.edit_note_btn)
-        brow.addWidget(self.remove_bookmark_btn)
-        blayout.addLayout(brow)
-        self.bookmarks_dock = QDockWidget("Bookmarks", self)
-        self.bookmarks_dock.setObjectName("bookmarksDock")
-        self.bookmarks_dock.setWidget(bpanel)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.bookmarks_dock)
-        self.bookmarks_dock.hide()
-        self.model.bookmarksChanged.connect(self._rebuild_bookmarks_list)
-        self.setStatusBar(QStatusBar())
-        self.statusBar().addPermanentWidget(self.incident_label)
-        self.statusBar().addPermanentWidget(self.spark_label)
-        self.statusBar().addPermanentWidget(self.count_label)
-
-    def _vsep(self) -> QFrame:
-        """A thin vertical separator that visually groups related toolbar controls."""
-        line = QFrame()
-        line.setFrameShape(QFrame.VLine)
-        line.setFrameShadow(QFrame.Sunken)
-        return line
+        """Arrange the widgets into the window (see zlog.ui.build)."""
+        build_layout(self)
 
     def _build_menus(self) -> None:
-        """Build the File and View menus (their actions wire themselves here)."""
-        file_menu = self.menuBar().addMenu("&File")
-        new_window_act = file_menu.addAction("New &Window")
-        new_window_act.setShortcut("Ctrl+Shift+N")
-        new_window_act.triggered.connect(self._new_window)
-        new_tab_act = file_menu.addAction("New &Tab")
-        new_tab_act.setShortcut("Ctrl+T")
-        new_tab_act.triggered.connect(self._new_tab)
-        file_menu.addSeparator()
-        open_act = file_menu.addAction("&Open Log…")
-        open_act.setShortcut("Ctrl+O")
-        open_act.triggered.connect(self.open_log)
-        self._recent_menu = file_menu.addMenu("Open &Recent")
-        self._rebuild_recent_menu()
-        save_act = file_menu.addAction("&Save Log…")
-        save_act.setShortcut("Ctrl+S")
-        save_act.triggered.connect(self.save_log)
-        save_filtered_act = file_menu.addAction("Save &Filtered Log…")
-        save_filtered_act.triggered.connect(self.save_filtered_log)
-
-        file_menu.addSeparator()
-        save_session_act = file_menu.addAction("Save Sess&ion…")
-        save_session_act.triggered.connect(self.save_session)
-        open_session_act = file_menu.addAction("Open Se&ssion…")
-        open_session_act.triggered.connect(self.open_session)
-        diff_act = file_menu.addAction("&Diff Against File…")
-        diff_act.triggered.connect(self._diff_against_file)
-        dumpsys_act = file_menu.addAction("Capture &dumpsys…")
-        dumpsys_act.triggered.connect(self._capture_dumpsys)
-        merged_act = file_menu.addAction("&Merge All Devices")
-        merged_act.triggered.connect(self.start_merged)
-        self.capture_debug_act = file_menu.addAction("Capture Windows Debug &Output")
-        self.capture_debug_act.setToolTip(
-            "Capture OutputDebugString from Windows apps (DebugView-style); "
-            "filter to yours with proc: / pid:"
-        )
-        self.capture_debug_act.triggered.connect(self.capture_debug_output)
-        self.launch_app_act = file_menu.addAction("&Launch App…")
-        self.launch_app_act.setToolTip(
-            "Start a program and capture its console output (and its Windows "
-            "debug output) from the first line"
-        )
-        self.launch_app_act.triggered.connect(self.launch_app)
-        file_menu.addSeparator()
-        self.redact_action = QAction("Redact secrets", self)
-        self.redact_action.setCheckable(True)
-        self.redact_action.setToolTip("Mask emails, IPs, and tokens when saving or exporting")
-        export_menu = file_menu.addMenu("&Export")
-        export_menu.addAction(self.redact_action)  # opt-in masking for every save/export
-        export_menu.addSeparator()
-        for name, fmt, ext in (
-            ("CSV", to_csv, "csv"),
-            ("JSON", to_json, "json"),
-            ("HTML", to_html, "html"),
-        ):
-            act = export_menu.addAction(f"{name}…")
-            act.triggered.connect(
-                lambda _checked=False, n=name, f=fmt, e=ext: self._export(n, f, e)
-            )
-
-        view_menu = self.menuBar().addMenu("&View")
-
-        # Preference actions are created here as standalone objects (the state the
-        # Settings dialog reads/writes) but are NOT put in the View menu — the View
-        # menu keeps only commands + navigation. See _build_menus / settings_dialog.
-        self._theme_group = QActionGroup(self)
-        self._theme_group.setExclusive(True)
-        for name in THEMES:
-            act = QAction(name, self)
-            act.setCheckable(True)
-            act.setChecked(name == "Light")
-            self._theme_group.addAction(act)
-            act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
-
-        self.details_action = QAction("Show Details", self)
-        self.details_action.setCheckable(True)
-        self.details_action.setChecked(True)
-        self.details_action.toggled.connect(self.detail.setVisible)
-        self.clear_on_start_action = QAction("Clear on Start", self)
-        self.clear_on_start_action.setCheckable(True)
-        self.reopen_last_action = QAction("Reopen Last Log on Launch", self)
-        self.reopen_last_action.setCheckable(True)
-        self.autosave_action = QAction("Autosave Capture", self)
-        self.autosave_action.setCheckable(True)
-        self.autosave_action.toggled.connect(self._on_autosave_toggled)
-        self.process_action = QAction("Show Process Names", self)
-        self.process_action.setCheckable(True)
-        self.process_action.toggled.connect(self._on_process_toggled)
-        self.collapse_action = QAction("Collapse Repeated Lines", self)
-        self.collapse_action.setCheckable(True)
-        self.collapse_action.toggled.connect(self._on_collapse_toggled)
-        self.fold_action = QAction("Fold Stack Traces", self)
-        self.fold_action.setCheckable(True)
-        self.fold_action.toggled.connect(self._on_fold_toggled)
-        self.case_action = QAction("Case sensitive", self)
-        self.case_action.setCheckable(True)
-        self.case_action.toggled.connect(self._on_case_toggled)
-        self.highlight_action = QAction("Highlight matches", self)
-        self.highlight_action.setCheckable(True)
-        self.highlight_action.toggled.connect(self._on_highlight_toggled)
-
-        self._time_group = QActionGroup(self)
-        self._time_group.setExclusive(True)
-        self._time_actions = {}
-        for mode, label in (
-            ("absolute", "Absolute"),
-            ("since_start", "Since start"),
-            ("delta", "Delta"),
-        ):
-            act = QAction(label, self)
-            act.setCheckable(True)
-            act.setChecked(mode == "absolute")
-            self._time_group.addAction(act)
-            act.triggered.connect(lambda _c=False, m=mode: self.model.set_time_mode(m))
-            self._time_actions[mode] = act
-
-        self._buffer_actions = {}
-        for name in ("main", "system", "crash", "radio", "events", "kernel"):
-            act = QAction(name, self)
-            act.setCheckable(True)
-            self._buffer_actions[name] = act
-
-        self._tail_group = QActionGroup(self)
-        self._tail_group.setExclusive(True)
-        self._tail_actions = {}
-        for count, label in (
-            (0, "Whole buffer"),
-            (500, "Last 500"),
-            (1000, "Last 1000"),
-            (5000, "Last 5000"),
-            (10000, "Last 10,000"),
-        ):
-            act = QAction(label, self)
-            act.setCheckable(True)
-            act.setChecked(count == 0)
-            self._tail_group.addAction(act)
-            self._tail_actions[count] = act
-
-        # --- command / navigation items (these stay in the View menu) ---
-        clear_filters_act = view_menu.addAction("Clear F&ilters")
-        clear_filters_act.triggered.connect(self.clear_filters)
-        next_problem_act = view_menu.addAction("Next Problem")
-        next_problem_act.setShortcut("F2")
-        next_problem_act.triggered.connect(lambda: self._goto_severity(1))
-        prev_problem_act = view_menu.addAction("Previous Problem")
-        prev_problem_act.setShortcut("Shift+F2")
-        prev_problem_act.triggered.connect(lambda: self._goto_severity(-1))
-        tag_summary_act = view_menu.addAction("&Tag Summary…")
-        tag_summary_act.triggered.connect(self._show_tag_summary)
-        jank_summary_act = view_menu.addAction("&Jank Summary…")
-        jank_summary_act.triggered.connect(self._show_jank_summary)
-        extract_act = view_menu.addAction("&Extract Fields…")
-        extract_act.triggered.connect(self._edit_extractors)
-        highlight_rules_act = view_menu.addAction("&Highlight Rules…")
-        highlight_rules_act.triggered.connect(self._show_highlight_rules_dialog)
-        view_menu.addAction(self.fold_action)  # Fold Stack Traces (checkable)
-        watch_act = view_menu.addAction("Set &Watch…")
-        watch_act.triggered.connect(self._set_watch_dialog)
-        reload_plugins_act = view_menu.addAction("Reload &Plugins")
-        reload_plugins_act.triggered.connect(self._load_plugins)
-        view_menu.addAction(self.presets_dock.toggleViewAction())
-        view_menu.addAction(self.bookmarks_dock.toggleViewAction())
-        self.histogram_action = QAction("Show &Timeline", self)
-        self.histogram_action.setCheckable(True)
-        self.histogram_action.toggled.connect(self._on_histogram_toggled)
-        view_menu.addAction(self.histogram_action)
-        self.sticky_action = QAction("Pin Anchor &Line", self)
-        self.sticky_action.setCheckable(True)
-        self.sticky_action.toggled.connect(self._on_sticky_toggled)
-        view_menu.addAction(self.sticky_action)
-        self.presets_menu = view_menu.addMenu("Filter &Presets")
-        self._rebuild_presets_menu()
-
-        view_menu.addSeparator()
-        next_bm = view_menu.addAction("Next Bookmark")
-        next_bm.setShortcut("Ctrl+F2")
-        next_bm.triggered.connect(lambda: self._goto_bookmark(1))
-        prev_bm = view_menu.addAction("Previous Bookmark")
-        prev_bm.setShortcut("Ctrl+Shift+F2")
-        prev_bm.triggered.connect(lambda: self._goto_bookmark(-1))
-        clear_bm = view_menu.addAction("Clear Bookmarks")
-        clear_bm.triggered.connect(self._clear_bookmarks)
-
-        view_menu.addSeparator()
-        next_incident = view_menu.addAction("Next Incident")
-        next_incident.setShortcut("Alt+F2")
-        next_incident.triggered.connect(lambda: self._goto_incident(1))
-        prev_incident = view_menu.addAction("Previous Incident")
-        prev_incident.setShortcut("Alt+Shift+F2")
-        prev_incident.triggered.connect(lambda: self._goto_incident(-1))
-
-        view_menu.addSeparator()
-        zoom_in = view_menu.addAction("Zoom In")
-        zoom_in.setShortcut("Ctrl+=")
-        zoom_in.triggered.connect(lambda: self._zoom(1))
-        zoom_out = view_menu.addAction("Zoom Out")
-        zoom_out.setShortcut("Ctrl+-")
-        zoom_out.triggered.connect(lambda: self._zoom(-1))
-        zoom_reset = view_menu.addAction("Reset Zoom")
-        zoom_reset.setShortcut("Ctrl+0")
-        zoom_reset.triggered.connect(self._reset_zoom)
-
-        clear_buf_act = view_menu.addAction("Clear device log &buffer")
-        clear_buf_act.triggered.connect(self._clear_device_buffer)
-
-        self._settings_act = self.menuBar().addAction("&Settings…")
-        self._settings_act.triggered.connect(self._open_settings)
-
-        help_menu = self.menuBar().addMenu("&Help")
-        self.open_log_action = QAction("Open &Log Folder", self)
-        self.open_log_action.triggered.connect(self._open_log_folder)
-        help_menu.addAction(self.open_log_action)
+        """Build the File and View menus (see zlog.ui.menus)."""
+        build_menus(self)
 
     def _open_log_folder(self) -> None:
         """Reveal the folder holding zlog.log (the self-diagnostics log), so a user
