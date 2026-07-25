@@ -170,7 +170,8 @@ class MainWindow(QMainWindow):
         self._watch = None  # compiled substring matcher, or None
         self._watch_pattern = ""
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
-        self._merged_readers = []  # AdbReaders feeding one model in a merged multi-device view
+        self._merged_readers = []  # extra readers feeding one model (merged view / DBWIN)
+        self._last_launch = None  # (exe, args, cwd) prefilled into the Launch App dialog
         self._active_preset_name = None  # the applied preset the Save/Update button targets
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
@@ -513,6 +514,9 @@ class MainWindow(QMainWindow):
         self.load_pkgs_btn = QPushButton("Load")
         self.apply_pkg_btn = QPushButton("Apply")
         self.clear_pkg_btn = QPushButton("Clear pkg")
+        self.focus_app_btn = QPushButton("Focus App…")
+        self.focus_app_btn.setToolTip("Pick a running Windows app to focus the view on")
+        self.focus_app_btn.clicked.connect(self.focus_app)
 
         self.level_box = QComboBox()
         for letter in LEVELS:
@@ -621,6 +625,7 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.load_pkgs_btn)
         top_row.addWidget(self.apply_pkg_btn)
         top_row.addWidget(self.clear_pkg_btn)
+        top_row.addWidget(self.focus_app_btn)
         top_row.addSpacing(12)
         top_row.addWidget(self._vsep())
         top_row.addSpacing(12)
@@ -750,6 +755,12 @@ class MainWindow(QMainWindow):
             "filter to yours with proc: / pid:"
         )
         self.capture_debug_act.triggered.connect(self.capture_debug_output)
+        self.launch_app_act = file_menu.addAction("&Launch App…")
+        self.launch_app_act.setToolTip(
+            "Start a program and capture its console output (and its Windows "
+            "debug output) from the first line"
+        )
+        self.launch_app_act.triggered.connect(self.launch_app)
         file_menu.addSeparator()
         self.redact_action = QAction("Redact secrets", self)
         self.redact_action.setCheckable(True)
@@ -3356,15 +3367,107 @@ class MainWindow(QMainWindow):
         sess.paused = False
         sess.pause_buffer = []
         self._set_tab_label(sess)
-        # Mirror _start_reader's active-tab control state (Stop/pause on, Start off).
+        self._set_streaming_controls()  # Stop/pause on, Start off (as _start_reader does)
+        _log.info("DBWIN capture requested")
+        self.statusBar().showMessage("Capturing Windows debug output (OutputDebugString)…")
+
+    def focus_app(self) -> None:
+        """Pick a running process and narrow the view to it — the Windows
+        counterpart of the Android package filter. Focus is expressed as a
+        `proc:`/`pid:` query token, so chips, presets, and export all follow."""
+        from zlog.core.procinfo import focus_query
+        from zlog.ui.process_dialog import ProcessPickerDialog
+
+        dialog = ProcessPickerDialog(parent=self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        proc = dialog.selected()
+        if proc is None:
+            return
+        if dialog.focus_by_pid():
+            text = focus_query(self.query.text(), pid=proc.pid)
+        else:
+            text = focus_query(self.query.text(), name=proc.name)
+        self._set_query_text(text)
+        self.statusBar().showMessage(f"Focused on {proc.label}.")
+
+    def launch_app(self) -> None:
+        """Start a program and capture it from its first line: its console output
+        via LaunchReader, plus (on Windows) its OutputDebugString via the DBWIN
+        reader. Both feed the same tab; Stop stops both."""
+        from zlog.core.procinfo import focus_query
+        from zlog.ui.launch_dialog import LaunchDialog
+        from zlog.winlog.launcher import LaunchReader, build_argv
+
+        exe, arguments, cwd = "", "", ""
+        if self._last_launch:
+            exe, arguments, cwd = self._last_launch
+        dialog = LaunchDialog(exe, arguments, cwd, parent=self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        exe, arguments, cwd = dialog.get_values()
+        if not exe:
+            return
+        self._last_launch = (exe, arguments, cwd)
+
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        reader = LaunchReader(build_argv(exe, arguments), cwd or None)
+        reader.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
+        reader.error.connect(self.on_error)
+        reader.stream_ended.connect(lambda x=sess: self._on_launched_app_exited(x))
+        reader.start()
+        sess.reader = reader
+        sess.serial = ""
+        sess.title = ""
+        sess.stream_label = reader.app_name or "App"
+        sess.paused = False
+        sess.pause_buffer = []
+        self._set_tab_label(sess)
+        # On Windows the app's OutputDebugString tracing is a separate channel;
+        # capture it alongside so "launch and watch" catches both. Parked in
+        # _merged_readers so the existing stop() tears it down too.
+        self._start_dbwin_alongside()
+        # Focus on the launched app by name (survives it restarting itself).
+        if reader.app_name:
+            self._set_query_text(focus_query(self.query.text(), name=reader.app_name))
+        self._set_streaming_controls()
+        _log.info("Launched app capture: %r", exe)
+        self.statusBar().showMessage(f"Launched {reader.app_name} — capturing output…")
+
+    def _start_dbwin_alongside(self) -> None:
+        """Add a DBWIN capture to the active tab (Windows only, best-effort): a
+        launched app's debug output is a different channel from its console."""
+        from zlog.winlog.dbwin_reader import DebugOutputReader, is_supported
+
+        if not is_supported():
+            return
+        sess = self._active
+        extra = DebugOutputReader()
+        extra.batch_ready.connect(lambda e, x=sess: self._on_batch(x, e))
+        # A contended DBWIN buffer must not kill the console capture, so its
+        # errors are reported without tearing the tab down.
+        extra.error.connect(self.statusBar().showMessage)
+        extra.start()
+        self._merged_readers.append(extra)
+
+    def _on_launched_app_exited(self, sess) -> None:
+        """The launched app closed by itself — keep its output on screen and just
+        report it (unlike a device drop, there's nothing to reconnect to)."""
+        if sess is self._active:
+            self.statusBar().showMessage("The launched app exited.")
+
+    def _set_streaming_controls(self) -> None:
+        """Toolbar state while the active tab streams (shared by the capture paths)."""
         self.device_box.setEnabled(False)
         self.refresh_btn.setEnabled(False)
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         self.pause_btn.setEnabled(True)
         self.pause_btn.setText("Pause")
-        _log.info("DBWIN capture requested")
-        self.statusBar().showMessage("Capturing Windows debug output (OutputDebugString)…")
 
     def stop(self) -> None:
         sess = self._active

@@ -65,6 +65,24 @@ an app already attached to a debugger sends its output there instead, and
 capturing Windows **services** needs to run zLog as administrator. It's a
 Windows-only feature; on other platforms the action reports that and does nothing.
 
+### Focusing on one app
+
+**Focus App…** (next to the package box) lists the running processes — search by
+name or PID, pick yours, and the view narrows to it. This just writes a
+`proc:<name>` token into the query bar, so it combines with everything else
+(`level:E`, excludes, presets). Focusing by **name** is the default so the filter
+survives the app restarting; tick **This PID only** to pin one exact process.
+
+### Launching the app from zLog
+
+**File → Launch App…** starts a program and captures it from its very first line —
+something you can't get by attaching to an app that's already running. Choose the
+program (plus optional arguments and working directory) and zLog opens a tab
+named after it, capturing **both** its console output (stdout/stderr) *and*, on
+Windows, its `OutputDebugString` tracing, then focuses the view on it. **Stop**
+ends the capture and closes the app. A GUI app usually prints nothing to the
+console — that's normal, its debug output still arrives.
+
 ## Filtering with the query bar
 
 Type in the **query bar** to narrow the view. Terms combine — a line must match all
