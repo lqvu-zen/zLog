@@ -69,6 +69,7 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | launch an app + capture its console (`LaunchReader`) | `src/zlog/winlog/launcher.py` |
 | running-process list + focus-query rewrite | `src/zlog/core/procinfo.py` |
 | tab label composition (state marker, count, elision) | `src/zlog/core/tabtitle.py` |
+| open-tab persistence across launches | `src/zlog/core/tabstate.py` |
 | follow a growing log file (`FileFollower`, `tailer`) | `src/zlog/ui/file_follower.py`, `src/zlog/core/tailer.py` |
 | Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
 | one-line-per-entry paint delegate | `src/zlog/ui/log_delegate.py` |

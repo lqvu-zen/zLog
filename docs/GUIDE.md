@@ -29,6 +29,10 @@ through everyday use.
   sessions, and export; View holds commands and navigation (clear filters, problems,
   bookmarks, zoom, presets, tag summary); **Settings…** opens the preferences dialog.
 - A **Saved Filters** sidebar (left) lists your saved query presets for one-click use.
+- **View → Restore Tabs on Launch** brings back the tabs you had open — each file
+  reopened with its query and package filter. A file that's since moved is skipped
+  quietly. Live captures aren't resumed: a streaming tab returns as an empty tab
+  with its filter intact, so nothing starts recording behind your back.
 - Each tab shows its **state and size** at a glance: **●** streaming, **⏸** paused,
   **⚠** disconnected (waiting to reconnect), plus a line count like `(1.2k)`. Hover
   for the full name and exact count. Drag tabs to reorder them; closing one that's

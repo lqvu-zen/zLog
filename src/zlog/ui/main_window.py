@@ -102,6 +102,7 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
+from zlog.core.tabstate import TabState, tabs_from_json, tabs_to_json
 from zlog.core.tabtitle import (
     DISCONNECTED,
     IDLE,
@@ -174,6 +175,7 @@ class MainWindow(QMainWindow):
             self._on_batch, self.on_error, self._on_stream_ended, parent=self
         )
         self._last_launch = None  # (exe, args, cwd) prefilled into the Launch App dialog
+        self._pending_tabs = []  # tab states loaded from settings, restored after construction
         self._active_preset_name = None  # the applied preset the Save/Update button targets
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
         self._tray = None  # lazily-created system-tray icon
@@ -341,6 +343,7 @@ class MainWindow(QMainWindow):
         self.model.clear()
         if self._active.title:
             self._active.title = ""
+            self._active.file_path = ""
             self._set_tab_label(self._active)
 
     def _new_tab(self) -> None:
@@ -2294,14 +2297,60 @@ class MainWindow(QMainWindow):
         self.table.viewport().update()
         self.statusBar().showMessage(f"Loaded session from {Path(path).name}.")
 
+    def _tab_states(self) -> list[TabState]:
+        """The current tabs as restorable state (the active tab's live toolbar
+        values are read from the widgets, since they're only synced to the session
+        on a tab switch)."""
+        states = []
+        for sess in self._sessions:
+            active = sess is self._active
+            states.append(
+                TabState(
+                    # A live capture has nothing to reopen; only a loaded file does.
+                    path=sess.file_path if sess.reader is None else "",
+                    query=self.query.text() if active else sess.query,
+                    level=(self.level_box.currentData() if active else sess.level) or "V",
+                    package=(self.package_box.currentText() if active else sess.package) or "",
+                )
+            )
+        return states
+
     def _maybe_reopen_last(self) -> None:
-        """On launch, reopen the most-recent log if the user opted in (and no live
-        stream is running)."""
-        if self.reopen_last_action.isChecked() and self._recent and self.reader is None:
-            path = self._recent[0]
-            self._load_log_file(path)  # launch: reuse the first tab, no new tab
-            self._active.title = Path(path).name
+        """On launch, restore the previous session's tabs if the user opted in.
+
+        Files that have since moved or been deleted are skipped quietly — a modal
+        error per missing tab would be a hostile way to start the app. A tab that
+        was streaming comes back as an empty tab with its filter intact; readers
+        are never auto-started.
+        """
+        if not self.reopen_last_action.isChecked() or self.reader is not None:
+            return
+        states = self._pending_tabs or []
+        if not states and self._recent:
+            # Older settings had no tab list — fall back to the previous
+            # behaviour so upgrading doesn't silently stop reopening anything.
+            states = [TabState(path=self._recent[0])]
+        missing = 0
+        for state in states:
+            if state.path and not os.path.exists(state.path):
+                missing += 1
+                continue
+            if not self._tab_is_reusable(self._active):
+                self._new_tab()
+            if state.path:
+                self._load_log_file(state.path)
+                self._active.title = Path(state.path).name
+                self._active.file_path = state.path
+            if state.query:
+                self._set_query_text(state.query)
+            if state.package:
+                self.package_box.setEditText(state.package)
             self._set_tab_label(self._active)
+        if missing:
+            # Logged as well as shown: later startup messages can overwrite the
+            # status bar, and "why is my tab gone?" is worth having on record.
+            _log.info("Skipped %d saved tab(s): file no longer present", missing)
+            self.statusBar().showMessage(f"{missing} saved tab(s) skipped — file no longer there.")
 
     # --- autosave ----------------------------------------------------------
     def _autosave_path(self) -> str:
@@ -2359,6 +2408,7 @@ class MainWindow(QMainWindow):
             self._new_tab()
         self._load_log_file(path)
         self._active.title = Path(path).name
+        self._active.file_path = path  # so the tab can be reopened next launch
         self._set_tab_label(self._active)
 
     _LARGE_FILE_BYTES = 5_000_000  # above this, load in the background with progress
@@ -2627,6 +2677,11 @@ class MainWindow(QMainWindow):
         def set_search_history(v):
             self._history = normalize_history(v)
 
+        def set_tabs(v):
+            # Stashed, not applied: tabs are restored after construction
+            # finishes (see _maybe_reopen_last), when loading files is safe.
+            self._pending_tabs = tabs_from_json(v)
+
         def set_recent(v):
             self._recent = normalize_history(v, limit=10)
             self._rebuild_recent_menu()
@@ -2761,6 +2816,7 @@ class MainWindow(QMainWindow):
             ("density", lambda: self._density, set_density),
             ("search_history", lambda: self._history, set_search_history),
             ("recent_files", lambda: self._recent, set_recent),
+            ("tabs", lambda: tabs_to_json(self._tab_states()), set_tabs),
             ("watch", lambda: self._watch_pattern, set_watch),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
             ("collapse", self.collapse_action.isChecked, set_collapse),

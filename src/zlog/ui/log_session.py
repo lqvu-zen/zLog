@@ -22,6 +22,7 @@ class LogSession:
         self.reader = None
         self.serial = ""  # device this tab targets
         self.title = ""  # explicit tab label (a loaded file's name); "" = derive from device
+        self.file_path = ""  # full path behind `title`, so the tab can be reopened next launch
         self.stream_label = ""  # while streaming a non-device source (e.g. "Debug Output")
         self.query = ""  # this tab's query-bar text
         self.level = "V"  # this tab's min-level selection

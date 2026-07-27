@@ -99,8 +99,11 @@ def build_menus(win) -> None:
     win.details_action.toggled.connect(win.detail.setVisible)
     win.clear_on_start_action = QAction("Clear on Start", win)
     win.clear_on_start_action.setCheckable(True)
-    win.reopen_last_action = QAction("Reopen Last Log on Launch", win)
+    # Kept as `reopen_last_action` (and the `reopen_last` settings key) so existing
+    # settings files keep working; it now restores every tab, not just the last log.
+    win.reopen_last_action = QAction("Restore Tabs on Launch", win)
     win.reopen_last_action.setCheckable(True)
+    win.reopen_last_action.setToolTip("Reopen the tabs and filters you had open last time")
     win.autosave_action = QAction("Autosave Capture", win)
     win.autosave_action.setCheckable(True)
     win.autosave_action.toggled.connect(win._on_autosave_toggled)

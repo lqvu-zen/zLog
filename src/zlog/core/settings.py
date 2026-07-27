@@ -37,6 +37,7 @@ DEFAULTS: dict = {
     "tail_count": 10000,  # start from the last N lines (0 = whole buffer)
     "max_rows": 100_000,  # ring-buffer cap on retained lines (0 = unlimited)
     "recent_files": [],  # recently opened/saved .log paths (see core/history.py)
+    "tabs": [],  # open tabs to restore on launch (see core/tabstate.py)
     "reopen_last": False,  # reopen the most-recent log on launch
     "autosave": False,  # stream capture to disk while running (see core/autosave.py)
     "splitter_state": "",  # base64 QSplitter.saveState() for the log/detail divider

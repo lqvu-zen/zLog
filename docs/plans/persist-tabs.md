@@ -1,6 +1,6 @@
 # Plan: Reopen tabs on launch
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [open-in-new-tab.md](open-in-new-tab.md), [device-tabs.md](device-tabs.md), [reopen-last.md](reopen-last.md), [settings-persistence.md](settings-persistence.md)
@@ -62,8 +62,9 @@ share. So this is one new settings key plus a restore pass.
 
 ## Open questions
 
-- **Cap:** how many tabs to persist (10? all?). Leaning a cap of 10, newest first.
-- **Lazy load:** restore file contents on first activation rather than at launch?
-  Leaning yes if launch time suffers, otherwise keep it simple.
-- Keep a separate "reopen last log" option for people who liked it, or fold it in?
-  Leaning fold in — restoring tabs is a superset.
+- **Cap:** **Resolved:** 10 (`core.tabstate.MAX_TABS`).
+- **Lazy load:** **Resolved:** not needed yet — restore loads eagerly, reusing the
+  existing async large-file path. Revisit if launch time suffers.
+- **Fold in "reopen last log"?** **Resolved:** yes. The action is relabelled
+  "Restore Tabs on Launch" but keeps its `reopen_last` settings key, and an old
+  settings file with no `tabs` list still reopens the most recent log.

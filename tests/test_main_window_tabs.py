@@ -202,3 +202,86 @@ def test_closing_an_idle_tab_does_not_ask(window, monkeypatch):
     window._close_tab(1)
     assert asked["n"] == 0
     assert len(window._sessions) == 1
+
+
+# --- restoring tabs on launch ---------------------------------------------
+def _relaunch(qapp, tmp_path, monkeypatch):
+    """A fresh window sharing the same settings file — i.e. the next launch."""
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    return MainWindow()
+
+
+def test_tabs_come_back_with_their_queries(window, tmp_path, monkeypatch):
+    a, b = _write_log(tmp_path, "a.log"), _write_log(tmp_path, "b.log")
+    window._open_log_in_tab(a)
+    window.query.setText("level:E")
+    window._open_log_in_tab(b)
+    window.query.setText("tag:Net")
+    window.reopen_last_action.setChecked(True)
+    window._save_settings()
+
+    fresh = _relaunch(qapp=None, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    assert len(fresh._sessions) == 2
+    assert [s.title for s in fresh._sessions] == ["a.log", "b.log"]
+    assert fresh._sessions[0].query == "level:E"
+    assert fresh.query.text() == "tag:Net"  # the active tab's filter is applied
+
+
+def test_restore_skips_a_missing_file(window, tmp_path, monkeypatch):
+    import os
+
+    a, b = _write_log(tmp_path, "a.log"), _write_log(tmp_path, "b.log")
+    window._open_log_in_tab(a)
+    window._open_log_in_tab(b)
+    window.reopen_last_action.setChecked(True)
+    window._save_settings()
+    os.remove(a)  # moved/deleted between launches
+
+    fresh = _relaunch(qapp=None, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    # Skipped quietly: the surviving tab is restored and nothing raises. (The
+    # status note is best-effort — later startup messages can overwrite it, which
+    # is why the skip is also written to the diagnostics log.)
+    assert [s.title for s in fresh._sessions] == ["b.log"]
+
+
+def test_streaming_tab_is_not_resurrected_as_a_stream(window, tmp_path, monkeypatch):
+    """A live capture has nothing to reopen — it should come back as an empty tab
+    with its filter, never as a running reader."""
+
+    class _FakeReader:
+        pass
+
+    window.query.setText("level:W")
+    sess = window._active
+    sess.reader = _FakeReader()
+    sess.serial = "emulator-5554"
+    window.reopen_last_action.setChecked(True)
+    window._save_settings()
+    sess.reader = None  # let the window close cleanly
+
+    fresh = _relaunch(qapp=None, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    assert fresh._active.reader is None
+    assert fresh.query.text() == "level:W"  # the filter survived
+
+
+def test_restore_off_leaves_one_empty_tab(window, tmp_path, monkeypatch):
+    window._open_log_in_tab(_write_log(tmp_path, "a.log"))
+    window.reopen_last_action.setChecked(False)
+    window._save_settings()
+
+    fresh = _relaunch(qapp=None, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    assert len(fresh._sessions) == 1
+    assert fresh._active.title == ""
+
+
+def test_old_settings_without_tabs_still_reopen_last(window, tmp_path, monkeypatch):
+    """Back-compat: upgrading shouldn't silently stop reopening anything."""
+    import json
+
+    path = _write_log(tmp_path, "a.log")
+    settings = tmp_path / "s.json"
+    settings.write_text(json.dumps({"reopen_last": True, "recent_files": [path]}), encoding="utf-8")
+    fresh = _relaunch(qapp=None, tmp_path=tmp_path, monkeypatch=monkeypatch)
+    assert fresh._active.title == "a.log"
