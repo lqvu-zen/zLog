@@ -50,6 +50,19 @@ Pick your device from **Device** (press refresh if it isn't listed yet), then cl
   go to the oldest / newest line at any time.
 - **Clear** empties the view; **Stop** ends streaming.
 
+## Following a log file (tail -f)
+
+Many apps neither print to a console nor emit debug output — they write their own
+log file. **File → Follow File…** points zLog at one: it loads what's there, then
+streams each new line as it's written, into its own tab named after the file.
+Everything else works as usual (query bar, levels, presets, export), and **Stop**
+ends it.
+
+It copes with the file being rotated: if your logger truncates it or replaces it
+with a fresh one, zLog notices and re-reads from the start rather than going
+quiet. A line that's still being written is held back until it's complete, so you
+never see half a line. This works on any platform.
+
 ## Debugging a Windows app (OutputDebugString)
 
 Capturing your PC works exactly like capturing a phone: pick **This PC (debug

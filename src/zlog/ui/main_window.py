@@ -2866,6 +2866,33 @@ class MainWindow(QMainWindow):
         _log.info("DBWIN capture requested")
         self.statusBar().showMessage("Capturing Windows debug output (OutputDebugString)…")
 
+    def follow_file(self) -> None:
+        """Watch a log file and stream appended lines (tail -f).
+
+        Covers the apps that neither print to a console nor call
+        `OutputDebugString` — they write their own log file. Opens in its own tab
+        so an existing capture keeps running; Stop ends it.
+        """
+        from zlog.ui.file_follower import FileFollower
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Follow Log File", "", "Log files (*.log *.txt);;All files (*)"
+        )
+        if not path:
+            return
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        reader = FileFollower(path)
+        self.capture.attach(sess, reader, stream_label=reader.name or "File")
+        self._set_tab_label(sess)
+        self._set_streaming_controls()
+        self._remember_recent(path)  # it's a log file like any other
+        _log.info("Following file: %r", path)
+        self.statusBar().showMessage(f"Following {reader.name} — new lines appear live.")
+
     def focus_app(self) -> None:
         """Pick a running process and narrow the view to it — the Windows
         counterpart of the Android package filter. Focus is expressed as a

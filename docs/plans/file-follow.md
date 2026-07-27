@@ -1,6 +1,6 @@
 # Plan: Follow a log file live (tail -f)
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [large-file-progress.md](large-file-progress.md), [windows-debug-output.md](windows-debug-output.md), [windows-app-focus.md](windows-app-focus.md), [open-in-new-tab.md](open-in-new-tab.md)
@@ -77,10 +77,14 @@ the only subtle part, and it's pure arithmetic, so it goes in `core/`.
 
 ## Open questions
 
-- **Poll interval:** fixed 250 ms vs. adaptive (back off when idle). Leaning fixed
-  and simple; revisit only if it shows up in a profile.
-- **Start at end?** Follow from EOF (like `tail -f`) or load the whole file first
-  (like `tail -n +1 -f`)? Leaning load-then-follow, with a "only new lines"
-  checkbox in the dialog for a huge file.
-- Should **Open Log…** offer a "keep following" checkbox instead of a separate
-  menu item? Leaning separate item — clearer, and Open stays a snapshot.
+- **Poll interval:** ~~fixed vs. adaptive~~ **Resolved:** fixed 250 ms.
+- **Start at end?** ~~EOF or whole file?~~ **Resolved:** load-then-follow.
+  `FileFollower(from_end=True)` exists and is tested, but isn't exposed in the UI
+  yet — add a checkbox if opening a huge file proves painful.
+- **Open Log… checkbox?** **Resolved:** separate menu item; Open stays a snapshot.
+
+## Known limitation
+
+An in-place rewrite that lands on **exactly the same size with the same inode** is
+undetectable without hashing the content — `tail -f` has the same blind spot.
+Truncation to a different size, and replacement with a new file, are both handled.

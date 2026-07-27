@@ -164,7 +164,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [windows-debug-output.md](windows-debug-output.md) | Done | Capture any Windows app's OutputDebugString stream (DebugView-style), tagged by PID/process |
 | [windows-app-focus.md](windows-app-focus.md) | Done | Process picker to focus one Windows app + File → Launch App… (captures its stdout/stderr and debug output) |
 | [main-window-split.md](main-window-split.md) | Done | Split main_window.py: extract construction into build.py/menus.py, unify the 4 reader-start paths behind a CaptureController |
-| [file-follow.md](file-follow.md) | Draft | Follow a log file live (tail -f), incl. rotation/truncation — cross-platform |
+| [file-follow.md](file-follow.md) | Done | Follow a log file live (tail -f), incl. rotation/truncation — cross-platform |
 | [windows-event-log.md](windows-event-log.md) | Draft | Stream Windows Event Log channels (Application/System/Security) as a source |
 | [etw-tracing.md](etw-tracing.md) | Draft | ETW real-time provider tracing (bigger bet; do the cheaper sources first) |
 | [persist-tabs.md](persist-tabs.md) | Draft | Reopen the previous session's tabs (files + queries) on launch |
