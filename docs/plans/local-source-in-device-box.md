@@ -1,6 +1,6 @@
 # Plan: Stream Windows debug output from the device box ("This PC")
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [windows-debug-output.md](windows-debug-output.md), [device-picker.md](device-picker.md), [windows-app-focus.md](windows-app-focus.md), [windows-event-log.md](windows-event-log.md)

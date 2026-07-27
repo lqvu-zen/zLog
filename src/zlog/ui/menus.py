@@ -42,14 +42,17 @@ def build_menus(win) -> None:
     open_session_act.triggered.connect(win.open_session)
     diff_act = file_menu.addAction("&Diff Against File…")
     diff_act.triggered.connect(win._diff_against_file)
-    dumpsys_act = file_menu.addAction("Capture &dumpsys…")
-    dumpsys_act.triggered.connect(win._capture_dumpsys)
+    # Kept on the window: it's adb-only, so it greys out for a local source.
+    win.dumpsys_act = file_menu.addAction("Capture &dumpsys…")
+    win.dumpsys_act.triggered.connect(win._capture_dumpsys)
     merged_act = file_menu.addAction("&Merge All Devices")
     merged_act.triggered.connect(win.start_merged)
-    win.capture_debug_act = file_menu.addAction("Capture Windows Debug &Output")
+    # Same code path as picking "This PC" in the device box and pressing Start;
+    # kept as a shortcut for people who know it by name.
+    win.capture_debug_act = file_menu.addAction("Capture Debug &Output (This PC)")
     win.capture_debug_act.setToolTip(
-        "Capture OutputDebugString from Windows apps (DebugView-style); "
-        "filter to yours with proc: / pid:"
+        "Same as choosing 'This PC' in the device box and pressing Start — "
+        "captures OutputDebugString; filter to your app with proc: / pid:"
     )
     win.capture_debug_act.triggered.connect(win.capture_debug_output)
     win.launch_app_act = file_menu.addAction("&Launch App…")

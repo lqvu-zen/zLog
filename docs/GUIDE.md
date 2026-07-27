@@ -52,12 +52,19 @@ Pick your device from **Device** (press refresh if it isn't listed yet), then cl
 
 ## Debugging a Windows app (OutputDebugString)
 
-**File → Capture Windows Debug Output** turns zLog into a live capture of the
-Windows debug channel — the `OutputDebugString` output that most Windows apps and
-frameworks (C/C++, .NET `Debug`/`Trace`, Qt, and others) emit. It opens in a new
-tab (labeled **● Debug Output**), and every line is tagged with the emitting
-process, so you focus on the app you're debugging with the usual query bar —
-`proc:myapp.exe` or `pid:1234`. **Stop** ends the capture.
+Capturing your PC works exactly like capturing a phone: pick **This PC (debug
+output)** in the **Device** dropdown and press **Start**. It's the first entry, so
+it's there even with no device attached. (**File → Capture Debug Output (This PC)**
+does the same thing if you prefer the menu.)
+
+That streams the Windows debug channel — the `OutputDebugString` output that most
+Windows apps and frameworks (C/C++, .NET `Debug`/`Trace`, Qt, and others) emit.
+It opens in a tab labeled **● Debug Output**, and every line is tagged with the
+emitting process, so you focus on the app you're debugging with the usual query
+bar — `proc:myapp.exe` or `pid:1234`. **Stop** ends the capture.
+
+While **This PC** is selected, the device-only controls (Clear device, Wi-Fi,
+Capture dumpsys) grey out, since there's no device to talk to.
 
 This is the same mechanism Sysinternals DebugView uses, so a few things follow
 from it: only one capturer can run at a time (close DebugView or a debugger first),

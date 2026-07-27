@@ -71,3 +71,56 @@ def test_is_serial_streamable():
     assert is_serial_streamable(devs, "ZZZ") is False  # absent
     assert is_serial_streamable(devs, None) is True  # any online device (default)
     assert is_serial_streamable([Device("BBB", "offline")], None) is False
+
+
+# --- local pseudo-source ("This PC") ---------------------------------------
+def test_is_local_source():
+    from zlog.core.devices import LOCAL_DBWIN, is_local_source
+
+    assert is_local_source(LOCAL_DBWIN) is True
+    assert is_local_source("local:anything") is True
+    assert is_local_source("emulator-5554") is False
+    assert is_local_source("") is False
+    assert is_local_source(None) is False
+
+
+def test_local_device_label_and_flags():
+    from zlog.core.devices import local_device
+
+    dev = local_device()
+    assert dev.is_local is True
+    assert dev.streamable is True  # always available; nothing to connect
+    assert dev.label == "This PC (debug output)"
+
+
+def test_real_device_is_not_local():
+    from zlog.core.devices import Device
+
+    assert Device("emulator-5554", "device").is_local is False
+
+
+def test_choose_index_prefers_a_real_device_over_local():
+    from zlog.core.devices import Device, choose_device_index, local_device
+
+    devices = [local_device(), Device("emulator-5554", "device")]
+    assert choose_device_index(devices, None) == 1  # the phone, not This PC
+
+
+def test_choose_index_falls_back_to_local_when_alone():
+    from zlog.core.devices import choose_device_index, local_device
+
+    assert choose_device_index([local_device()], None) == 0
+
+
+def test_choose_index_honors_remembered_local():
+    from zlog.core.devices import LOCAL_DBWIN, Device, choose_device_index, local_device
+
+    devices = [local_device(), Device("emulator-5554", "device")]
+    assert choose_device_index(devices, LOCAL_DBWIN) == 0
+
+
+def test_choose_index_remembered_device_still_wins():
+    from zlog.core.devices import Device, choose_device_index, local_device
+
+    devices = [local_device(), Device("a", "device"), Device("b", "device")]
+    assert choose_device_index(devices, "b") == 2

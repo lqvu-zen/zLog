@@ -4,10 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Sources that aren't adb devices but share the picker + Start flow. The `local:`
+# prefix is reserved: any serial carrying it is handled by a local reader, never
+# passed to adb. Future local sources (event log, followed file) join by adding a
+# sentinel here.
+_LOCAL_PREFIX = "local:"
+LOCAL_DBWIN = f"{_LOCAL_PREFIX}dbwin"  # Windows OutputDebugString capture
+
+_LOCAL_LABELS = {LOCAL_DBWIN: "This PC (debug output)"}
+
+
+def is_local_source(serial: str | None) -> bool:
+    """True for a pseudo-device handled locally instead of through adb."""
+    return bool(serial) and str(serial).startswith(_LOCAL_PREFIX)
+
 
 @dataclass(frozen=True, slots=True)
 class Device:
-    """One entry from `adb devices`."""
+    """One entry from `adb devices`, or a local pseudo-source (see LOCAL_DBWIN)."""
 
     serial: str
     state: str  # "device" (ready), "offline", "unauthorized", ...
@@ -18,9 +32,20 @@ class Device:
         return self.state == "device"
 
     @property
+    def is_local(self) -> bool:
+        return is_local_source(self.serial)
+
+    @property
     def label(self) -> str:
         """What to show in the picker."""
+        if self.is_local:
+            return _LOCAL_LABELS.get(self.serial, self.serial)
         return self.serial if self.streamable else f"{self.serial} ({self.state})"
+
+
+def local_device() -> Device:
+    """The 'This PC' entry for the picker (Windows debug output)."""
+    return Device(serial=LOCAL_DBWIN, state="device")
 
 
 def parse_devices(output: str) -> list[Device]:
@@ -47,16 +72,26 @@ def parse_devices(output: str) -> list[Device]:
 
 
 def choose_device_index(devices: list[Device], preferred_serial: str | None) -> int:
-    """Index of the device to preselect: the remembered serial if it's present and
-    streamable, else the first streamable device, else -1 (nothing selectable)."""
-    first = -1
+    """Index of the source to preselect: the remembered serial if it's present and
+    streamable, else the first streamable **real device**, else the first streamable
+    entry at all (which may be the local 'This PC' source), else -1.
+
+    Real devices win over the local source when nothing is remembered, so plugging
+    in a phone still Just Works for the Android case; 'This PC' is only the default
+    when it's the only thing available.
+    """
+    first_real = -1
+    first_any = -1
     for i, dev in enumerate(devices):
-        if dev.streamable:
-            if first < 0:
-                first = i
-            if dev.serial == preferred_serial:
-                return i
-    return first
+        if not dev.streamable:
+            continue
+        if first_any < 0:
+            first_any = i
+        if not dev.is_local and first_real < 0:
+            first_real = i
+        if dev.serial == preferred_serial:
+            return i
+    return first_real if first_real >= 0 else first_any
 
 
 def is_connect_ok(message: str) -> bool:

@@ -69,7 +69,13 @@ from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
 from zlog.core.bundle import make_bundle, parse_bundle
 from zlog.core.density import DEFAULT_DENSITY, DENSITY_NAMES, density_pad
-from zlog.core.devices import Device, is_connect_ok, is_serial_streamable
+from zlog.core.devices import (
+    Device,
+    is_connect_ok,
+    is_local_source,
+    is_serial_streamable,
+    local_device,
+)
 from zlog.core.diff import diff_logs, line_key
 from zlog.core.export import to_html, to_markdown, to_messages
 from zlog.core.heat import heat_marks
@@ -107,6 +113,7 @@ from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
 from zlog.ui.theme import THEMES, build_stylesheet
+from zlog.winlog.dbwin_reader import is_supported  # cheap platform check, no Win32 import
 
 _log = get_logger()
 
@@ -534,6 +541,11 @@ class MainWindow(QMainWindow):
     def _populate_devices(self, devices: list[Device]) -> None:
         """Fill the picker from a device list (also called by the run-zlog driver
         with fake devices, so it stays free of subprocess calls)."""
+        # "This PC" rides the same picker + Start flow as a device (see
+        # local-source-in-device-box.md); it goes first so it's visible when no
+        # phone is attached — which is the main case for capturing debug output.
+        if is_supported():
+            devices = [local_device(), *devices]
         self.devctl.set_devices(devices)
         self.device_box.clear()
         if not devices:
@@ -552,7 +564,8 @@ class MainWindow(QMainWindow):
             self.device_box.setCurrentIndex(chosen)
             self.devctl.remember(self.device_box.itemData(chosen))
         self._update_start_enabled()
-        self.statusBar().showMessage(f"{len(devices)} device(s) found.")
+        real = sum(1 for d in devices if not d.is_local)  # "This PC" isn't a device
+        self.statusBar().showMessage(f"{real} device(s) found.")
 
     def _show_device_error(self, msg: str) -> None:
         self.devctl.set_devices([])
@@ -573,6 +586,16 @@ class MainWindow(QMainWindow):
         streamable = bool(self.devctl.devices) and self.device_box.currentData() is not None
         self.start_btn.setEnabled(streamable and not streaming)
         self._update_package_enabled()
+        self._update_adb_only_controls()
+
+    def _update_adb_only_controls(self) -> None:
+        """Grey out the actions that only mean something for a real device, so
+        picking "This PC" can't invoke adb. (The package box stays enabled — it
+        filters the log by process name, which works for debug output too.)"""
+        adb = not is_local_source(self.device_box.currentData())
+        self.clear_device_btn.setEnabled(adb)
+        self.connect_btn.setEnabled(adb)
+        self.dumpsys_act.setEnabled(adb)
 
     def _update_package_enabled(self) -> None:
         # The package selector is log-driven (proc: filter), so it's always
@@ -2746,6 +2769,11 @@ class MainWindow(QMainWindow):
     def start(self) -> None:
         if self.reader and self.reader.isRunning():
             return
+        # A local pseudo-source ("This PC") shares the picker and this button but
+        # is captured by its own reader — never handed to adb.
+        if is_local_source(self.device_box.currentData()):
+            self.capture_debug_output()
+            return
         if self.clear_on_start_action.isChecked():
             self.model.clear()
         self._want_stream = True
@@ -2786,7 +2814,10 @@ class MainWindow(QMainWindow):
         (merged multi-device view). Filter with `device:<serial>`."""
         if (self.reader and self.reader.isRunning()) or self.capture.streaming:
             return
-        serials = [d.serial for d in self.devctl.devices if is_serial_streamable(d.serial)]
+        # Real, online devices only: "This PC" isn't an adb device, and
+        # `d.streamable` is the per-device check (is_serial_streamable answers a
+        # different question — whether a *named* serial is back — and needs the list).
+        serials = [d.serial for d in self.devctl.devices if d.streamable and not d.is_local]
         if len(serials) < 2:
             self.statusBar().showMessage("Merged view needs at least two connected devices.")
             return
