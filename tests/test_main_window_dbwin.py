@@ -38,12 +38,19 @@ def win_local(window, monkeypatch):
     return window
 
 
-def test_local_entry_is_first_and_labelled(win_local):
+def test_devices_sort_above_this_pc(win_local):
+    """A connected device is always at the top; This PC follows it."""
     from zlog.core.devices import Device
 
     win_local._populate_devices([Device("emulator-5554", "device")])
+    assert win_local.device_box.itemText(0) == "emulator-5554"
+    assert win_local.device_box.itemText(1) == "This PC (debug output)"
+
+
+def test_this_pc_is_alone_when_no_device(win_local):
+    win_local._populate_devices([])
+    assert win_local.device_box.count() == 1
     assert win_local.device_box.itemText(0) == "This PC (debug output)"
-    assert win_local.device_box.itemText(1) == "emulator-5554"
 
 
 def test_real_device_is_preselected_over_local(win_local):

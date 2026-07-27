@@ -542,10 +542,11 @@ class MainWindow(QMainWindow):
         """Fill the picker from a device list (also called by the run-zlog driver
         with fake devices, so it stays free of subprocess calls)."""
         # "This PC" rides the same picker + Start flow as a device (see
-        # local-source-in-device-box.md); it goes first so it's visible when no
-        # phone is attached — which is the main case for capturing debug output.
+        # local-source-in-device-box.md). It sorts *after* real devices so a
+        # connected phone is always at the top, and it's still there (as the only
+        # entry) when nothing is attached.
         if is_supported():
-            devices = [local_device(), *devices]
+            devices = [*devices, local_device()]
         self.devctl.set_devices(devices)
         self.device_box.clear()
         if not devices:

@@ -91,7 +91,8 @@ reader wiring, tab labelling, and teardown are unchanged and already tested.
   but only if a real device isn't preferred.
 - **Label:** "This PC (debug output)" vs. "Local · OutputDebugString" vs. plain
   "This PC". Leaning "This PC (debug output)" — says what it captures.
-- **Position:** first in the list, or after the devices? Leaning first, so it's
-  visible when no device is attached.
+- **Position:** ~~first in the list, or after the devices?~~ **Resolved:** devices
+  first, This PC last — a connected phone is always at the top, and This PC is the
+  only entry when nothing is attached.
 - Should the File-menu item be **removed** once the picker works, rather than
   kept as an alias? Leaning keep-as-alias for one release, then reassess.

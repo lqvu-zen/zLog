@@ -53,8 +53,9 @@ Pick your device from **Device** (press refresh if it isn't listed yet), then cl
 ## Debugging a Windows app (OutputDebugString)
 
 Capturing your PC works exactly like capturing a phone: pick **This PC (debug
-output)** in the **Device** dropdown and press **Start**. It's the first entry, so
-it's there even with no device attached. (**File → Capture Debug Output (This PC)**
+output)** in the **Device** dropdown and press **Start**. It sits below any
+connected devices — so a phone you plug in is always at the top — and it's the
+only entry when nothing is attached. (**File → Capture Debug Output (This PC)**
 does the same thing if you prefer the menu.)
 
 That streams the Windows debug channel — the `OutputDebugString` output that most
