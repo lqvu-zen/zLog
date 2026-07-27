@@ -1,6 +1,6 @@
 # Plan: Tab-bar polish — status, reordering, close guard
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [open-in-new-tab.md](open-in-new-tab.md), [device-tabs.md](device-tabs.md), [persist-tabs.md](persist-tabs.md)
@@ -70,9 +70,9 @@ close path.
 
 ## Open questions
 
-- **Count in the label at all?** It's the most likely to feel noisy. Leaning
-  on-by-default with a View toggle, or only when the tab isn't active.
-- **Markers:** `●` streaming (ships today), `⏸` paused, `⚠` disconnected — or
-  words? Leaning symbols, with the full state in the tooltip.
+- **Count in the label at all?** **Resolved:** on by default, but omitted entirely
+  when zero so a fresh tab doesn't read "(0)". No toggle yet — add one if it grates.
+- **Markers:** **Resolved:** symbols (`●` `⏸` `⚠`) in the label, with the state
+  spelled out in the tooltip.
 - Should reordering persist across launches (i.e. feed
   [persist-tabs.md](persist-tabs.md))? Leaning yes, for free, if both ship.

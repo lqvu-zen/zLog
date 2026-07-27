@@ -171,5 +171,5 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [theme-editor.md](theme-editor.md) | Draft | Edit theme colors and save a custom theme |
 | [watch-run-command.md](watch-run-command.md) | Draft | Watch action: run a command on a hit (argv-only, no shell) |
 | [pdf-export.md](pdf-export.md) | Draft | Export the filtered log to PDF via the existing HTML exporter |
-| [tab-polish.md](tab-polish.md) | Draft | Tab state marker + line count, drag-reorder, close-while-recording guard |
+| [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |
 | [local-source-in-device-box.md](local-source-in-device-box.md) | Done | Pick "This PC" in the device box and press Start to capture Windows debug output |

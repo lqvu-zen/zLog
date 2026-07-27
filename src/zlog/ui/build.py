@@ -52,6 +52,7 @@ def build_widgets(win) -> None:
     win._active_index = 0
     win.tab_bar = QTabBar()
     win.tab_bar.setTabsClosable(True)
+    win.tab_bar.setMovable(True)  # drag to reorder; _on_tab_moved keeps sessions in sync
     win.tab_bar.setExpanding(False)
     win.tab_bar.setDocumentMode(True)
     win.tab_bar.addTab("Device")

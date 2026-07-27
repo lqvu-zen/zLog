@@ -51,6 +51,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
+    QMessageBox,
     QProgressDialog,
     QTabBar,
     QTableWidget,
@@ -101,6 +102,14 @@ from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
+from zlog.core.tabtitle import (
+    DISCONNECTED,
+    IDLE,
+    PAUSED,
+    STREAMING,
+    tab_label,
+    tab_tooltip,
+)
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.capture_controller import CaptureController
@@ -272,19 +281,47 @@ class MainWindow(QMainWindow):
         # proxy via _apply_query — no separate level_box set needed.
         self._set_query_text(sess.query)
 
+    def _tab_state(self, sess) -> str:
+        """Which state marker a tab should carry (see core.tabtitle)."""
+        if sess.reader is not None:
+            return PAUSED if sess.paused else STREAMING
+        # Intending to stream with no reader = the device dropped and we're
+        # polling for it to come back.
+        return DISCONNECTED if sess.want_stream else IDLE
+
     def _set_tab_label(self, sess) -> None:
         if sess not in self._sessions:
             return
         i = self._sessions.index(sess)
-        if sess.reader is not None:  # streaming wins over any loaded-file title
+        state = self._tab_state(sess)
+        if sess.reader is not None or sess.want_stream:
+            # A live/reconnecting tab is named by its source, not a stale file.
             name = sess.stream_label or sess.serial or "Device"
-            self.tab_bar.setTabText(i, f"\u25cf {name}")
-            self.tab_bar.setTabToolTip(i, name)
+        else:
+            name = sess.title or sess.serial or "Device"
+        count = sess.model.rowCount()
+        self.tab_bar.setTabText(i, tab_label(name, state, count))
+        self.tab_bar.setTabToolTip(i, tab_tooltip(name, state, count))
+
+    def _refresh_tab_labels(self) -> None:
+        """Re-label every tab. Driven by the debounced counts timer rather than
+        per batch, so a chatty stream doesn't relabel (and flicker) constantly."""
+        for sess in self._sessions:
+            self._set_tab_label(sess)
+
+    def _on_tab_moved(self, frm: int, to: int) -> None:
+        """Keep `_sessions` in lockstep with a dragged tab bar.
+
+        Without this the bar's order and the session list would diverge and a tab
+        would show another tab's log. The active *session* must stay active, so the
+        index is recomputed from identity rather than assumed.
+        """
+        if frm == to or not (0 <= frm < len(self._sessions) and 0 <= to < len(self._sessions)):
             return
-        name = sess.title or sess.serial or "Device"
-        label = name if len(name) <= 22 else name[:21] + "\u2026"
-        self.tab_bar.setTabText(i, label)
-        self.tab_bar.setTabToolTip(i, sess.title or sess.serial or "")
+        active = self._sessions[self._active_index]
+        self._sessions.insert(to, self._sessions.pop(frm))
+        self._active_index = self._sessions.index(active)
+        self._refresh_tab_labels()
 
     def _update_tab_closability(self) -> None:
         """Only show a close (x) on a tab when there's another one to fall back
@@ -334,6 +371,10 @@ class MainWindow(QMainWindow):
         if len(self._sessions) <= 1:
             return  # always keep one tab
         sess = self._sessions[index]
+        # Only guard a live capture — prompting for an idle or file tab would be
+        # noise. Declining leaves the tab *and* its reader exactly as they were.
+        if sess.reader is not None and not self._confirm_close_streaming(sess):
+            return
         sess.want_stream = False
         sess.reconnect_timer.stop()
         if sess.reader:
@@ -343,6 +384,19 @@ class MainWindow(QMainWindow):
             self._active_index = len(self._sessions) - 1
         self.tab_bar.removeTab(index)  # -> _switch_tab(current)
         self._update_tab_closability()
+
+    def _confirm_close_streaming(self, sess) -> bool:
+        """Ask before closing a tab that's still capturing. Isolated so tests can
+        answer it without a modal dialog."""
+        name = sess.stream_label or sess.serial or "this tab"
+        reply = QMessageBox.question(
+            self,
+            "Stop capturing?",
+            f"“{name}” is still capturing. Close the tab and stop it?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,  # default to the safe answer
+        )
+        return reply == QMessageBox.Yes
 
     @property
     def _active(self) -> LogSession:
@@ -445,6 +499,7 @@ class MainWindow(QMainWindow):
         self.table.resized.connect(self._update_sticky)
         self.tab_bar.currentChanged.connect(self._switch_tab)
         self.tab_bar.tabCloseRequested.connect(self._close_tab)
+        self.tab_bar.tabMoved.connect(self._on_tab_moved)
         self.presets_list.itemActivated.connect(self._on_preset_activated)
         self.presets_list.customContextMenuRequested.connect(self._show_presets_menu)
         self.save_update_btn.clicked.connect(self._save_or_update_active)
@@ -2457,6 +2512,9 @@ class MainWindow(QMainWindow):
             self.table.clearSelection()
 
     def _update_counts(self, *args) -> None:
+        # Tab labels carry a line count, so they refresh on this same debounced
+        # timer — relabelling per batch would be wasteful and make it flicker.
+        self._refresh_tab_labels()
         total = self.model.rowCount()
         visible = self.proxy.rowCount()
         # Once a filter is hiding rows, tally the levels of what's actually shown

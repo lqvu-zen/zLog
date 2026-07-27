@@ -29,6 +29,10 @@ through everyday use.
   sessions, and export; View holds commands and navigation (clear filters, problems,
   bookmarks, zoom, presets, tag summary); **Settings…** opens the preferences dialog.
 - A **Saved Filters** sidebar (left) lists your saved query presets for one-click use.
+- Each tab shows its **state and size** at a glance: **●** streaming, **⏸** paused,
+  **⚠** disconnected (waiting to reconnect), plus a line count like `(1.2k)`. Hover
+  for the full name and exact count. Drag tabs to reorder them; closing one that's
+  still capturing asks first.
 - Work in **tabs**: the **+** button on the tab bar (or Ctrl+T) starts a fresh tab
   so you can record another device without losing what's already there. **Open Log…**
   and **Open Recent** open the file in a new tab too (reusing the current tab only
