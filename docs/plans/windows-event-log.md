@@ -1,0 +1,88 @@
+# Plan: Windows Event Log as a log source
+
+- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Owner:** unassigned
+- **Created:** 2026-07-24
+- **Related:** [windows-debug-output.md](windows-debug-output.md), [windows-app-focus.md](windows-app-focus.md), [merged-multi-device.md](merged-multi-device.md)
+
+## Goal
+
+Stream the Windows Event Log (Application / System / Security and other channels)
+into a zLog tab, with the same view, query bar, filters, and export the Android
+and debug-output sources already have.
+
+## Why
+
+`OutputDebugString` capture covers apps that trace at runtime; the Event Log is
+where **crashes, service failures, driver and OS-level events** land — including
+for apps that never call `OutputDebugString`. Together they cover "what happened
+to this app" from both ends.
+
+## Scope
+
+- **In:** a source that streams a chosen Event Log channel, mapping each event to
+  `LogEntry`; a channel picker; live subscription plus an initial "last N events"
+  backfill.
+- **Out (non-goals):** writing/clearing the Event Log, remote-machine channels,
+  ETW real-time providers (see [etw-tracing.md](etw-tracing.md)), and custom XPath
+  filter strings (the query bar already filters).
+
+## Design
+
+Events map cleanly onto `LogEntry`, so nothing in the model/proxy/delegate/query
+changes — this is a reader plus a parser, exactly like the DBWIN work.
+
+Mapping (from an event's rendered System XML):
+- **Level** 1 Critical→`F`, 2 Error→`E`, 3 Warning→`W`, 4 Information→`I`,
+  5 Verbose→`V`, so `LEVEL_RANK` and the min-level filter work unchanged.
+- **Provider Name** → `tag` (so `tag:`, mute-tag, Tag Summary work).
+- **Execution @ProcessID / @ThreadID** → `pid` / `tid`.
+- **TimeCreated @SystemTime** → `time`, formatted `MM-DD HH:MM:SS.mmm` to match
+  logcat so `since:`/`until:` and Go-to-time keep working.
+- Rendered message → `message`; `source` stamps the channel name.
+
+| File | Layer | Change |
+|---|---|---|
+| `src/zlog/core/winevent.py` (new) | core | Pure, **OS-free** (stdlib `xml.etree` only): `map_level(n)`, `format_event_time(iso)`, `parse_event_xml(xml) -> LogEntry`. Unit-tested against fixture XML, so it runs on Linux/CI like `core/dbwin.py`. |
+| `src/zlog/winlog/evtlog_reader.py` (new) | winlog | `EventLogReader(QThread)` with the usual `batch_ready`/`error` contract. Live path: `win32evtlog.EvtSubscribe` (pywin32) pushing new events → `core.winevent` → batched with the shared cadence. pywin32 imported lazily **inside** `run()`; off Windows (or without pywin32) it emits a clear error and returns. |
+| `src/zlog/winlog/channels.py` (new) | winlog | A curated default channel list (Application, System, Security, Setup) plus an "other…" free-text entry; optionally enumerate via `wevtutil el`. |
+| `src/zlog/ui/main_window.py` | ui | **File → Capture Event Log…** → channel picker → reuse-or-new tab → `capture.attach(sess, EventLogReader(channel), stream_label=channel)`. Teardown is already handled by `capture.detach`. |
+| `pyproject.toml` | — | `pywin32; sys_platform == "win32"` (optional, platform-gated) so Linux/CI never installs it. |
+| `docs/GUIDE.md`, `tests/test_winevent.py` (new) | — | Guide section; tests for level/time mapping and `parse_event_xml` over Application/System/Security fixtures, an event with no PID, and unparseable XML. |
+
+## Architecture touch points
+
+- **Threading:** all work off-thread, UI reached only via signals; attaches
+  through `CaptureController` so Stop tears it down with everything else.
+- **Model/proxy:** none new; every existing gate applies.
+- **Dependency direction:** `ui → winlog → core`; `core/winevent.py` imports
+  neither Qt nor pywin32.
+
+## Risks & regressions to check
+
+- **New dependency:** pywin32 is Windows-only and platform-gated — verify Linux
+  install and the full test suite are unaffected, and that selecting the source
+  off Windows reports cleanly rather than crashing.
+- **Security channel needs elevation** — a subscribe failure must report, not hang.
+- **Volume:** System/Security can be very chatty; confirm batching + the ring cap.
+- **Missing year:** logcat's format has no year either; `since:`/`until:` compare
+  time-of-day, so a long capture spanning midnight behaves as it does today.
+- **Message rendering** can be slow per event (it resolves provider metadata);
+  keep it off the UI thread and consider caching per provider.
+
+## Verification
+
+- [ ] `uv run pytest` (new `test_winevent.py`; suites green on Linux)
+- [ ] `uv run ruff check .` and `uv run ruff format --check .`
+- [ ] Manual on Windows: stream Application + System, filter by `level:`/`tag:`,
+      confirm PID/provider populate; graceful error on Linux.
+
+## Open questions
+
+- **pywin32 vs. stdlib:** `EvtSubscribe` needs pywin32. Acceptable as a
+  Windows-only extra, or prefer polling `wevtutil qe` (no dependency, laggier,
+  needs dedup)? Leaning pywin32 for a real live stream.
+- **EventID:** fold into `tag` (`Provider/1000`) or prefix the message? Leaning
+  message prefix so tag filtering stays clean.
+- **Backfill:** how many existing events to load on start (like logcat's tail)?
+  Leaning a small default (200) with a setting.
