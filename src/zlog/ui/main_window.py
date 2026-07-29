@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -78,7 +79,7 @@ from zlog.core.devices import (
     local_device,
 )
 from zlog.core.diff import diff_logs, line_key
-from zlog.core.export import to_html, to_markdown, to_messages
+from zlog.core.export import to_html, to_markdown, to_messages, to_print_html
 from zlog.core.heat import heat_marks
 from zlog.core.highlight_rules import normalize_rules
 from zlog.core.histogram import bucketize
@@ -112,6 +113,7 @@ from zlog.core.tabtitle import (
     tab_tooltip,
 )
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
+from zlog.core.watch_action import expand_command
 from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.capture_controller import CaptureController
 from zlog.ui.device_controller import DeviceController
@@ -119,10 +121,12 @@ from zlog.ui.file_loader import FileLoader
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_session import LogSession
 from zlog.ui.menus import build_menus
+from zlog.ui.pdf_export import write_pdf
 from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
 from zlog.ui.theme import THEMES, build_stylesheet
+from zlog.ui.watch_dialog import WatchDialog
 from zlog.winlog.dbwin_reader import is_supported  # cheap platform check, no Win32 import
 
 _log = get_logger()
@@ -141,6 +145,7 @@ LOG_FONT_FAMILIES = [
     "Courier New",
 ]
 BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
+PDF_ROW_CAP = 50_000  # rows above this freeze the UI thread for too long to render
 
 
 class MainWindow(QMainWindow):
@@ -168,6 +173,8 @@ class MainWindow(QMainWindow):
         self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
         self._watch = None  # compiled substring matcher, or None
         self._watch_pattern = ""
+        self._watch_command = ""  # optional argv template run on a watch hit
+        self._watch_cmd_last = 0.0  # monotonic time of last command spawn (throttle)
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
         # Owns reader attach/detach for every capture kind (see CaptureController);
         # `capture.extra_readers` holds the merged-view / DBWIN companions.
@@ -1636,17 +1643,28 @@ class MainWindow(QMainWindow):
 
     # --- watch pattern -----------------------------------------------------
     def _set_watch_dialog(self) -> None:
-        text, ok = QInputDialog.getText(
-            self,
-            "Watch Pattern",
-            "Notify on lines containing (blank to clear):",
-            text=self._watch_pattern,
-        )
-        if ok:
-            self._apply_watch(text)
+        dlg = WatchDialog(self._watch_pattern, self._watch_command, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        pattern, command = dlg.get_values()
+        if command and command != self._watch_command:
+            reply = QMessageBox.question(
+                self,
+                "Run command on watch hit?",
+                "Whenever the watch pattern matches a line, zLog will run:\n\n"
+                f"    {command}\n\n"
+                "without a shell. Only confirm if you trust what this does.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,  # default to the safe answer
+            )
+            if reply != QMessageBox.Yes:
+                command = self._watch_command  # keep the previous (already-confirmed) command
+        self._apply_watch(pattern, command)
 
-    def _apply_watch(self, pattern: str, announce: bool = True) -> None:
+    def _apply_watch(self, pattern: str, command: str | None = None, announce: bool = True) -> None:
         self._watch_pattern = pattern or ""
+        if command is not None:
+            self._watch_command = command
         self._watch = (
             compile_matcher(self._watch_pattern, regex=False) if self._watch_pattern else None
         )
@@ -1681,6 +1699,29 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f"Watch match — {text}")
             QApplication.beep()
+
+    def _run_watch_command(self, entry) -> None:
+        """Fire-and-forget the configured watch command (argv only, no shell,
+        no pipes) — spawning a process is heavier than a beep, so it gets a
+        longer throttle than the notification."""
+        if not self._watch_command:
+            return
+        now = time.monotonic()
+        if now - self._watch_cmd_last < 10.0:
+            return
+        self._watch_cmd_last = now
+        argv = expand_command(self._watch_command, entry)
+        if not argv:
+            return
+        try:
+            subprocess.Popen(
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as exc:
+            self.statusBar().showMessage(f"Watch command failed: {exc}")
 
     def _show_tag_summary(self) -> None:
         """Modal list of tags in the current view by count; double-click filters."""
@@ -2237,6 +2278,42 @@ class MainWindow(QMainWindow):
             f"Exported {len(entries)} lines to {Path(path).name}{redacted}."
         )
 
+    def _export_pdf(self) -> None:
+        """Export the filtered view to PDF. Capped at PDF_ROW_CAP — rendering a
+        huge document synchronously on the UI thread would otherwise freeze zLog
+        for a very long time to produce an unusably large file."""
+        entries = self._maybe_redact(self._filtered_entries())
+        if len(entries) > PDF_ROW_CAP:
+            reply = QMessageBox.question(
+                self,
+                "Large export",
+                f"The filtered view has {len(entries):,} lines. PDF export is capped at "
+                f"{PDF_ROW_CAP:,} to avoid a huge, slow file — narrow the filter first for "
+                "everything, or export just the first "
+                f"{PDF_ROW_CAP:,} lines now?",
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if reply != QMessageBox.Yes:
+                return
+            entries = entries[:PDF_ROW_CAP]
+        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PDF", f"zlog-{stamp}.pdf", "PDF files (*.pdf);;All files (*)"
+        )
+        if not path:
+            return
+        doc_html = to_print_html(entries, title="zLog export", query=self.query.text())
+        try:
+            pages = write_pdf(doc_html, path)
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not export PDF: {exc}")
+            return
+        redacted = " (redacted)" if self.redact_action.isChecked() else ""
+        self.statusBar().showMessage(
+            f"Exported {len(entries)} lines ({pages} page(s)) to {Path(path).name}{redacted}."
+        )
+
     # --- sessions ----------------------------------------------------------
     def save_session(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -2689,6 +2766,9 @@ class MainWindow(QMainWindow):
         def set_watch(v):
             self._apply_watch(v if isinstance(v, str) else "", announce=False)
 
+        def set_watch_command(v):
+            self._watch_command = str(v) if isinstance(v, str) else ""
+
         def set_extract_patterns(v):
             items = v if isinstance(v, list) else []
             self._extract_patterns = [str(p) for p in items if str(p).strip()]
@@ -2818,6 +2898,7 @@ class MainWindow(QMainWindow):
             ("recent_files", lambda: self._recent, set_recent),
             ("tabs", lambda: tabs_to_json(self._tab_states()), set_tabs),
             ("watch", lambda: self._watch_pattern, set_watch),
+            ("watch_command", lambda: self._watch_command, set_watch_command),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             ("fold_traces", self.fold_action.isChecked, set_fold),
@@ -3152,6 +3233,7 @@ class MainWindow(QMainWindow):
         hits = self._watch_hits(entries)
         if hits:
             self._notify_watch(hits[-1])
+            self._run_watch_command(hits[-1])
         active = sess is self._active
         if sess.paused:
             sess.pause_buffer.extend(entries)

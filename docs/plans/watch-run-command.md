@@ -1,6 +1,6 @@
 # Plan: Watch action — run a command
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [watch-pattern.md](watch-pattern.md), [windows-app-focus.md](windows-app-focus.md)
@@ -58,18 +58,29 @@ same point. The only real design work is doing it **safely**.
 
 ## Verification
 
-- [ ] `uv run pytest` (expansion + injection-resistance tests)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] `uv run pytest` (expansion + injection-resistance tests)
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
 - [ ] Manual: set a watch on a common word with a command that appends to a file;
       confirm it runs, is throttled, and that a line with `;` and quotes in it
       doesn't execute anything extra.
 
-## Open questions
+## Resolved
 
-- **Throttle:** reuse the notification throttle, or a separate (longer) one for
-  commands? Leaning separate and longer — spawning a process is far heavier than
-  a beep.
-- **Confirmation:** prompt the first time a command is configured, since this
-  executes arbitrary programs? Leaning a one-time confirm in the dialog.
-- Placeholder for the **whole raw line** as one argument, in addition to fields?
-  Probably yes — `{line}`.
+- **Throttle:** separate and longer — 10s for the command vs. 3s for the
+  notification, since spawning a process is heavier than a beep.
+- **Confirmation:** `WatchDialog` + a `QMessageBox.question` in
+  `_set_watch_dialog` confirm whenever the command text changes to something
+  new (not just once ever) — cheap and catches edits, not only first-time setup.
+- **`{line}`:** added alongside `{message}`/`{tag}`/`{pid}`/`{level}`/`{time}`.
+
+## Implementation notes
+
+- `core/watch_action.expand_command` splits the **template** with `shlex`
+  (matching `launcher.build_argv`'s `posix=(os.name != "nt")` convention) before
+  substituting placeholders into the resulting argv slots — so untrusted log
+  content never re-enters argv splitting and can't inject an argument or
+  metacharacter.
+- `ui/watch_dialog.WatchDialog` replaces the old single-field `QInputDialog`.
+- Settings gained a `watch_command` key alongside `watch`; `_apply_watch` takes
+  an optional `command` (default `None` = leave unchanged) so the settings
+  loader for `watch` doesn't clobber a separately-loaded `watch_command`.

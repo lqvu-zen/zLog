@@ -78,6 +78,8 @@ def build_menus(win) -> None:
     ):
         act = export_menu.addAction(f"{name}…")
         act.triggered.connect(lambda _checked=False, n=name, f=fmt, e=ext: win._export(n, f, e))
+    pdf_act = export_menu.addAction("PDF…")
+    pdf_act.triggered.connect(win._export_pdf)
 
     view_menu = win.menuBar().addMenu("&View")
 

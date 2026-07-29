@@ -888,6 +888,55 @@ def test_watch_hits_and_clear(window):
     assert window._watch_hits([LogEntry("t", "1", "2", "E", "T", "boom")]) == []
 
 
+def test_run_watch_command_spawns_argv_and_throttles(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(
+        "zlog.ui.main_window.subprocess.Popen",
+        lambda argv, **kw: calls.append(argv),
+    )
+    window._watch_command = "notify {tag} {message}"
+    window._watch_cmd_last = 0.0
+    entry = LogEntry("t", "1", "2", "E", "Crash", "boom")
+    window._run_watch_command(entry)
+    window._run_watch_command(entry)  # throttled: no second spawn
+    assert calls == [["notify", "Crash", "boom"]]
+
+
+def test_run_watch_command_no_command_does_nothing(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(
+        "zlog.ui.main_window.subprocess.Popen",
+        lambda argv, **kw: calls.append(argv),
+    )
+    window._watch_command = ""
+    window._run_watch_command(LogEntry("t", "1", "2", "E", "Crash", "boom"))
+    assert calls == []
+
+
+def test_run_watch_command_reports_failure_without_raising(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    def boom(argv, **kw):
+        raise OSError("not found")
+
+    monkeypatch.setattr("zlog.ui.main_window.subprocess.Popen", boom)
+    window._watch_command = "missing-exe {message}"
+    window._watch_cmd_last = 0.0
+    window._run_watch_command(LogEntry("t", "1", "2", "E", "Crash", "boom"))  # must not raise
+
+
+def test_apply_watch_leaves_command_unchanged_when_not_passed(window):
+    window._watch_command = "echo {message}"
+    window._apply_watch("newpattern", announce=False)
+    assert window._watch_command == "echo {message}"
+    window._apply_watch("otherpattern", command="", announce=False)
+    assert window._watch_command == ""
+
+
 def test_new_window_is_independent(window):
     from zlog.ui.main_window import MainWindow
 
