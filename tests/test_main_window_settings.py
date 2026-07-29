@@ -433,8 +433,11 @@ def test_goto_empty_table_no_op(window, monkeypatch):
 
 def test_clear_device_button_no_device(window):
     # The dedicated device-buffer button exists and, with no device selected,
-    # routes through the guarded path (status message, no crash).
+    # routes through the guarded path (status message, no crash). The picker
+    # always has at least "This PC" (see local-source-in-device-box.md), so a
+    # genuine "no device" state only arises via the device-listing-failed path.
     assert hasattr(window, "clear_device_btn")
+    window._show_device_error("Connect a device and press Refresh (USB debugging on).")
     window.clear_device_btn.click()
     assert "device" in window.statusBar().currentMessage().lower()
 
@@ -476,7 +479,11 @@ def test_clear_device_button_clears_view(window, monkeypatch):
     from zlog.core.models import LogEntry
 
     monkeypatch.setattr(mw, "clear_logcat", lambda *a, **k: True)
-    monkeypatch.setattr(window, "_current_serial", lambda: "SER123")
+    # A real adb device (not "This PC") so clear_device_btn is actually enabled —
+    # is_local_source gates it off for the local pseudo-device (see
+    # local-source-in-device-box.md).
+    window._populate_devices([Device("SER123", "device")])
+    assert window._current_serial() == "SER123"
     window.model.append_entries([LogEntry("t", "1", "2", "I", "T", "hi")])
     assert window.model.rowCount() == 1
     window.clear_device_btn.click()

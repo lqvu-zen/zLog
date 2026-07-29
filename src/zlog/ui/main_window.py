@@ -2648,17 +2648,32 @@ class MainWindow(QMainWindow):
         self._counts_timer.start()  # coalesces a burst of row signals into one recompute
 
     def _do_follow_scroll(self) -> None:
-        if not self.follow_check.isChecked():
+        if not self._follow_scroll_wanted():
             return
-        if self.table.selectionModel().hasSelection():
-            return  # selected between the batch arming this timer and it firing
         self.table.scrollToBottom()
-        # In wrap mode the rows just scrolled into view are still one line tall until
-        # fitted, so the first scrollToBottom stops short of the true bottom. Grow the
-        # now-visible rows, then re-pin — otherwise Follow visibly lags behind.
         if self.log_delegate.wrap:
+            # The rows just scrolled into view are still one line tall until
+            # fitted, so scrollToBottom stops short of the true bottom. Grow
+            # them, then re-pin — otherwise Follow visibly lags behind.
             self._fit_visible_rows()
             self.table.scrollToBottom()
+        # After a large burst the scrollbar's range can still be settling (Qt
+        # grows `maximum()` a little further on the next event-loop turn), so
+        # even the re-pin above can land one or more rows short. A zero-delay
+        # timer re-checks the guards (state may have changed by then) and
+        # re-pins once more against the now-settled range.
+        QTimer.singleShot(0, self._repin_follow_scroll)
+
+    def _repin_follow_scroll(self) -> None:
+        if self._follow_scroll_wanted():
+            self.table.scrollToBottom()
+
+    def _follow_scroll_wanted(self) -> bool:
+        if not self.follow_check.isChecked():
+            return False
+        if self.table.selectionModel().hasSelection():
+            return False  # selected between the batch arming this timer and it firing
+        return True
 
     def _jump_to_latest(self) -> None:
         """Explicit "go to now" — let go of any selection so Follow's
