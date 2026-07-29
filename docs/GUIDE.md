@@ -20,9 +20,13 @@ through everyday use.
 
 - A **device bar** holds the **Device** dropdown and the stream controls:
   refresh, start, stop, clear, a **Follow** toggle, and jump-to-oldest / newest.
-  A **Package** selector sits on the same bar: **Load** fills it with the
-  process/package names seen in the current log (no device needed), and picking
-  one filters the view (a `proc:` token) — the selection and the query stay in sync.
+  An **App** selector sits on the same bar: **Load** fills it with the
+  process/package names seen in the current log *and*, on Windows, the ones
+  currently running on this PC (a name in both is marked **●**); pick one and
+  **Apply** filters the view (a `proc:` token) — the selection and the query
+  stay in sync. **Browse…** opens a searchable picker over the full running-process
+  list when the name you want hasn't logged anything yet, or you need to pin one
+  exact PID.
 - Below it, a **filter bar** holds the **query bar** on its own full-width row,
   with a **Level** dropdown for the minimum severity.
 - The menu bar has **File**, **View**, and **Settings…**. File handles open/save,
@@ -30,7 +34,7 @@ through everyday use.
   bookmarks, zoom, presets, tag summary); **Settings…** opens the preferences dialog.
 - A **Saved Filters** sidebar (left) lists your saved query presets for one-click use.
 - **View → Restore Tabs on Launch** brings back the tabs you had open — each file
-  reopened with its query and package filter. A file that's since moved is skipped
+  reopened with its query and app filter. A file that's since moved is skipped
   quietly. Live captures aren't resumed: a streaming tab returns as an empty tab
   with its filter intact, so nothing starts recording behind your back.
 - Each tab shows its **state and size** at a glance: **●** streaming, **⏸** paused,
@@ -96,11 +100,17 @@ Windows-only feature; on other platforms the action reports that and does nothin
 
 ### Focusing on one app
 
-**Focus App…** (next to the package box) lists the running processes — search by
-name or PID, pick yours, and the view narrows to it. This just writes a
-`proc:<name>` token into the query bar, so it combines with everything else
-(`level:E`, excludes, presets). Focusing by **name** is the default so the filter
-survives the app restarting; tick **This PID only** to pin one exact process.
+The **App** selector on the device bar is one control for both cases. **Load**
+lists names seen in the current log plus (on Windows) everything currently
+running, so **Apply** narrows the view to whichever you pick — same `proc:<name>`
+token either way, combining with everything else (`level:E`, excludes, presets).
+
+If the app you want hasn't logged anything yet, or several processes share a
+name and you need one exact instance, click **Browse…** for a searchable picker
+over the full running-process list. Focusing by **name** is the default so the
+filter survives the app restarting; tick **This PID only** to pin one exact
+process — picking either way fills the App box and applies, so it ends in the
+same place as Load/Apply.
 
 ### Launching the app from zLog
 
@@ -160,7 +170,7 @@ The **Level** dropdown and the query's `level:` token stay in sync — pick a le
 it appears in the query; type `level:W` and the dropdown follows.
 
 **Right-click a line → Filter to…** to add its **Level**, **Tag**, **PID**, or
-**Package** to the query without typing. Right-click also offers muting a tag and
+**App** to the query without typing. Right-click also offers muting a tag and
 highlighting a tag with a color.
 
 An invalid regex tints the query bar and keeps your previous filter. The status bar

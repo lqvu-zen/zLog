@@ -163,6 +163,19 @@ def scenario_package_from_log(window: MainWindow) -> None:
     _shot(window, "package-from-log")
 
 
+def scenario_app_filter_merged(window: MainWindow) -> None:
+    # Real winlog.processes.list_processes() (this machine's actual running
+    # processes) merged with a couple of log-seen names, to sanity-check the
+    # merge/marker path against a real Windows process list, not a fake one.
+    window.model.merge_process_names({"1287": "com.example.app", "980": "explorer.exe"})
+    window.load_packages()  # dropdown now holds log names + real running processes
+    items = [window.package_box.itemText(i) for i in range(window.package_box.count())]
+    marked = [i for i in items if i.endswith("●")]
+    print(f"App box: {len(items)} total, {len(marked)} marked running: {marked}")
+    print(f"Status: {window.statusBar().currentMessage()}")
+    _shot(window, "app-filter-merged")
+
+
 def scenario_regex_search(window: MainWindow) -> None:
     _seed(window, 8)
     window.proxy.set_search("Exception|Skipped", regex=True)
@@ -492,6 +505,7 @@ SCENARIOS = {
     "devices": scenario_devices,
     "package-filter": scenario_package_filter,
     "package-from-log": scenario_package_from_log,
+    "app-filter-merged": scenario_app_filter_merged,
     "regex-search": scenario_regex_search,
     "time-range-filter": scenario_time_range_filter,
     "isolate": scenario_isolate,

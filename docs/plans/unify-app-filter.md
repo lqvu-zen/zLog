@@ -1,6 +1,6 @@
 # Plan: One app filter (merge Focus App into Load/Apply)
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [windows-app-focus.md](windows-app-focus.md), [package-filter.md](package-filter.md), [local-source-in-device-box.md](local-source-in-device-box.md)
@@ -74,18 +74,24 @@ The merge is mostly in the **candidate list**; both paths already converge on
 
 ## Verification
 
-- [ ] `uv run pytest` (merge/dedupe/marker purity + the window paths)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] `run-zlog` screenshot of the unified row
-- [ ] Manual on Windows: Load with a capture running → both sources listed, the
-      overlap marked; Apply filters; Browse… → pick → same result.
+- [x] `uv run pytest` (merge/dedupe/marker purity + the window paths) — 696 passed
+      (3 pre-existing failures in `test_main_window_settings.py` unrelated to this
+      change, confirmed by reproducing them on a stashed clean `main`)
+- [x] `uv run ruff check .` and `uv run ruff format --check .`
+- [x] `run-zlog` screenshot of the unified row (`smoke-idle.png`)
+- [x] Manual on Windows: added a `driver.py app-filter-merged` scenario that runs
+      the real (unmocked) `winlog.processes.list_processes()` on this machine —
+      Load merged 2 log names with 391 real running processes, correctly marking
+      the one overlap (`explorer.exe ●`); status line read "2 from the log, 391
+      running." Apply/Browse… paths are covered by the window tests
+      (`test_apply_strips_running_marker`, `test_focus_app_sets_query_by_name`).
 
-## Open questions
+## Decisions
 
-- **Marker glyph:** `●` (matches the tab-bar "live" marker) vs. a `(running)`
-  suffix. Leaning `●` for width, with the meaning in the tooltip/status line.
-- **Should Load auto-run** when a Windows capture starts, so the box is populated
-  without asking? Leaning no — Load stays explicit and cheap to reason about.
-- Keep the name "Package" for the label, or rename to "App"? Leaning **App**,
-  since it now covers Windows processes too — but that touches the Android
-  vocabulary, so it's worth a deliberate call.
+- **Marker glyph:** `●` suffix (e.g. `myapp.exe ●`), matching the tab bar's
+  live-session marker. Meaning is spelled out in the tooltip/status line.
+- **Label:** rename "Package" to **"App"** throughout the UI (box label, button
+  tooltips, status-line wording) since it now spans Android packages and Windows
+  processes.
+- **Load auto-run:** stays explicit — Load is not triggered automatically when a
+  Windows capture starts.

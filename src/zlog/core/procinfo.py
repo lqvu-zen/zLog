@@ -16,6 +16,11 @@ from zlog.core.query import remove_span, token_spans
 # the new one and hide everything.
 _FOCUS_KINDS = ("proc", "package", "pid")
 
+# Glyph marking a name that's both log-seen and currently running, in the merged
+# Load list (see `merge_candidates`). Matches the tab bar's live-session marker
+# so "still running" reads the same way everywhere.
+RUNNING_MARKER = "●"
+
 
 @dataclass(frozen=True, slots=True)
 class ProcessInfo:
@@ -41,6 +46,33 @@ def filter_processes(procs, needle: str) -> list[ProcessInfo]:
     if not text:
         return list(procs)
     return [p for p in procs if text in p.name.lower() or text in str(p.pid)]
+
+
+def merge_candidates(log_names, running) -> list[str]:
+    """Union of `log_names` (strings) and `running` (`ProcessInfo`s) for the App
+    box's Load list: case-insensitively deduped and sorted, with a name that's in
+    both marked `"name ●"` so it reads apart from a merely historical one. Either
+    side may be empty (off Windows, `running` always is) with no special-casing.
+    """
+    log_by_key = {name.lower(): name for name in log_names if name}
+    running_by_key = {p.name.lower(): p.name for p in running if p.name}
+    merged = []
+    for key in log_by_key.keys() | running_by_key.keys():
+        name = log_by_key.get(key) or running_by_key[key]
+        if key in log_by_key and key in running_by_key:
+            name = f"{name} {RUNNING_MARKER}"
+        merged.append(name)
+    return sorted(merged, key=str.lower)
+
+
+def strip_marker(text: str) -> str:
+    """Undo the `merge_candidates` marker, so Apply/typing a marked entry (picked
+    from the dropdown, or copy-pasted) still resolves to the plain name. Text
+    without the marker passes through unchanged."""
+    text = text.strip()
+    if text.endswith(RUNNING_MARKER):
+        text = text[: -len(RUNNING_MARKER)].rstrip()
+    return text
 
 
 def focus_query(query: str, *, name: str | None = None, pid: int | None = None) -> str:

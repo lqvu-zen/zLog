@@ -173,4 +173,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [pdf-export.md](pdf-export.md) | Done | Export the filtered log to PDF via the existing HTML exporter |
 | [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |
 | [local-source-in-device-box.md](local-source-in-device-box.md) | Done | Pick "This PC" in the device box and press Start to capture Windows debug output |
-| [unify-app-filter.md](unify-app-filter.md) | Draft | One app filter: Load offers log-seen + running processes; Focus App becomes Browse… |
+| [unify-app-filter.md](unify-app-filter.md) | Done | One app filter: Load offers log-seen + running processes; Focus App becomes Browse… |

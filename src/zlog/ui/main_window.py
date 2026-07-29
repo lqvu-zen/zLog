@@ -668,28 +668,37 @@ class MainWindow(QMainWindow):
         self.dumpsys_act.setEnabled(adb)
 
     def _update_package_enabled(self) -> None:
-        # The package selector is log-driven (proc: filter), so it's always
-        # usable — no live device required; Load just reflects the current log.
+        # The App selector is log-driven (proc: filter) plus, on Windows, the
+        # running-process list, so it's always usable — no live device required;
+        # Load just reflects what's available right now.
         for w in (self.package_box, self.load_pkgs_btn, self.apply_pkg_btn, self.clear_pkg_btn):
             w.setEnabled(True)
 
-    # --- package selector (log-driven; syncs with the proc: query token) ----
+    # --- App selector (log-driven + running processes; syncs with proc:) ----
     def load_packages(self) -> None:
-        """Fill the dropdown with the process/package names the current log has
-        parsed — no adb, so it works on an opened offline log too."""
-        names = self.model.process_names()
+        """Fill the dropdown with process/app names seen in the current log and
+        (on Windows) currently running on this PC — no adb needed for either, so
+        it works on an opened offline log too. A name in both is marked "●"."""
+        from zlog.core.procinfo import merge_candidates
+        from zlog.winlog.processes import list_processes
+
+        log_names = self.model.process_names()
+        running = list_processes()
+        names = merge_candidates(log_names, running)
         current = self.package_box.currentText()
         self.package_box.blockSignals(True)  # repopulating must not self-apply
         self.package_box.clear()
         self.package_box.addItems(names)
         self.package_box.setEditText(current)
         self.package_box.blockSignals(False)
-        self.statusBar().showMessage(f"{len(names)} package(s) from the log.")
+        self.statusBar().showMessage(f"{len(log_names)} from the log, {len(running)} running.")
 
     def apply_package_filter(self) -> None:
-        """Filter to the chosen package via a proc: query token (matches the log's
-        resolved process name). Empty text clears the package filter."""
-        package = self.package_box.currentText().strip()
+        """Filter to the chosen app via a proc: query token (matches the log's
+        resolved process name). Empty text clears the filter."""
+        from zlog.core.procinfo import strip_marker
+
+        package = strip_marker(self.package_box.currentText())
         if package:
             self._add_query_token(f"proc:{package}")
         else:
@@ -698,7 +707,7 @@ class MainWindow(QMainWindow):
     def clear_package_filter(self) -> None:
         self._remove_query_token("proc")
         self.package_box.setEditText("")
-        self.statusBar().showMessage("Package filter cleared.")
+        self.statusBar().showMessage("App filter cleared.")
 
     def clear_filters(self) -> None:
         """Reset every filter to 'show everything' without touching the log."""
@@ -2186,7 +2195,7 @@ class MainWindow(QMainWindow):
                 )
             proc = self.model.process_name(entry.pid) if entry.pid else ""
             if proc:
-                act = filt.addAction(f"Package: {proc}")
+                act = filt.addAction(f"App: {proc}")
                 act.triggered.connect(lambda _c=False, pr=proc: self._add_query_token(f"proc:{pr}"))
             filt.setEnabled(bool(entry.level or entry.tag or entry.pid))
             excl = menu.addMenu("Exclude…")
@@ -2199,7 +2208,7 @@ class MainWindow(QMainWindow):
                     lambda _c=False, pid=entry.pid: self._add_query_token(f"-pid:{pid}")
                 )
             if proc:
-                ex_proc = excl.addAction(f"Package: {proc}")
+                ex_proc = excl.addAction(f"App: {proc}")
                 ex_proc.triggered.connect(
                     lambda _c=False, pr=proc: self._add_query_token(f"-proc:{pr}")
                 )
@@ -3184,9 +3193,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Following {reader.name} — new lines appear live.")
 
     def focus_app(self) -> None:
-        """Pick a running process and narrow the view to it — the Windows
-        counterpart of the Android package filter. Focus is expressed as a
-        `proc:`/`pid:` query token, so chips, presets, and export all follow."""
+        """Pick a running process (Browse…) and narrow the view to it — writing
+        into the App box either way, so this ends in the same place as Load/Apply.
+        "This PID only" still goes straight to a `pid:` token (the App box only
+        ever holds names)."""
         from zlog.core.procinfo import focus_query
         from zlog.ui.process_dialog import ProcessPickerDialog
 
@@ -3196,11 +3206,11 @@ class MainWindow(QMainWindow):
         proc = dialog.selected()
         if proc is None:
             return
+        self.package_box.setEditText(proc.name)
         if dialog.focus_by_pid():
-            text = focus_query(self.query.text(), pid=proc.pid)
+            self._set_query_text(focus_query(self.query.text(), pid=proc.pid))
         else:
-            text = focus_query(self.query.text(), name=proc.name)
-        self._set_query_text(text)
+            self.apply_package_filter()
         self.statusBar().showMessage(f"Focused on {proc.label}.")
 
     def launch_app(self) -> None:

@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from zlog.core.procinfo import ProcessInfo, filter_processes, focus_query, sort_processes
+from zlog.core.procinfo import (
+    ProcessInfo,
+    filter_processes,
+    focus_query,
+    merge_candidates,
+    sort_processes,
+    strip_marker,
+)
 
 PROCS = [
     ProcessInfo(1200, "notepad.exe"),
@@ -65,3 +72,31 @@ def test_focus_quotes_name_with_space():
 
 def test_focus_clears_when_no_target():
     assert focus_query("proc:old.exe level:E") == "level:E"
+
+
+# --- merge_candidates / strip_marker (App box Load list) -------------------
+def test_merge_dedupes_case_insensitively_and_sorts():
+    log_names = ["com.example.app", "myapp.exe"]
+    running = [ProcessInfo(7, "MyApp.exe"), ProcessInfo(8, "notepad.exe")]
+    assert merge_candidates(log_names, running) == [
+        "com.example.app",
+        "myapp.exe ●",
+        "notepad.exe",
+    ]
+
+
+def test_merge_marks_only_the_overlap():
+    out = merge_candidates(["log-only"], [ProcessInfo(1, "running-only")])
+    assert out == ["log-only", "running-only"]  # neither marked, neither shared
+
+
+def test_merge_survives_either_side_empty():
+    assert merge_candidates([], [ProcessInfo(1, "a.exe")]) == ["a.exe"]
+    assert merge_candidates(["a.exe"], []) == ["a.exe"]
+    assert merge_candidates([], []) == []
+
+
+def test_strip_marker_round_trips():
+    assert strip_marker("myapp.exe ●") == "myapp.exe"
+    assert strip_marker("myapp.exe") == "myapp.exe"
+    assert strip_marker("  myapp.exe ●  ") == "myapp.exe"

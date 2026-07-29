@@ -99,6 +99,7 @@ def test_focus_app_sets_query_by_name(window, monkeypatch):
     window.query.setText("level:E")
     window.focus_app()
     assert window.query.text() == "level:E proc:target.exe"
+    assert window.package_box.currentText() == "target.exe"  # same path as Apply
 
 
 def test_focus_app_by_pid_option(window, monkeypatch):
@@ -177,4 +178,5 @@ def test_launch_app_starts_reader_and_focuses(window, monkeypatch):
 
 def test_focus_app_button_exists(window):
     assert window.focus_app_btn is not None
+    assert window.focus_app_btn.text() == "Browse…"
     assert window.launch_app_act is not None
