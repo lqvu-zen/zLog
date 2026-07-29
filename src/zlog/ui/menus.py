@@ -58,6 +58,12 @@ def build_menus(win) -> None:
         "captures OutputDebugString; filter to your app with proc: / pid:"
     )
     win.capture_debug_act.triggered.connect(win.capture_debug_output)
+    win.capture_evtlog_act = file_menu.addAction("Capture &Event Log…")
+    win.capture_evtlog_act.setToolTip(
+        "Stream a Windows Event Log channel (Application/System/Security/…) — "
+        "crashes and OS-level events, complementing debug-output capture"
+    )
+    win.capture_evtlog_act.triggered.connect(win.capture_event_log)
     win.launch_app_act = file_menu.addAction("&Launch App…")
     win.launch_app_act.setToolTip(
         "Start a program and capture its console output (and its Windows "
@@ -78,6 +84,8 @@ def build_menus(win) -> None:
     ):
         act = export_menu.addAction(f"{name}…")
         act.triggered.connect(lambda _checked=False, n=name, f=fmt, e=ext: win._export(n, f, e))
+    pdf_act = export_menu.addAction("PDF…")
+    pdf_act.triggered.connect(win._export_pdf)
 
     view_menu = win.menuBar().addMenu("&View")
 

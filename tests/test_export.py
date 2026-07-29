@@ -4,7 +4,7 @@ import csv
 import io
 import json
 
-from zlog.core.export import FIELDS, to_csv, to_html, to_json
+from zlog.core.export import FIELDS, to_csv, to_html, to_json, to_print_html
 from zlog.core.models import LogEntry
 
 
@@ -52,6 +52,30 @@ def test_markdown_table_and_pipe_escape():
     assert set(md[1]) <= set("|-")  # separator row
     # pipe escaped, newline flattened so the table stays intact
     assert md[2].endswith(r"a \| b c |")
+
+
+def test_print_html_has_header_colors_and_escaping():
+    out = to_print_html(
+        _entries(), title="My Capture", query="tag:Crash & <hi>", generated="2026-07-29 10:00:00"
+    )
+    assert out.startswith("<!DOCTYPE html>")
+    assert "<h1>My Capture</h1>" in out
+    assert "2026-07-29 10:00:00" in out
+    assert "2 line(s)" in out
+    # the query is embedded in the header and must be escaped too
+    assert "tag:Crash &amp; &lt;hi&gt;" in out
+    assert "<tag:Crash" not in out
+    assert 'class="lvl-E"' in out
+    assert "&lt;boom&gt; &amp; fail" in out
+    assert "page-break-inside: avoid" in out
+
+
+def test_print_html_empty_is_valid_and_defaults_title():
+    out = to_print_html([])
+    assert "<h1>zLog export</h1>" in out
+    assert "0 line(s)" in out
+    assert "<table>" in out
+    assert "Query:" not in out  # omitted when no query is active
 
 
 def test_messages_only():

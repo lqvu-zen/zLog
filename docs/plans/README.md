@@ -165,11 +165,11 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [windows-app-focus.md](windows-app-focus.md) | Done | Process picker to focus one Windows app + File → Launch App… (captures its stdout/stderr and debug output) |
 | [main-window-split.md](main-window-split.md) | Done | Split main_window.py: extract construction into build.py/menus.py, unify the 4 reader-start paths behind a CaptureController |
 | [file-follow.md](file-follow.md) | Done | Follow a log file live (tail -f), incl. rotation/truncation — cross-platform |
-| [windows-event-log.md](windows-event-log.md) | Draft | Stream Windows Event Log channels (Application/System/Security) as a source |
+| [windows-event-log.md](windows-event-log.md) | Done | Stream Windows Event Log channels (Application/System/Security) as a source |
 | [etw-tracing.md](etw-tracing.md) | Draft | ETW real-time provider tracing (bigger bet; do the cheaper sources first) |
 | [persist-tabs.md](persist-tabs.md) | Done | Reopen the previous session's tabs (files + queries) on launch |
-| [theme-editor.md](theme-editor.md) | Draft | Edit theme colors and save a custom theme |
-| [watch-run-command.md](watch-run-command.md) | Draft | Watch action: run a command on a hit (argv-only, no shell) |
-| [pdf-export.md](pdf-export.md) | Draft | Export the filtered log to PDF via the existing HTML exporter |
+| [theme-editor.md](theme-editor.md) | Done | Edit theme colors and save a custom theme |
+| [watch-run-command.md](watch-run-command.md) | Done | Watch action: run a command on a hit (argv-only, no shell) |
+| [pdf-export.md](pdf-export.md) | Done | Export the filtered log to PDF via the existing HTML exporter |
 | [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |
 | [local-source-in-device-box.md](local-source-in-device-box.md) | Done | Pick "This PC" in the device box and press Start to capture Windows debug output |

@@ -112,6 +112,19 @@ Windows, its `OutputDebugString` tracing, then focuses the view on it. **Stop**
 ends the capture and closes the app. A GUI app usually prints nothing to the
 console — that's normal, its debug output still arrives.
 
+### Streaming the Windows Event Log
+
+**File → Capture Event Log…** streams a Windows Event Log channel — crashes,
+service failures, and OS/driver events, including for apps that never call
+`OutputDebugString`. Pick a channel (Application, System, Setup, Security, or
+type any other channel name) and it opens a tab, backfilling the last 200
+existing events before streaming new ones live. Provider name maps to `tag`,
+process/thread id to `pid`/`tid`, and severity to level (Critical/Error →
+`F`/`E`, Warning → `W`, Information/Verbose → `I`/`V`) — so `level:`, `tag:`,
+`pid:`, and Tag Summary all work exactly as they do for logcat. **Security**
+normally needs an elevated (administrator) zLog. **Stop** ends the capture.
+Windows-only; the action reports that and does nothing elsewhere.
+
 ## Filtering with the query bar
 
 Type in the **query bar** to narrow the view. Terms combine — a line must match all
@@ -195,9 +208,18 @@ speed. The detail pane always shows the complete text of the selected line regar
 
 ## Themes
 
-Switch between **Light** and **Dark** in **Settings → Appearance → Theme**.
+Switch between **Light**, **Dark**, **Solarized Dark**, and **Monokai** in
+**Settings → Appearance → Theme**.
 
 ![Light theme](images/guide-light.png)
+
+Click **Edit theme…** next to the picker to open the theme editor: swatches for
+every color (grouped into General / Level backgrounds / Level text) with a hex
+field beside each one. Edits repaint the log immediately so you can see the
+result before committing to it; **Revert** undoes everything back to the theme
+you opened the editor with, and **Cancel** discards the whole live preview.
+**Save** asks for a name (rejecting one that collides with a built-in theme)
+and adds it to the theme picker, persisted across launches like the built-ins.
 
 ## Reading, bookmarking, and zoom
 
@@ -217,7 +239,11 @@ From the **File** menu:
 
 - **Save Log…** (Ctrl+S) writes everything captured to a `.log` file in the standard
   `logcat` text format — readable in any editor. **Save Filtered Log…** writes only
-  the lines currently visible. **Export** writes CSV / JSON / HTML.
+  the lines currently visible. **Export** writes CSV / JSON / HTML / PDF — all four
+  export what's currently visible (filtered), masked by **Redact secrets** if that's
+  on. PDF is landscape A4 with level colors, a header (title/query/line count), and
+  page numbers; captures over 50,000 lines are capped with a prompt to narrow the
+  filter or export just the first 50,000.
 - **Open Log…** (Ctrl+O) loads a saved file to read offline, with no device attached.
   Opening a file stops any live stream first.
 - **Save Session… / Open Session…** keep the log together with its filters, tag
@@ -252,6 +278,25 @@ ends all the device streams at once.
 **File → Capture dumpsys…** saves a one-shot `adb shell dumpsys` to a text file —
 leave the service blank for everything, or name one (e.g. `battery`, `meminfo`,
 `activity`) to grab just that. Handy to keep next to a log for context.
+
+## Watching for a pattern
+
+**View → Set Watch…** notifies you when a captured line contains a substring —
+handy while a build runs in the background. It matches `tag + message`
+regardless of the current filter, and throttles to at most one notification
+every 3 seconds. It shows a system-tray toast if one is available, otherwise a
+status-bar message plus a beep.
+
+Optionally, set a **Run command** too: on a hit, zLog runs it (throttled to at
+most once every 10 seconds) with placeholders substituted from the matching
+line — `{message}` `{tag}` `{pid}` `{level}` `{time}` `{line}` (the whole
+line). The command is parsed into its own argv **before** any log data is
+inserted and always run **without a shell**, so a matched line containing `;`,
+`&&`, or quotes can't inject anything — it just becomes literal text inside one
+argument. zLog asks you to confirm the first time you set a new command, since
+it runs an arbitrary program on your machine. Example: `myscript.exe {tag}
+{message}` to log a hit, or a notifier that pops up a bigger alert than the
+built-in toast.
 
 ## Command line (headless tail)
 

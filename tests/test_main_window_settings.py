@@ -888,6 +888,55 @@ def test_watch_hits_and_clear(window):
     assert window._watch_hits([LogEntry("t", "1", "2", "E", "T", "boom")]) == []
 
 
+def test_run_watch_command_spawns_argv_and_throttles(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(
+        "zlog.ui.main_window.subprocess.Popen",
+        lambda argv, **kw: calls.append(argv),
+    )
+    window._watch_command = "notify {tag} {message}"
+    window._watch_cmd_last = 0.0
+    entry = LogEntry("t", "1", "2", "E", "Crash", "boom")
+    window._run_watch_command(entry)
+    window._run_watch_command(entry)  # throttled: no second spawn
+    assert calls == [["notify", "Crash", "boom"]]
+
+
+def test_run_watch_command_no_command_does_nothing(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(
+        "zlog.ui.main_window.subprocess.Popen",
+        lambda argv, **kw: calls.append(argv),
+    )
+    window._watch_command = ""
+    window._run_watch_command(LogEntry("t", "1", "2", "E", "Crash", "boom"))
+    assert calls == []
+
+
+def test_run_watch_command_reports_failure_without_raising(window, monkeypatch):
+    from zlog.core.models import LogEntry
+
+    def boom(argv, **kw):
+        raise OSError("not found")
+
+    monkeypatch.setattr("zlog.ui.main_window.subprocess.Popen", boom)
+    window._watch_command = "missing-exe {message}"
+    window._watch_cmd_last = 0.0
+    window._run_watch_command(LogEntry("t", "1", "2", "E", "Crash", "boom"))  # must not raise
+
+
+def test_apply_watch_leaves_command_unchanged_when_not_passed(window):
+    window._watch_command = "echo {message}"
+    window._apply_watch("newpattern", announce=False)
+    assert window._watch_command == "echo {message}"
+    window._apply_watch("otherpattern", command="", announce=False)
+    assert window._watch_command == ""
+
+
 def test_new_window_is_independent(window):
     from zlog.ui.main_window import MainWindow
 
@@ -1101,3 +1150,73 @@ def test_counts_recompute_is_debounced(window):
     window._counts_timer.stop()
     window._update_counts()
     assert window.count_label.text()
+
+
+def test_open_theme_editor_registers_and_applies_custom_theme(window, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    from zlog.core.theme import LIGHT
+    from zlog.ui.theme import THEMES
+    from zlog.ui.theme_editor import ThemeEditorDialog
+
+    custom = LIGHT.__class__(**{**vars(LIGHT), "name": "My Theme", "window": "#123456"})
+
+    def fake_exec(self):
+        self.result_theme = custom
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ThemeEditorDialog, "exec", fake_exec)
+    try:
+        window._open_theme_editor()
+        assert THEMES["My Theme"] is custom
+        assert window._theme_name == "My Theme"
+        assert any(t.name == "My Theme" for t in window._custom_themes)
+        assert any(
+            act.text() == "My Theme" and act.isChecked() for act in window._theme_group.actions()
+        )
+    finally:
+        THEMES.pop("My Theme", None)
+
+
+def test_custom_theme_round_trips_through_settings(qapp, tmp_path, monkeypatch):
+    from zlog.core.theme import LIGHT
+    from zlog.ui.main_window import MainWindow
+    from zlog.ui.theme import THEMES
+
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: path)
+
+    custom = LIGHT.__class__(**{**vars(LIGHT), "name": "Round Trip", "text": "#abcdef"})
+    try:
+        w1 = MainWindow()
+        from zlog.ui.theme import register_theme
+
+        register_theme(custom)
+        w1._custom_themes.append(custom)
+        w1.apply_theme("Round Trip")
+        w1._save_settings()
+
+        THEMES.pop("Round Trip", None)  # simulate a fresh process: registry starts empty
+
+        w2 = MainWindow()  # must not KeyError looking up "Round Trip" in THEMES
+        assert w2._theme_name == "Round Trip"
+        assert THEMES["Round Trip"].text == "#abcdef"
+    finally:
+        THEMES.pop("Round Trip", None)
+
+
+def test_settings_load_skips_custom_theme_colliding_with_builtin(qapp, tmp_path, monkeypatch):
+    import json
+
+    from zlog.ui.main_window import MainWindow
+    from zlog.ui.theme import DARK, THEMES
+
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: path)
+    path.write_text(
+        json.dumps({"custom_themes": [{"name": "Dark", "window": "#000001"}]}),
+        encoding="utf-8",
+    )
+    w = MainWindow()  # must not crash, and must not clobber the real "Dark"
+    assert THEMES["Dark"] is DARK
+    assert not any(t.name == "Dark" for t in w._custom_themes)

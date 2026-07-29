@@ -14,6 +14,7 @@ import os
 DEFAULTS: dict = {
     "geometry": "",  # base64 of QWidget.saveGeometry(), opaque to core
     "theme": "Light",
+    "custom_themes": [],  # user-saved Theme dicts (see core/theme_io.py); loads before "theme"
     "follow": True,
     "min_level": "V",
     "regex": False,
@@ -43,6 +44,7 @@ DEFAULTS: dict = {
     "splitter_state": "",  # base64 QSplitter.saveState() for the log/detail divider
     "collapse": False,  # hide consecutive duplicate lines
     "watch": "",  # substring; notify when a captured line matches
+    "watch_command": "",  # optional argv template run (no shell) on a watch hit
     "extract_patterns": [],  # user regex named-group field extractors (see core.extract)
     "show_process": False,  # show the resolved process/package-name column
     "wrap": True,  # wrap long messages across as many lines as needed
