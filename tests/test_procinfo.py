@@ -1,10 +1,9 @@
-"""Process-picker shaping and focus-query rewriting. Pure: no Qt, no OS calls."""
+"""Running-process shaping and focus-query rewriting. Pure: no Qt, no OS calls."""
 
 from __future__ import annotations
 
 from zlog.core.procinfo import (
     ProcessInfo,
-    filter_processes,
     focus_query,
     merge_candidates,
     sort_processes,
@@ -19,10 +18,6 @@ PROCS = [
 ]
 
 
-def test_label():
-    assert ProcessInfo(1234, "a.exe").label == "a.exe (1234)"
-
-
 def test_sort_is_case_insensitive_then_pid():
     assert [(p.name, p.pid) for p in sort_processes(PROCS)] == [
         ("Explorer.exe", 42),
@@ -30,18 +25,6 @@ def test_sort_is_case_insensitive_then_pid():
         ("myapp.exe", 7),
         ("notepad.exe", 1200),
     ]
-
-
-def test_filter_by_name_case_insensitive():
-    assert [p.pid for p in filter_processes(PROCS, "MYAPP")] == [7, 3]
-
-
-def test_filter_by_pid_text():
-    assert [p.pid for p in filter_processes(PROCS, "120")] == [1200]
-
-
-def test_filter_empty_returns_all():
-    assert len(filter_processes(PROCS, "  ")) == len(PROCS)
 
 
 def test_focus_by_name_on_empty_query():

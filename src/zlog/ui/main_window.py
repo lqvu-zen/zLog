@@ -172,6 +172,7 @@ class MainWindow(QMainWindow):
         self._query_package = ""  # effective proc: value last mirrored into the package box
         self._isolate_prev_query: str | None = None  # saved query while isolated (None = not)
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
+        self._docks_sized = False  # guard: size the docks once, on the first real showEvent
         self._history: list[str] = []  # recent query-bar entries
         self._recent: list[str] = []  # recently opened/saved .log paths
         self._autosave_cap = AUTOSAVE_CAP  # bytes before the autosave file rolls over
@@ -3192,27 +3193,6 @@ class MainWindow(QMainWindow):
         _log.info("Following file: %r", path)
         self.statusBar().showMessage(f"Following {reader.name} — new lines appear live.")
 
-    def focus_app(self) -> None:
-        """Pick a running process (Browse…) and narrow the view to it — writing
-        into the App box either way, so this ends in the same place as Load/Apply.
-        "This PID only" still goes straight to a `pid:` token (the App box only
-        ever holds names)."""
-        from zlog.core.procinfo import focus_query
-        from zlog.ui.process_dialog import ProcessPickerDialog
-
-        dialog = ProcessPickerDialog(parent=self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        proc = dialog.selected()
-        if proc is None:
-            return
-        self.package_box.setEditText(proc.name)
-        if dialog.focus_by_pid():
-            self._set_query_text(focus_query(self.query.text(), pid=proc.pid))
-        else:
-            self.apply_package_filter()
-        self.statusBar().showMessage(f"Focused on {proc.label}.")
-
     def launch_app(self) -> None:
         """Start a program and capture it from its first line: its console output
         via LaunchReader, plus (on Windows) its OutputDebugString via the DBWIN
@@ -3404,6 +3384,19 @@ class MainWindow(QMainWindow):
     def on_error(self, msg: str) -> None:
         self.statusBar().showMessage(msg)
         self.stop()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # resizeDocks needs the main window's dock layout to have already done its
+        # first real pass — calling it synchronously from showEvent (or earlier, in
+        # __init__) gets silently overwritten by that pass. A zero-delay timer runs
+        # it right after, once the layout has settled.
+        if not self._docks_sized:
+            self._docks_sized = True
+            QTimer.singleShot(0, self._size_docks)
+
+    def _size_docks(self) -> None:
+        self.resizeDocks([self.presets_dock], [160], Qt.Horizontal)
 
     def closeEvent(self, event) -> None:
         self._save_settings()

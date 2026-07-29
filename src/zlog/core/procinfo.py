@@ -1,8 +1,9 @@
-"""Running-process shaping for the "focus one app" picker.
+"""Running-process shaping for the App box (Load/Apply) and launched-app focus.
 
 Pure and OS-free: enumerating processes is Windows-specific and lives in
-`zlog.winlog.processes`, but sorting, searching, and rewriting the query to focus
-a chosen app are plain data transforms, so they unit-test on any platform.
+`zlog.winlog.processes`, but sorting, merging with the log's own names, and
+rewriting the query to focus a chosen app are plain data transforms, so they
+unit-test on any platform.
 """
 
 from __future__ import annotations
@@ -24,28 +25,15 @@ RUNNING_MARKER = "●"
 
 @dataclass(frozen=True, slots=True)
 class ProcessInfo:
-    """One running process as the picker shows it."""
+    """One running process, as `zlog.winlog.processes.list_processes` returns it."""
 
     pid: int
     name: str  # image name, e.g. "myapp.exe"
 
-    @property
-    def label(self) -> str:
-        return f"{self.name} ({self.pid})"
-
 
 def sort_processes(procs) -> list[ProcessInfo]:
-    """Case-insensitive by name, then pid — a stable order for the picker list."""
+    """Case-insensitive by name, then pid — a stable order before merging."""
     return sorted(procs, key=lambda p: (p.name.lower(), p.pid))
-
-
-def filter_processes(procs, needle: str) -> list[ProcessInfo]:
-    """Type-to-search: match the name (case-insensitively) or the pid as typed.
-    An empty needle returns everything."""
-    text = needle.strip().lower()
-    if not text:
-        return list(procs)
-    return [p for p in procs if text in p.name.lower() or text in str(p.pid)]
 
 
 def merge_candidates(log_names, running) -> list[str]:

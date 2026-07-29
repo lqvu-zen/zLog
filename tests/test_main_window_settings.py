@@ -509,6 +509,25 @@ def test_log_font_readable(window):
     assert window.table.font().pointSize() == 13  # zoom still shifts the base
 
 
+def test_show_narrows_the_presets_dock_once(window, qapp):
+    from PySide6.QtCore import Qt
+
+    calls = []
+    window.resizeDocks = lambda docks, sizes, orientation: calls.append((docks, sizes, orientation))
+    window.resize(1100, 700)
+    window.show()
+    for _ in range(5):
+        qapp.processEvents()
+    assert calls == [([window.presets_dock], [160], Qt.Horizontal)]
+
+    # A second show (e.g. un-minimizing) must not re-narrow a user-widened dock.
+    window.hide()
+    window.show()
+    for _ in range(5):
+        qapp.processEvents()
+    assert calls == [([window.presets_dock], [160], Qt.Horizontal)]  # still just the one call
+
+
 def test_follow_stays_manual_and_never_yanks(window, qapp):
     from PySide6.QtTest import QTest
 

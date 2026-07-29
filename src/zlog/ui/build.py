@@ -146,9 +146,12 @@ def build_widgets(win) -> None:
     win.load_pkgs_btn.setToolTip("List apps seen in the log and (on Windows) currently running")
     win.apply_pkg_btn = QPushButton("Apply")
     win.clear_pkg_btn = QPushButton("Clear app")
-    win.focus_app_btn = QPushButton("Browse…")
-    win.focus_app_btn.setToolTip("Search running Windows processes and focus the view on one")
-    win.focus_app_btn.clicked.connect(win.focus_app)
+    win.launch_app_btn = QPushButton("Launch App…")
+    win.launch_app_btn.setToolTip(
+        "Start a program and capture its console output (and its Windows "
+        "debug output) from the first line"
+    )
+    win.launch_app_btn.clicked.connect(win.launch_app)
 
     win.level_box = QComboBox()
     for letter in LEVELS:
@@ -254,7 +257,7 @@ def build_layout(win) -> None:
     top_row.addWidget(win.load_pkgs_btn)
     top_row.addWidget(win.apply_pkg_btn)
     top_row.addWidget(win.clear_pkg_btn)
-    top_row.addWidget(win.focus_app_btn)
+    top_row.addWidget(win.launch_app_btn)
     top_row.addSpacing(12)
     top_row.addWidget(_vsep())
     top_row.addSpacing(12)

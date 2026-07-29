@@ -24,9 +24,8 @@ through everyday use.
   process/package names seen in the current log *and*, on Windows, the ones
   currently running on this PC (a name in both is marked **●**); pick one and
   **Apply** filters the view (a `proc:` token) — the selection and the query
-  stay in sync. **Browse…** opens a searchable picker over the full running-process
-  list when the name you want hasn't logged anything yet, or you need to pin one
-  exact PID.
+  stay in sync. **Launch App…** starts a program and captures it from its very
+  first line (see "Launching the app from zLog" below).
 - Below it, a **filter bar** holds the **query bar** on its own full-width row,
   with a **Level** dropdown for the minimum severity.
 - The menu bar has **File**, **View**, and **Settings…**. File handles open/save,
@@ -100,24 +99,21 @@ Windows-only feature; on other platforms the action reports that and does nothin
 
 ### Focusing on one app
 
-The **App** selector on the device bar is one control for both cases. **Load**
-lists names seen in the current log plus (on Windows) everything currently
-running, so **Apply** narrows the view to whichever you pick — same `proc:<name>`
-token either way, combining with everything else (`level:E`, excludes, presets).
-
-If the app you want hasn't logged anything yet, or several processes share a
-name and you need one exact instance, click **Browse…** for a searchable picker
-over the full running-process list. Focusing by **name** is the default so the
-filter survives the app restarting; tick **This PID only** to pin one exact
-process — picking either way fills the App box and applies, so it ends in the
-same place as Load/Apply.
+The **App** selector on the device bar is your control for this. **Load** lists
+names seen in the current log plus (on Windows) everything currently running, so
+**Apply** narrows the view to whichever you pick — a `proc:<name>` token that
+combines with everything else (`level:E`, excludes, presets). If a name hasn't
+logged anything yet, it still shows up once it's running — Load again to pick it
+up. For one exact process among several sharing a name, right-click an existing
+line from it and use **Filter to… → PID** instead.
 
 ### Launching the app from zLog
 
-**File → Launch App…** starts a program and captures it from its very first line —
-something you can't get by attaching to an app that's already running. Choose the
-program (plus optional arguments and working directory) and zLog opens a tab
-named after it, capturing **both** its console output (stdout/stderr) *and*, on
+**Launch App…** (on the App row, or **File → Launch App…**) starts a program and
+captures it from its very first line — something you can't get by attaching to
+an app that's already running. Choose the program (plus optional arguments and
+working directory) and zLog opens a tab named after it, capturing **both** its
+console output (stdout/stderr) *and*, on
 Windows, its `OutputDebugString` tracing, then focuses the view on it. **Stop**
 ends the capture and closes the app. A GUI app usually prints nothing to the
 console — that's normal, its debug output still arrives.

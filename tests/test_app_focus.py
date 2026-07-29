@@ -1,14 +1,10 @@
-"""Focus-app picker, launch dialog, and their window wiring (offscreen Qt)."""
+"""Launch-app dialog and its window wiring (offscreen Qt)."""
 
 from __future__ import annotations
 
 import sys
 
 import pytest
-
-from zlog.core.procinfo import ProcessInfo
-
-PROCS = [ProcessInfo(10, "alpha.exe"), ProcessInfo(20, "beta.exe")]
 
 
 @pytest.fixture
@@ -17,41 +13,6 @@ def window(qapp, tmp_path, monkeypatch):
 
     monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
     return MainWindow()
-
-
-# --- process picker dialog ------------------------------------------------
-def test_picker_lists_injected_processes(qapp):
-    from zlog.ui.process_dialog import ProcessPickerDialog
-
-    dlg = ProcessPickerDialog(PROCS)
-    assert dlg.list.count() == 2
-    assert dlg.list.item(0).text() == "alpha.exe (10)"
-
-
-def test_picker_search_narrows(qapp):
-    from zlog.ui.process_dialog import ProcessPickerDialog
-
-    dlg = ProcessPickerDialog(PROCS)
-    dlg.search.setText("beta")
-    assert dlg.list.count() == 1
-    assert dlg.list.item(0).text() == "beta.exe (20)"
-
-
-def test_picker_selected_returns_process(qapp):
-    from zlog.ui.process_dialog import ProcessPickerDialog
-
-    dlg = ProcessPickerDialog(PROCS)
-    dlg.list.setCurrentRow(1)
-    assert dlg.selected().pid == 20
-    assert dlg.focus_by_pid() is False  # name-focus is the default
-
-
-def test_picker_empty_state(qapp):
-    from zlog.ui.process_dialog import ProcessPickerDialog
-
-    dlg = ProcessPickerDialog([])
-    assert dlg.list.count() == 0
-    assert dlg.empty_label.isVisibleTo(dlg)
 
 
 # --- launch dialog --------------------------------------------------------
@@ -77,78 +38,6 @@ def test_launch_dialog_prefills(qapp):
 
 
 # --- window wiring --------------------------------------------------------
-def test_focus_app_sets_query_by_name(window, monkeypatch):
-    from PySide6.QtWidgets import QDialog
-
-    import zlog.ui.process_dialog as pd
-
-    class FakeDialog:
-        def __init__(self, *a, **k):
-            pass
-
-        def exec(self):
-            return QDialog.Accepted
-
-        def selected(self):
-            return ProcessInfo(77, "target.exe")
-
-        def focus_by_pid(self):
-            return False
-
-    monkeypatch.setattr(pd, "ProcessPickerDialog", FakeDialog)
-    window.query.setText("level:E")
-    window.focus_app()
-    assert window.query.text() == "level:E proc:target.exe"
-    assert window.package_box.currentText() == "target.exe"  # same path as Apply
-
-
-def test_focus_app_by_pid_option(window, monkeypatch):
-    from PySide6.QtWidgets import QDialog
-
-    import zlog.ui.process_dialog as pd
-
-    class FakeDialog:
-        def __init__(self, *a, **k):
-            pass
-
-        def exec(self):
-            return QDialog.Accepted
-
-        def selected(self):
-            return ProcessInfo(77, "target.exe")
-
-        def focus_by_pid(self):
-            return True
-
-    monkeypatch.setattr(pd, "ProcessPickerDialog", FakeDialog)
-    window.focus_app()
-    assert window.query.text() == "pid:77"
-
-
-def test_focus_app_cancel_leaves_query(window, monkeypatch):
-    from PySide6.QtWidgets import QDialog
-
-    import zlog.ui.process_dialog as pd
-
-    class FakeDialog:
-        def __init__(self, *a, **k):
-            pass
-
-        def exec(self):
-            return QDialog.Rejected
-
-        def selected(self):
-            return None
-
-        def focus_by_pid(self):
-            return False
-
-    monkeypatch.setattr(pd, "ProcessPickerDialog", FakeDialog)
-    window.query.setText("tag:Net")
-    window.focus_app()
-    assert window.query.text() == "tag:Net"
-
-
 def test_launch_app_starts_reader_and_focuses(window, monkeypatch):
     from PySide6.QtWidgets import QDialog
 
@@ -176,7 +65,18 @@ def test_launch_app_starts_reader_and_focuses(window, monkeypatch):
     assert window._active.reader is None  # Stop tore the child down
 
 
-def test_focus_app_button_exists(window):
-    assert window.focus_app_btn is not None
-    assert window.focus_app_btn.text() == "Browse…"
+def test_launch_app_button_exists(window):
+    assert window.launch_app_btn is not None
+    assert window.launch_app_btn.text() == "Launch App…"
     assert window.launch_app_act is not None
+
+
+def test_launch_app_btn_triggers_launch_app(qapp, tmp_path, monkeypatch):
+    from zlog.ui.main_window import MainWindow
+
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: tmp_path / "s.json")
+    called = []
+    monkeypatch.setattr(MainWindow, "launch_app", lambda self: called.append(True))
+    win = MainWindow()
+    win.launch_app_btn.click()
+    assert called == [True]
