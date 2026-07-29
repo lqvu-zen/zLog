@@ -3126,6 +3126,36 @@ class MainWindow(QMainWindow):
         _log.info("DBWIN capture requested")
         self.statusBar().showMessage("Capturing Windows debug output (OutputDebugString)…")
 
+    def capture_event_log(self) -> None:
+        """Stream a Windows Event Log channel into a tab — crashes, service
+        failures, and OS-level events, complementing OutputDebugString capture.
+        Opens a fresh tab when the current one is busy, so existing logs/streams
+        stay put."""
+        from zlog.winlog.channels import DEFAULT_CHANNELS
+        from zlog.winlog.evtlog_reader import EventLogReader, is_supported
+
+        if not is_supported():
+            self.statusBar().showMessage("The Windows Event Log is only available on Windows.")
+            return
+        channel, ok = QInputDialog.getItem(
+            self, "Capture Event Log", "Channel:", DEFAULT_CHANNELS, 0, editable=True
+        )
+        channel = channel.strip()
+        if not ok or not channel:
+            return
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if sess.reader and sess.reader.isRunning():
+            return
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        self.capture.attach(sess, EventLogReader(channel), stream_label=f"Event Log: {channel}")
+        self._set_tab_label(sess)
+        self._set_streaming_controls()  # Stop/pause on, Start off (as _start_reader does)
+        _log.info("Event Log capture requested: %s", channel)
+        self.statusBar().showMessage(f"Capturing the Windows {channel} event log…")
+
     def follow_file(self) -> None:
         """Watch a log file and stream appended lines (tail -f).
 

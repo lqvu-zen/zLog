@@ -112,6 +112,19 @@ Windows, its `OutputDebugString` tracing, then focuses the view on it. **Stop**
 ends the capture and closes the app. A GUI app usually prints nothing to the
 console — that's normal, its debug output still arrives.
 
+### Streaming the Windows Event Log
+
+**File → Capture Event Log…** streams a Windows Event Log channel — crashes,
+service failures, and OS/driver events, including for apps that never call
+`OutputDebugString`. Pick a channel (Application, System, Setup, Security, or
+type any other channel name) and it opens a tab, backfilling the last 200
+existing events before streaming new ones live. Provider name maps to `tag`,
+process/thread id to `pid`/`tid`, and severity to level (Critical/Error →
+`F`/`E`, Warning → `W`, Information/Verbose → `I`/`V`) — so `level:`, `tag:`,
+`pid:`, and Tag Summary all work exactly as they do for logcat. **Security**
+normally needs an elevated (administrator) zLog. **Stop** ends the capture.
+Windows-only; the action reports that and does nothing elsewhere.
+
 ## Filtering with the query bar
 
 Type in the **query bar** to narrow the view. Terms combine — a line must match all
