@@ -168,7 +168,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [windows-event-log.md](windows-event-log.md) | Draft | Stream Windows Event Log channels (Application/System/Security) as a source |
 | [etw-tracing.md](etw-tracing.md) | Draft | ETW real-time provider tracing (bigger bet; do the cheaper sources first) |
 | [persist-tabs.md](persist-tabs.md) | Done | Reopen the previous session's tabs (files + queries) on launch |
-| [theme-editor.md](theme-editor.md) | Draft | Edit theme colors and save a custom theme |
+| [theme-editor.md](theme-editor.md) | Done | Edit theme colors and save a custom theme |
 | [watch-run-command.md](watch-run-command.md) | Done | Watch action: run a command on a hit (argv-only, no shell) |
 | [pdf-export.md](pdf-export.md) | Done | Export the filtered log to PDF via the existing HTML exporter |
 | [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |

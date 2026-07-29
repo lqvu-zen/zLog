@@ -1,6 +1,9 @@
 """Tests for the color themes. Pure config — no Qt, no display required."""
 
-from zlog.ui.theme import DARK, LIGHT, THEMES, build_stylesheet
+import pytest
+
+from zlog.core.theme import Theme
+from zlog.ui.theme import DARK, LIGHT, THEMES, build_stylesheet, register_theme
 
 
 def test_themes_present():
@@ -86,6 +89,22 @@ def test_scrollbar_handle_is_styled():
         assert "QScrollBar::handle:vertical" in qss
         assert "QScrollBar::handle:horizontal" in qss
         assert theme.muted in qss  # the handle thumb color
+
+
+def test_register_theme_adds_to_themes():
+    custom = Theme(**{**vars(LIGHT), "name": "My Custom"})
+    try:
+        register_theme(custom)
+        assert THEMES["My Custom"] is custom
+    finally:
+        THEMES.pop("My Custom", None)
+
+
+def test_register_theme_rejects_builtin_name():
+    imposter = Theme(**{**vars(LIGHT), "name": "Dark"})
+    with pytest.raises(ValueError):
+        register_theme(imposter)
+    assert THEMES["Dark"] is DARK  # the real one, untouched
 
 
 def test_checkbox_indicator_has_checked_state():

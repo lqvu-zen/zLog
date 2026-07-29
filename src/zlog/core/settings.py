@@ -14,6 +14,7 @@ import os
 DEFAULTS: dict = {
     "geometry": "",  # base64 of QWidget.saveGeometry(), opaque to core
     "theme": "Light",
+    "custom_themes": [],  # user-saved Theme dicts (see core/theme_io.py); loads before "theme"
     "follow": True,
     "min_level": "V",
     "regex": False,

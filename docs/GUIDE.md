@@ -195,9 +195,18 @@ speed. The detail pane always shows the complete text of the selected line regar
 
 ## Themes
 
-Switch between **Light** and **Dark** in **Settings → Appearance → Theme**.
+Switch between **Light**, **Dark**, **Solarized Dark**, and **Monokai** in
+**Settings → Appearance → Theme**.
 
 ![Light theme](images/guide-light.png)
+
+Click **Edit theme…** next to the picker to open the theme editor: swatches for
+every color (grouped into General / Level backgrounds / Level text) with a hex
+field beside each one. Edits repaint the log immediately so you can see the
+result before committing to it; **Revert** undoes everything back to the theme
+you opened the editor with, and **Cancel** discards the whole live preview.
+**Save** asks for a name (rejecting one that collides with a built-in theme)
+and adds it to the theme picker, persisted across launches like the built-ins.
 
 ## Reading, bookmarking, and zoom
 

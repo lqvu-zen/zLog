@@ -1150,3 +1150,73 @@ def test_counts_recompute_is_debounced(window):
     window._counts_timer.stop()
     window._update_counts()
     assert window.count_label.text()
+
+
+def test_open_theme_editor_registers_and_applies_custom_theme(window, monkeypatch):
+    from PySide6.QtWidgets import QDialog
+
+    from zlog.core.theme import LIGHT
+    from zlog.ui.theme import THEMES
+    from zlog.ui.theme_editor import ThemeEditorDialog
+
+    custom = LIGHT.__class__(**{**vars(LIGHT), "name": "My Theme", "window": "#123456"})
+
+    def fake_exec(self):
+        self.result_theme = custom
+        return QDialog.Accepted
+
+    monkeypatch.setattr(ThemeEditorDialog, "exec", fake_exec)
+    try:
+        window._open_theme_editor()
+        assert THEMES["My Theme"] is custom
+        assert window._theme_name == "My Theme"
+        assert any(t.name == "My Theme" for t in window._custom_themes)
+        assert any(
+            act.text() == "My Theme" and act.isChecked() for act in window._theme_group.actions()
+        )
+    finally:
+        THEMES.pop("My Theme", None)
+
+
+def test_custom_theme_round_trips_through_settings(qapp, tmp_path, monkeypatch):
+    from zlog.core.theme import LIGHT
+    from zlog.ui.main_window import MainWindow
+    from zlog.ui.theme import THEMES
+
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: path)
+
+    custom = LIGHT.__class__(**{**vars(LIGHT), "name": "Round Trip", "text": "#abcdef"})
+    try:
+        w1 = MainWindow()
+        from zlog.ui.theme import register_theme
+
+        register_theme(custom)
+        w1._custom_themes.append(custom)
+        w1.apply_theme("Round Trip")
+        w1._save_settings()
+
+        THEMES.pop("Round Trip", None)  # simulate a fresh process: registry starts empty
+
+        w2 = MainWindow()  # must not KeyError looking up "Round Trip" in THEMES
+        assert w2._theme_name == "Round Trip"
+        assert THEMES["Round Trip"].text == "#abcdef"
+    finally:
+        THEMES.pop("Round Trip", None)
+
+
+def test_settings_load_skips_custom_theme_colliding_with_builtin(qapp, tmp_path, monkeypatch):
+    import json
+
+    from zlog.ui.main_window import MainWindow
+    from zlog.ui.theme import DARK, THEMES
+
+    path = tmp_path / "settings.json"
+    monkeypatch.setattr(MainWindow, "_settings_path", lambda self: path)
+    path.write_text(
+        json.dumps({"custom_themes": [{"name": "Dark", "window": "#000001"}]}),
+        encoding="utf-8",
+    )
+    w = MainWindow()  # must not crash, and must not clobber the real "Dark"
+    assert THEMES["Dark"] is DARK
+    assert not any(t.name == "Dark" for t in w._custom_themes)

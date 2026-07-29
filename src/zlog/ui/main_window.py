@@ -112,6 +112,8 @@ from zlog.core.tabtitle import (
     tab_label,
     tab_tooltip,
 )
+from zlog.core.theme import LIGHT
+from zlog.core.theme_io import theme_from_dict, theme_to_dict
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.core.watch_action import expand_command
 from zlog.ui.build import build_layout, build_widgets
@@ -125,7 +127,8 @@ from zlog.ui.pdf_export import write_pdf
 from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
-from zlog.ui.theme import THEMES, build_stylesheet
+from zlog.ui.theme import THEMES, build_stylesheet, register_theme
+from zlog.ui.theme_editor import ThemeEditorDialog
 from zlog.ui.watch_dialog import WatchDialog
 from zlog.winlog.dbwin_reader import is_supported  # cheap platform check, no Win32 import
 
@@ -159,6 +162,7 @@ class MainWindow(QMainWindow):
         # Runtime state, created before widgets so slots can rely on it existing.
         self.devctl = DeviceController(self)  # device picker + package/PID filter state
         self._theme_name = "Light"
+        self._custom_themes: list = []  # user-saved Theme objects (see theme_editor.py)
         self._presets: list[dict] = []  # saved filter presets
         self._font_delta = 0  # point-size offset for the table + detail pane
         self._font_family = ""  # chosen log font family ("" = the LOG_FONT_FAMILIES chain)
@@ -1924,6 +1928,9 @@ class MainWindow(QMainWindow):
         }
 
     def _open_settings(self) -> None:
+        def on_edit_theme():
+            self._open_theme_editor(dlg)
+
         dlg = SettingsDialog(
             self._collect_settings(),
             themes=list(THEMES),
@@ -1941,6 +1948,7 @@ class MainWindow(QMainWindow):
             ],
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
             fonts=self._available_log_fonts(),
+            on_edit_theme=on_edit_theme,
             parent=self,
         )
         if dlg.exec():
@@ -2002,7 +2010,12 @@ class MainWindow(QMainWindow):
     # --- theme -------------------------------------------------------------
     def apply_theme(self, name: str) -> None:
         self._theme_name = name
-        theme = THEMES[name]
+        self._apply_theme_object(THEMES[name])
+
+    def _apply_theme_object(self, theme) -> None:
+        """Re-style everything from a `Theme` object directly (not looked up by
+        name) — used both by `apply_theme` and by the theme editor's live
+        preview of an unsaved, unregistered theme."""
         app = QApplication.instance()
         if app is not None:
             app.setStyleSheet(build_stylesheet(theme))
@@ -2025,6 +2038,36 @@ class MainWindow(QMainWindow):
         self.table.viewport().update()  # repaint existing rows with new tints
         self._apply_search()  # re-tint the search box under the new theme
         self._schedule_heat()  # recolor error ticks for the new theme
+
+    def _rebuild_theme_actions(self) -> None:
+        """(Re)build the theme QActionGroup from THEMES so a newly-registered
+        custom theme shows up in the command palette and stays in sync with
+        `apply_theme`. `build_menus` populates it once (built-ins only); this
+        runs again whenever a custom theme is added or loaded from settings."""
+        for act in list(self._theme_group.actions()):
+            self._theme_group.removeAction(act)
+            act.deleteLater()
+        for name in THEMES:
+            act = QAction(name, self)
+            act.setCheckable(True)
+            act.setChecked(name == self._theme_name)
+            self._theme_group.addAction(act)
+            act.triggered.connect(lambda _checked=False, n=name: self.apply_theme(n))
+
+    def _open_theme_editor(self, settings_dlg=None) -> None:
+        current = THEMES[self._theme_name]
+        dlg = ThemeEditorDialog(current, self._apply_theme_object, self)
+        if dlg.exec() != QDialog.Accepted or dlg.result_theme is None:
+            return
+        theme = dlg.result_theme
+        register_theme(theme)
+        self._custom_themes = [t for t in self._custom_themes if t.name != theme.name]
+        self._custom_themes.append(theme)
+        self.apply_theme(theme.name)  # sets self._theme_name before the rebuild checks it
+        self._rebuild_theme_actions()
+        if settings_dlg is not None:
+            settings_dlg.set_themes(list(THEMES), theme.name)
+        self.statusBar().showMessage(f'Saved theme "{theme.name}".')
 
     def _update_placeholder(self) -> None:
         """Contextual empty-state text: nothing captured vs. filtered to nothing."""
@@ -2718,6 +2761,21 @@ class MainWindow(QMainWindow):
                 act.setChecked(act.text() == name)
             self.apply_theme(name)
 
+        def set_custom_themes(v):
+            # Registers each saved custom theme into THEMES so `set_theme` (which
+            # must run *after* this one — see the specs list order) can find it by
+            # name instead of silently falling back to Light.
+            items = v if isinstance(v, list) else []
+            self._custom_themes = []
+            for data in items:
+                theme = theme_from_dict(data, LIGHT)
+                try:
+                    register_theme(theme)
+                except ValueError:
+                    continue  # skip an entry that collides with a built-in name
+                self._custom_themes.append(theme)
+            self._rebuild_theme_actions()
+
         def set_min_level(v):
             self._set_query_level(v)
 
@@ -2840,6 +2898,13 @@ class MainWindow(QMainWindow):
                 "splitter_state",
                 lambda: bytes(self._splitter.saveState().toBase64()).decode("ascii"),
                 set_splitter_state,
+            ),
+            # Must precede "theme": custom themes need to be in THEMES before
+            # set_theme looks the saved theme name up.
+            (
+                "custom_themes",
+                lambda: [theme_to_dict(t) for t in self._custom_themes],
+                set_custom_themes,
             ),
             ("theme", lambda: self._theme_name, set_theme),
             (

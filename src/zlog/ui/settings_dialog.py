@@ -36,6 +36,7 @@ class SettingsDialog(QDialog):
         tail_options,
         buffers,
         fonts=(),
+        on_edit_theme=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -48,6 +49,12 @@ class SettingsDialog(QDialog):
         for name in themes:
             self.theme_box.addItem(name, name)
         self._select(self.theme_box, values.get("theme", "Light"))
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(self.theme_box)
+        if on_edit_theme is not None:
+            edit_theme_btn = QPushButton("Edit theme…")
+            edit_theme_btn.clicked.connect(on_edit_theme)
+            theme_row.addWidget(edit_theme_btn)
         self.font_box = QComboBox()
         self.font_box.addItem("Default (built-in monospace)", "")
         for family in fonts:
@@ -60,7 +67,7 @@ class SettingsDialog(QDialog):
         self.details_chk = QCheckBox("Show the detail pane")
         self.details_chk.setChecked(values.get("show_details", True))
         appearance = QFormLayout()
-        appearance.addRow("Theme", self.theme_box)
+        appearance.addRow("Theme", theme_row)
         appearance.addRow("Log font", self.font_box)
         appearance.addRow("Font size offset", self.font_spin)
         appearance.addRow(self.details_chk)
@@ -173,6 +180,15 @@ class SettingsDialog(QDialog):
         i = box.findData(data)
         if i >= 0:
             box.setCurrentIndex(i)
+
+    def set_themes(self, themes, current: str) -> None:
+        """Repopulate the theme dropdown — called after the theme editor saves
+        a new custom theme, so it's selectable without closing and reopening
+        Settings."""
+        self.theme_box.clear()
+        for name in themes:
+            self.theme_box.addItem(name, name)
+        self._select(self.theme_box, current)
 
     def _browse_adb_path(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Locate adb executable")
