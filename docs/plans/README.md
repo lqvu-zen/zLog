@@ -173,7 +173,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [pdf-export.md](pdf-export.md) | Done | Export the filtered log to PDF via the existing HTML exporter |
 | [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |
 | [local-source-in-device-box.md](local-source-in-device-box.md) | Done | Pick "This PC" in the device box and press Start to capture Windows debug output |
-| [persist-last-launch.md](persist-last-launch.md) | Approved | Remember the last Launch App… program/args/cwd across zLog restarts |
+| [persist-last-launch.md](persist-last-launch.md) | Done | Remember the last Launch App… program/args/cwd across zLog restarts |
 | [device-list-refresh-race.md](device-list-refresh-race.md) | Done | Retry `adb devices` once when it comes back empty right after connecting a phone |
 | [saved-filters-width.md](saved-filters-width.md) | Done | Smaller initial width for the Saved Filters left dock |
 | [retire-browse-picker.md](retire-browse-picker.md) | Done | Replace the App row's Browse… button with Launch App…; retire the process picker |

@@ -2913,6 +2913,21 @@ class MainWindow(QMainWindow):
         def set_adb_path(v):
             self._adb_path_setting = str(v) if v else ""
 
+        def get_last_launch():
+            if not self._last_launch:
+                return {"exe": "", "args": "", "cwd": ""}
+            exe, args, cwd = self._last_launch
+            return {"exe": exe, "args": args, "cwd": cwd}
+
+        def set_last_launch(v):
+            exe = str(v.get("exe", "")) if isinstance(v, dict) else ""
+            if not exe:
+                self._last_launch = None
+                return
+            args = str(v.get("args", ""))
+            cwd = str(v.get("cwd", ""))
+            self._last_launch = (exe, args, cwd)
+
         specs = [
             (
                 "geometry",
@@ -3030,6 +3045,7 @@ class MainWindow(QMainWindow):
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
             ("line_numbers", lambda: self.log_delegate.line_numbers, set_line_numbers),
             ("adb_path", lambda: self._adb_path_setting, set_adb_path),
+            ("last_launch", get_last_launch, set_last_launch),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.

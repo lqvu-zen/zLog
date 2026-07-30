@@ -66,12 +66,14 @@ def test_settings_round_trip(qapp, tmp_path, monkeypatch):
     w1.table.setColumnHidden(2, True)  # hide TID
     w1.clear_on_start_action.setChecked(True)
     w1.model.set_tag_color("Boom", "#ff0000")
+    w1._last_launch = ("C:\\tools\\app.exe", "--verbose", "C:\\tools")
     w1._save_settings()
 
     w2 = MainWindow()
     w2._populate_devices(devices)  # picker available before restore, as in real launch
     w2._load_and_apply_settings()
 
+    assert w2._last_launch == ("C:\\tools\\app.exe", "--verbose", "C:\\tools")
     assert w2._theme_name == "Dark"
     assert w2.follow_check.isChecked() is False
     assert w2.level_box.currentData() == "E"
@@ -82,6 +84,16 @@ def test_settings_round_trip(qapp, tmp_path, monkeypatch):
     assert w2.clear_on_start_action.isChecked() is True
     assert w2.model.tag_colors().get("Boom", "").lower() == "#ff0000"
     assert w2.device_box.currentData() == "BBB222"
+
+
+def test_last_launch_stays_none_when_never_launched(window):
+    from zlog.ui.main_window import MainWindow
+
+    assert window._last_launch is None
+    window._save_settings()
+    w2 = MainWindow()
+    w2._load_and_apply_settings()
+    assert w2._last_launch is None  # not a dict of blank strings
 
 
 def test_missing_file_falls_back_to_defaults(window):

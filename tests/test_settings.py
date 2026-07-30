@@ -24,6 +24,19 @@ def test_round_trip(tmp_path):
     assert loaded["tag_highlights"] == {"Choreographer": "#b3e5fc"}
 
 
+def test_last_launch_round_trips(tmp_path):
+    p = tmp_path / "settings.json"
+    data = dict(DEFAULTS)
+    data["last_launch"] = {"exe": "C:\\tools\\app.exe", "args": "--verbose", "cwd": "C:\\tools"}
+    save_settings(str(p), data)
+    loaded = load_settings(str(p))
+    assert loaded["last_launch"] == {
+        "exe": "C:\\tools\\app.exe",
+        "args": "--verbose",
+        "cwd": "C:\\tools",
+    }
+
+
 def test_corrupt_file_returns_defaults(tmp_path):
     p = tmp_path / "settings.json"
     p.write_text("{not valid json")

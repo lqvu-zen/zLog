@@ -52,6 +52,7 @@ DEFAULTS: dict = {
     "show_sticky_header": False,  # pin the anchor (selected/bookmark) row while scrolling
     "line_numbers": False,  # show a left gutter of source-row line numbers
     "adb_path": "",  # explicit adb executable path ("" = use "adb" from PATH)
+    "last_launch": {"exe": "", "args": "", "cwd": ""},  # prefills Launch App… next time
 }
 
 
