@@ -4,6 +4,29 @@ All notable changes to zLog are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-07-31
+
+### Log view
+- Segment labels: a thin header strip above the log names each part of the
+  dense one-line rows ("Time · PID·TID · Tag · [Process] · L · Message"),
+  always pixel-aligned with the rows themselves.
+- **Auto-hiding columns**: the PID·TID and Tag segments collapse to no
+  reserved space when a capture never populates them (Windows debug-output and
+  Launch App captures never set a thread id; a followed plain-text file may
+  have neither) — and reappear the moment a row actually has the data. A pid
+  without a tid now shows just the pid, not a bare trailing dash.
+
+### Devices & App filter
+- **Refresh** now selects a device that just got connected (or a phone that
+  just got authorized) over whatever was previously remembered — no more
+  manually reselecting it from the dropdown after plugging in.
+- Fixed a real `adb devices` race: right after the daemon (re)starts, or right
+  after a device finishes USB enumeration, the very first call could come back
+  empty — Refresh now retries once before giving up, instead of showing an
+  empty device list.
+- **Launch App…** remembers the last program/arguments/working directory
+  across restarts, not just within the current session.
+
 ## [1.0.0] — 2026-07-29
 
 First public release — a Windows-first desktop viewer for Android `adb logcat`
@@ -118,4 +141,5 @@ PySide6 and managed with uv.
   log for troubleshooting (Help → Open Log Folder); illustrated user guide in
   `docs/GUIDE.md`.
 
+[1.1.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.0.0
