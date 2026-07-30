@@ -36,6 +36,7 @@ from zlog.ui.filter_chips import FilterChipBar
 from zlog.ui.heat_scrollbar import HeatScrollBar
 from zlog.ui.histogram_bar import HistogramBar
 from zlog.ui.log_delegate import LogItemDelegate
+from zlog.ui.log_header_bar import LogHeaderBar
 from zlog.ui.log_model import COLUMNS
 from zlog.ui.query_line_edit import QueryLineEdit
 from zlog.ui.table_view import LogTableView
@@ -83,6 +84,11 @@ def build_widgets(win) -> None:
     win.log_delegate = LogItemDelegate(win)
     win.table.setItemDelegateForColumn(0, win.log_delegate)
     win.log_delegate.view = win.table
+    # Labels the delegate's freehand segments (Time/PID·TID/Tag/Lvl/Message) —
+    # `model` is a bound property (not a fixed reference) so the header follows
+    # whichever tab is active without extra rewiring on tab switch.
+    win.log_header = LogHeaderBar(win.log_delegate, lambda: win.model)
+    win.log_header.setFont(win.table.font())
     # Copy (Ctrl+C) and Select All: keyboard shortcuts via addAction, plus a
     # custom right-click menu that also offers per-tag highlighting.
     win.copy_action = QAction("Copy", win)
@@ -210,7 +216,17 @@ def build_widgets(win) -> None:
 def build_layout(win) -> None:
     """Arrange the widgets built in _build_widgets into the window."""
     win._splitter = QSplitter(Qt.Vertical)
-    win._splitter.addWidget(win.table)
+    # The header strip must scroll with nothing (it's not part of the table) but
+    # sit directly above it, so both live in one small container widget that
+    # takes pane 0 of the splitter — a drop-in swap for win.table alone, since
+    # the splitter's setStretchFactor/setSizes below are index-based.
+    table_pane = QWidget()
+    table_pane_layout = QVBoxLayout(table_pane)
+    table_pane_layout.setContentsMargins(0, 0, 0, 0)
+    table_pane_layout.setSpacing(0)
+    table_pane_layout.addWidget(win.log_header)
+    table_pane_layout.addWidget(win.table)
+    win._splitter.addWidget(table_pane)
     win._splitter.addWidget(win.detail)
     win._splitter.setStretchFactor(0, 1)
     win._splitter.setStretchFactor(1, 0)

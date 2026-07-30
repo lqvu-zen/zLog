@@ -1832,6 +1832,8 @@ class MainWindow(QMainWindow):
     def _apply_font(self) -> None:
         size = max(6, min(28, BASE_FONT_PT + self._font_delta))
         self.table.setFont(self._make_log_font())
+        self.log_header.setFont(self.table.font())
+        self.log_header.update()
         # The detail pane keeps its default (proportional) family unless the user
         # picks a log font; only the size tracks zoom otherwise.
         detail_font = self.detail.font()
@@ -1996,6 +1998,7 @@ class MainWindow(QMainWindow):
         self.log_delegate.line_numbers = bool(v["line_numbers"])
         self._apply_row_height()
         self.table.viewport().update()
+        self.log_header.update()
         self._adb_path_setting = v["adb_path"]
         self._save_settings()
 
@@ -2043,6 +2046,7 @@ class MainWindow(QMainWindow):
             theme.inline_match,
         )
         self.histogram_bar.set_theme(theme.meta_text, theme.level_text["E"], theme.base)
+        self.log_header.set_theme(theme.meta_text, theme.header, theme.muted)
         self.query.set_muted_color(theme.muted)  # autocomplete description color
         self._search_error_color = theme.search_error
         self.table.viewport().update()  # repaint existing rows with new tints
@@ -2721,6 +2725,10 @@ class MainWindow(QMainWindow):
         start = max(0, total - 500)
         ranks = [self.model.entry_at(r).rank for r in range(start, total)]
         self.spark_label.setText(error_rate_sparkline(ranks, LEVEL_RANK["E"]))
+        # Time/PID·TID's content-sized widths and the has_pidtid/has_tag latches
+        # (see auto-hide-empty-columns.md) can change with new data — same
+        # coalesced timer that already recomputes on every batch/tab-switch.
+        self.log_header.update()
 
     # --- detail pane -------------------------------------------------------
     def _edit_extractors(self) -> None:
@@ -2904,11 +2912,13 @@ class MainWindow(QMainWindow):
             self.log_delegate.wrap = bool(v)
             self._apply_row_height()
             self.table.viewport().update()
+            self.log_header.update()
 
         def set_line_numbers(v):
             self.log_delegate.line_numbers = bool(v)
             self._apply_row_height()  # the gutter narrows the message -> re-fit wrap heights
             self.table.viewport().update()
+            self.log_header.update()
 
         def set_adb_path(v):
             self._adb_path_setting = str(v) if v else ""
@@ -3322,6 +3332,7 @@ class MainWindow(QMainWindow):
         safe to fire during settings load.)"""
         self.log_delegate.show_process = bool(checked)
         self.table.viewport().update()
+        self.log_header.update()
         if checked:
             self._refresh_process_map()
 

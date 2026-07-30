@@ -162,6 +162,17 @@ def scenario_devices(window: MainWindow) -> None:
     _shot(window, "devices")
 
 
+def scenario_header_process_and_wrap(window: MainWindow) -> None:
+    # The header strip (column-header-labels.md) must track show_process and
+    # wrap, staying aligned with the rows in both modes at once.
+    _seed(window, 4)
+    window.model.merge_process_names({"1287": "com.example.app", "980": "com.android.wifi"})
+    window.process_action.setChecked(True)
+    window.log_delegate.wrap = True
+    window._apply_row_height()
+    _shot(window, "header-process-and-wrap")
+
+
 def scenario_package_filter(window: MainWindow) -> None:
     # Seed rows from two PIDs, then keep only one PID (as the package filter does).
     _seed(window, 8)
@@ -519,6 +530,7 @@ def scenario_guide_package(window: MainWindow) -> None:
 SCENARIOS = {
     "smoke": scenario_smoke,
     "auto-hide-columns": scenario_auto_hide_columns,
+    "header-process-and-wrap": scenario_header_process_and_wrap,
     "populated": scenario_populated,
     "filtered": scenario_filtered,
     "devices": scenario_devices,
