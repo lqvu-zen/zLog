@@ -138,6 +138,24 @@ def scenario_filtered(window: MainWindow) -> None:
     _shot(window, "filtered-warn-and-above")
 
 
+def scenario_auto_hide_columns(window: MainWindow) -> None:
+    # DBWIN/Launch-App-style rows: no tid, no tag — both should collapse to no
+    # reserved space (see auto-hide-empty-columns.md) instead of showing a
+    # trailing "1234-" dash or an empty gap.
+    window.model.append_entries(
+        [
+            LogEntry("06-30 12:00:00.000", "1287", "", "I", "", "debug-output line one"),
+            LogEntry("06-30 12:00:00.400", "1287", "", "W", "", "debug-output line two"),
+        ]
+    )
+    _shot(window, "auto-hide-columns-before")
+    # A later row brings a tag: the segment reappears from here on.
+    window.model.append_entries(
+        [LogEntry("06-30 12:00:01.000", "1287", "", "I", "MyTag", "now tagged")]
+    )
+    _shot(window, "auto-hide-columns-after")
+
+
 def scenario_devices(window: MainWindow) -> None:
     # Inject fake devices directly so no adb/device is needed.
     window._populate_devices(FAKE_DEVICES)
@@ -500,6 +518,7 @@ def scenario_guide_package(window: MainWindow) -> None:
 
 SCENARIOS = {
     "smoke": scenario_smoke,
+    "auto-hide-columns": scenario_auto_hide_columns,
     "populated": scenario_populated,
     "filtered": scenario_filtered,
     "devices": scenario_devices,

@@ -85,6 +85,49 @@ def test_clear_empties_master_list(qapp):
     assert model.rowCount() == 0 and proxy.rowCount() == 0
 
 
+# --- has_pidtid / has_tag (drives the delegate's auto-hide) ----------------
+def test_has_pidtid_and_tag_start_false(qapp):
+    model, _ = _wire(qapp)
+    assert model.has_pidtid() is False
+    assert model.has_tag() is False
+
+
+def test_has_pidtid_latches_true_on_pid(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("t", "100", "", "I", "", "msg")])
+    assert model.has_pidtid() is True
+    assert model.has_tag() is False
+
+
+def test_has_pidtid_latches_true_on_tid_alone(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("t", "", "200", "I", "", "msg")])
+    assert model.has_pidtid() is True
+
+
+def test_has_tag_latches_true(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("t", "", "", "I", "Tag", "msg")])
+    assert model.has_tag() is True
+    assert model.has_pidtid() is False
+
+
+def test_has_pidtid_stays_true_after_a_later_empty_row(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("t", "100", "200", "I", "Tag", "msg")])
+    model.append_entries([LogEntry("t", "", "", "I", "", "msg")])
+    assert model.has_pidtid() is True  # one-way latch, not per-row
+    assert model.has_tag() is True
+
+
+def test_has_pidtid_and_tag_reset_on_clear(qapp):
+    model, _ = _wire(qapp)
+    model.append_entries([LogEntry("t", "100", "200", "I", "Tag", "msg")])
+    model.clear()
+    assert model.has_pidtid() is False
+    assert model.has_tag() is False
+
+
 def test_level_counts(qapp):
     model, _ = _wire(qapp)
     model.append_entries([_entry(level="E"), _entry(level="E"), _entry(level="W")])

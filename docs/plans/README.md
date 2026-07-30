@@ -174,6 +174,8 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [tab-polish.md](tab-polish.md) | Done | Tab state marker + line count, drag-reorder, close-while-recording guard |
 | [local-source-in-device-box.md](local-source-in-device-box.md) | Done | Pick "This PC" in the device box and press Start to capture Windows debug output |
 | [persist-last-launch.md](persist-last-launch.md) | Done | Remember the last Launch App… program/args/cwd across zLog restarts |
+| [column-header-labels.md](column-header-labels.md) | Approved | Thin label strip above the log showing each segment's name (Time/PID·TID/Tag/Lvl/Message) |
+| [auto-hide-empty-columns.md](auto-hide-empty-columns.md) | Done | Auto-hide PID·TID/Tag segments when a capture never populates them; show once it does |
 | [prefer-newly-connected-device.md](prefer-newly-connected-device.md) | Done | Refresh selects a newly-plugged-in device over the remembered one |
 | [device-list-refresh-race.md](device-list-refresh-race.md) | Done | Retry `adb devices` once when it comes back empty right after connecting a phone |
 | [saved-filters-width.md](saved-filters-width.md) | Done | Smaller initial width for the Saved Filters left dock |

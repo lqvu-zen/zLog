@@ -24,3 +24,11 @@ class LogEntry:
     def rank(self) -> int:
         """Severity rank; unparsed lines (level == '') rank as 0."""
         return LEVEL_RANK.get(self.level, 0)
+
+    @property
+    def pidtid(self) -> str:
+        """`pid-tid`, or just whichever one is present — some sources (Windows
+        debug-output, Launch App capture) never set a thread id."""
+        if self.pid and self.tid:
+            return f"{self.pid}-{self.tid}"
+        return self.pid or self.tid

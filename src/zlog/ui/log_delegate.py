@@ -31,19 +31,21 @@ _PROC_W = 30  # natural width of the Process column (flexible; middle-elides)
 _MSG_MIN_FRAC = 0.5  # the message keeps at least this share of the row width
 
 
-def plan_tag_proc_widths(usable, cw, show, fixed_px, min_frac=_MSG_MIN_FRAC):
+def plan_tag_proc_widths(usable, cw, show_tag, show_proc, fixed_px, min_frac=_MSG_MIN_FRAC):
     """Return (tag_px, proc_px) for the flexible columns.
 
     ``fixed_px`` is the footprint already taken by the always-full columns
     (Time + PID + Level, incl. their gaps). Tag and the optional Process column
     share what's left so the message keeps at least ``min_frac`` of ``usable``;
     they use their natural widths when there's room, else shrink proportionally.
+    Either can be off entirely (``show_tag`` when the capture has never had a
+    tag; ``show_proc`` is the existing Settings toggle) — zero width, no gap.
     Pure arithmetic (no Qt) so it's unit-testable.
     """
     gap = cw
-    nat_tag = _TAG_W * cw
-    nat_proc = _PROC_W * cw if show else 0
-    gaps = gap * (2 if show else 1)
+    nat_tag = _TAG_W * cw if show_tag else 0
+    nat_proc = _PROC_W * cw if show_proc else 0
+    gaps = gap * (int(show_tag) + int(show_proc))
     budget = max(0.0, usable - fixed_px - min_frac * usable)
     if nat_tag + nat_proc + gaps > budget and nat_tag + nat_proc > 0:
         scale = max(0.0, budget - gaps) / (nat_tag + nat_proc)
@@ -98,16 +100,24 @@ class LogItemDelegate(QStyledItemDelegate):
             fn = getattr(src, getter, None)
             return max(fn() if fn else 0, floor)
 
+        def flag(getter):
+            fn = getattr(src, getter, None)
+            return fn() if fn else True  # a source without the getter: assume present
+
+        has_pidtid = flag("has_pidtid")
+        has_tag = flag("has_tag")
         # Measure the actual glyph run (not char_count * M-width): per-character
         # advance rounding otherwise makes the box a few px too narrow and clips the
         # last digit of the timestamp. Both stamps are digits/punctuation, so a run of
         # "0"s gives the true — and, for non-monospace fallbacks, safely padded — width.
         time_w = fm.horizontalAdvance("0" * cols("time_col_chars", _TIME_MIN_W))
-        pid_w = fm.horizontalAdvance("0" * cols("pidtid_col_chars", _PIDTID_MIN_W))
-        fixed_px = (time_w + cw) + (pid_w + cw) + 3 * cw
+        pid_w = (
+            fm.horizontalAdvance("0" * cols("pidtid_col_chars", _PIDTID_MIN_W)) if has_pidtid else 0
+        )
+        fixed_px = (time_w + cw) + ((pid_w + cw) if has_pidtid else 0) + 3 * cw
         x0 = left + self._pad
         usable = (right - self._pad) - x0
-        tag_w, proc_w = plan_tag_proc_widths(usable, cw, self.show_process, fixed_px)
+        tag_w, proc_w = plan_tag_proc_widths(usable, cw, has_tag, self.show_process, fixed_px)
         return time_w, pid_w, tag_w, proc_w
 
     def _gutter_w(self, src, fm):
@@ -122,9 +132,17 @@ class LogItemDelegate(QStyledItemDelegate):
         return fm.horizontalAdvance("0" * digits) + 2 * self._pad
 
     def _msg_left(self, left, time_w, pid_w, tag_w, proc_w, cw):
-        """The x where the message starts (after Time/PID/Tag/[Process]/level chip)."""
-        x = left + self._pad + (time_w + cw) + (pid_w + cw) + (tag_w + cw)
-        if self.show_process:
+        """The x where the message starts (after Time/PID/Tag/[Process]/level chip).
+
+        A segment with width 0 (PID·TID/Tag auto-hidden, or Process off) is
+        skipped entirely — no gap either — mirroring paint()'s ``seg()``.
+        """
+        x = left + self._pad + (time_w + cw)
+        if pid_w:
+            x += pid_w + cw
+        if tag_w:
+            x += tag_w + cw
+        if self.show_process and proc_w:
             x += proc_w + cw
         return x + 3 * cw
 
@@ -209,13 +227,14 @@ class LogItemDelegate(QStyledItemDelegate):
         def seg(text, width_px, color, elide=None):
             nonlocal x
             w = int(max(width_px, 0))
+            if w == 0:
+                return  # auto-hidden segment (see log_model.has_pidtid/has_tag): no draw, no gap
             s = text or ""
-            if elide and w:
+            if elide:
                 mode = Qt.ElideMiddle if elide == "middle" else Qt.ElideRight
                 s = fm.elidedText(s, mode, w)
-            if w:
-                painter.setPen(color)
-                painter.drawText(QRect(x, top, w, band), int(Qt.AlignVCenter | Qt.AlignLeft), s)
+            painter.setPen(color)
+            painter.drawText(QRect(x, top, w, band), int(Qt.AlignVCenter | Qt.AlignLeft), s)
             x += w + cw
 
         level = entry.level
@@ -223,7 +242,7 @@ class LogItemDelegate(QStyledItemDelegate):
         show = self.show_process
         time_w, pid_w, tag_w, proc_w = self._col_widths(left, option.rect.right(), cw, src, fm)
         seg(time_str, time_w, base_fg)
-        seg(f"{entry.pid}-{entry.tid}", pid_w, base_fg)
+        seg(entry.pidtid, pid_w, base_fg)
         seg(entry.tag, tag_w, base_fg, elide="middle")
         if show:
             seg(index.data(PROCESS_ROLE) or "", proc_w, base_fg, elide="middle")

@@ -81,6 +81,13 @@ class LogTableModel(QAbstractTableModel):
         self._pids: set[str] = set()  # distinct PIDs seen (query autocomplete)
         self._time_col_chars = 0  # Time/PID columns size to content (only grow)
         self._pidtid_col_chars = 0
+        # Latches true the first time any row has the field — never reset except
+        # by clear() — so a source that never sets pid/tid/tag (Windows
+        # debug-output, Launch App, a followed plain-text file) collapses that
+        # segment instead of reserving dead space for it (see log_delegate.py).
+        self._has_pid = False
+        self._has_tid = False
+        self._has_tag = False
         self.set_level_colors(LIGHT.level_colors)
 
     # --- required overrides ------------------------------------------------
@@ -219,6 +226,12 @@ class LogTableModel(QAbstractTableModel):
             ptl = len(entry.pid) + len(entry.tid) + 1
             if ptl > self._pidtid_col_chars:
                 self._pidtid_col_chars = min(ptl, _PIDTID_MAX_CHARS)
+            if entry.pid:
+                self._has_pid = True
+            if entry.tid:
+                self._has_tid = True
+            if entry.tag:
+                self._has_tag = True
             hit = parse_proc_start(entry.message)
             if hit is not None:
                 pid, name = hit
@@ -303,6 +316,9 @@ class LogTableModel(QAbstractTableModel):
         self._pids.clear()
         self._time_col_chars = 0
         self._pidtid_col_chars = 0
+        self._has_pid = False
+        self._has_tid = False
+        self._has_tag = False
         self.endResetModel()
 
     def entry_at(self, row: int) -> LogEntry:
@@ -399,6 +415,15 @@ class LogTableModel(QAbstractTableModel):
 
     def pidtid_col_chars(self) -> int:
         return self._pidtid_col_chars
+
+    def has_pidtid(self) -> bool:
+        """True once any row has ever had a pid or a tid — drives whether the
+        delegate reserves space for the PID·TID segment at all."""
+        return self._has_pid or self._has_tid
+
+    def has_tag(self) -> bool:
+        """True once any row has ever had a tag — drives the Tag segment."""
+        return self._has_tag
 
     def set_level_colors(self, hexmap: dict[str, str]) -> None:
         """Set per-level row tints from a theme's hex values (W/E/F)."""
