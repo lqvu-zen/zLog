@@ -178,4 +178,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [saved-filters-width.md](saved-filters-width.md) | Done | Smaller initial width for the Saved Filters left dock |
 | [retire-browse-picker.md](retire-browse-picker.md) | Done | Replace the App row's Browse… button with Launch App…; retire the process picker |
 | [unify-app-filter.md](unify-app-filter.md) | Done | One app filter: Load offers log-seen + running processes; Focus App becomes Browse… |
-| [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md) | Draft | Make the order-dependent follow-scroll test deterministic (settle-then-assert, sub-row slack) |
+| [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md) | Abandoned | Superseded — fixed at the root in 519f9c5 rather than loosening the test |

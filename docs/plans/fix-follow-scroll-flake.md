@@ -1,6 +1,7 @@
 # Plan: Fix the order-dependent follow-scroll flake
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Abandoned — fixed in production code instead (see note below)
+  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [smart-follow.md](smart-follow.md), [wrap-refit-on-resize.md](wrap-refit-on-resize.md), [file-follow.md](file-follow.md)
@@ -94,3 +95,24 @@ integer equals another integer". Assert that, and remove the guessed sleep.
 - Worth adding a CI job that runs the suite with `-p no:randomly` **and** a
   shuffled order, to surface ordering bugs deliberately rather than by luck?
   Out of scope here, but this flake is the argument for it.
+
+## 2026-07-30 update: abandoned — fixed at the root instead
+
+Found independently while running the 1.0.0 release gate (before noticing this
+plan): the failure reproduced 5/5 in isolation, not just under adverse ordering,
+and traced to a genuine product timing gap — `_do_follow_scroll`'s scrollbar
+`maximum()` was still growing on the *next* event-loop turn after its scroll
+passes, so even the wrap-mode re-pin could land short. Fixed in
+`519f9c5` ("Fix follow-scroll one-row lag and stale device-picker test
+assumptions") by adding a third, deferred re-pin (`QTimer.singleShot(0, ...)`)
+that re-checks the Follow/selection guards and re-pins once the range has
+settled — production code, not the test. Held across 5/5 isolated reruns and
+two full-suite passes (0 failures) afterward.
+
+This plan's diagnosis of *why* a fixed-wait pixel-exact assertion is fragile
+remains correct in general, and its settle-then-assert helper is still a
+reasonable hardening if this or a similar test misbehaves again — but the
+specific failure it was written against is gone at the source, so building the
+test-only workaround on top would be solving an already-solved problem. Not
+verified under the adverse/shuffled subset ordering this plan calls for
+(out of scope for this update); worth a look if the test ever flakes again.
