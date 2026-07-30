@@ -166,7 +166,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [main-window-split.md](main-window-split.md) | Done | Split main_window.py: extract construction into build.py/menus.py, unify the 4 reader-start paths behind a CaptureController |
 | [file-follow.md](file-follow.md) | Done | Follow a log file live (tail -f), incl. rotation/truncation — cross-platform |
 | [windows-event-log.md](windows-event-log.md) | Done | Stream Windows Event Log channels (Application/System/Security) as a source |
-| [etw-tracing.md](etw-tracing.md) | Draft | ETW real-time provider tracing (bigger bet; do the cheaper sources first) |
+| [etw-tracing.md](etw-tracing.md) | Abandoned | ETW real-time provider tracing — too risky for the payoff right now; restart if a real need shows up |
 | [persist-tabs.md](persist-tabs.md) | Done | Reopen the previous session's tabs (files + queries) on launch |
 | [theme-editor.md](theme-editor.md) | Done | Edit theme colors and save a custom theme |
 | [watch-run-command.md](watch-run-command.md) | Done | Watch action: run a command on a hit (argv-only, no shell) |

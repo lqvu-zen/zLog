@@ -1,6 +1,8 @@
 # Plan: ETW real-time tracing (bigger bet)
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Abandoned — too risky for the payoff right now; revisit if a real
+  need for it shows up (see note below)
+  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-24
 - **Related:** [windows-event-log.md](windows-event-log.md), [windows-debug-output.md](windows-debug-output.md)
@@ -85,3 +87,15 @@ have, but depends on external tools and adds latency.
   already cover the real debugging need? **Revisit only after those ship.**
 - Elevation UX: detect and tell the user, or attempt to relaunch elevated?
   Leaning detect-and-explain.
+
+## 2026-07-30 update: abandoned
+
+Decided the risk/payoff isn't there right now: leaked OS sessions if teardown
+goes wrong, a blocking `ProcessTrace` call that can hang shutdown if woken
+incorrectly, mandatory elevation, and volume far beyond what the logcat-tuned
+batching was built for — on top of `ctypes` struct marshalling being the
+fiddliest code in the app if route (A) is taken. The debug-output, Event Log,
+and file-follow sources shipped since this plan was written and likely cover
+most of the real debugging need already, which was this plan's own open
+question. Restart from here (the design/risk analysis above still stands) if a
+concrete case comes up that those three genuinely can't handle.
