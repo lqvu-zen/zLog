@@ -32,7 +32,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | Plan | Status | Summary |
 |---|---|---|
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
-| [release-1.1.0.md](release-1.1.0.md) | In progress | Cut the 1.1.0 release |
+| [release-1.1.0.md](release-1.1.0.md) | Done | Cut the 1.1.0 release |
 | [release-1.0.0.md](release-1.0.0.md) | Done | Cut the 1.0.0 release |
 | [wrap-refit-on-resize.md](wrap-refit-on-resize.md) | Done | Re-fit wrapped rows when the viewport width changes (finish the wrap feature) |
 | [density-modes.md](density-modes.md) | Done | Compact/Default/Comfortable row-padding presets (Settings → Log view) |

@@ -1,6 +1,6 @@
 # Plan: Cut the 1.1.0 release
 
-- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-31
 
@@ -26,11 +26,11 @@ app across restarts.
 - [x] `uv lock` so the lockfile matches version 1.1.0.
 - [x] Build the Windows exe locally and smoke-test it launches — log confirms
       "zLog 1.1.0 starting" with no errors.
-- [ ] Commit everything, then tag and push:
+- [x] Commit everything, then tag and push:
       `git tag -a v1.1.0 -m "zLog 1.1.0"` and `git push --tags`.
-- [ ] Watch `.github/workflows/release.yml` publish the GitHub Release
-      automatically from the pushed tag.
-- [ ] Replace the auto-generated release notes with the CHANGELOG section
+- [x] Watch `.github/workflows/release.yml` publish the GitHub Release
+      automatically from the pushed tag — succeeded in 58s.
+- [x] Replace the auto-generated release notes with the CHANGELOG section
       (same as 1.0.0 — GitHub's auto-notes are just a PR/commit list).
 
 ## Notes
