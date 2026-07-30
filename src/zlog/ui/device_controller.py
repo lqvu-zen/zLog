@@ -21,14 +21,30 @@ class DeviceController(QObject):
         self.preferred_serial: str | None = None  # last-used device, restored on launch
         self.filter_package: str | None = None
         self.filter_pids: set[str] = set()
+        # Real (non-local) serials seen streamable as of the *previous* refresh.
+        # None until the first refresh, so app startup never treats everything as
+        # "newly connected" — that would silently defeat remember-device.md.
+        self._known_real_serials: set[str] | None = None
+        self._newly_connected: frozenset[str] = frozenset()
 
     # --- device selection --------------------------------------------------
     def set_devices(self, devices) -> None:
         self.devices = list(devices)
+        current = {d.serial for d in self.devices if d.streamable and not d.is_local}
+        if self._known_real_serials is None:
+            self._newly_connected = frozenset()  # first-ever refresh: no baseline yet
+        else:
+            # Tracks *streamable* serials specifically (not just "seen"), so a
+            # device that was unauthorized on the last refresh and just got
+            # allowed still counts as newly connected now that it's usable.
+            self._newly_connected = frozenset(current - self._known_real_serials)
+        self._known_real_serials = current
 
     def choose_index(self) -> int:
         """Which device index the picker should select for the current list."""
-        return choose_device_index(self.devices, self.preferred_serial)
+        return choose_device_index(
+            self.devices, self.preferred_serial, newly_connected=self._newly_connected
+        )
 
     def remember(self, serial: str | None) -> None:
         """Record a real (streamable) selection so it's reselected next time; a

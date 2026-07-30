@@ -51,6 +51,44 @@ def test_choose_device_index():
     assert choose_device_index([Device("CCC", "offline")], None) == -1
 
 
+# --- newly_connected (Refresh prefers a just-plugged-in device) -------------
+def test_newly_connected_beats_remembered_serial():
+    from zlog.core.devices import choose_device_index
+
+    devs = [Device("AAA", "device"), Device("BBB", "device")]
+    assert choose_device_index(devs, "AAA", newly_connected={"BBB"}) == 1
+
+
+def test_last_of_several_newly_connected_wins():
+    from zlog.core.devices import choose_device_index
+
+    devs = [Device("AAA", "device"), Device("BBB", "device"), Device("CCC", "device")]
+    assert choose_device_index(devs, None, newly_connected={"AAA", "CCC"}) == 2
+
+
+def test_newly_connected_local_source_is_ignored():
+    from zlog.core.devices import choose_device_index, local_device
+
+    devs = [local_device(), Device("AAA", "device")]
+    # "This PC"'s serial is never a real newly-connected device, even if passed.
+    assert choose_device_index(devs, "AAA", newly_connected={local_device().serial}) == 1
+
+
+def test_newly_connected_unstreamable_is_ignored():
+    from zlog.core.devices import choose_device_index
+
+    devs = [Device("AAA", "device"), Device("BBB", "unauthorized")]
+    assert choose_device_index(devs, "AAA", newly_connected={"BBB"}) == 0
+
+
+def test_no_newly_connected_matches_prior_behavior():
+    from zlog.core.devices import choose_device_index
+
+    devs = [Device("AAA", "device"), Device("BBB", "device")]
+    assert choose_device_index(devs, "BBB", newly_connected=None) == 1
+    assert choose_device_index(devs, "BBB", newly_connected=set()) == 1
+
+
 def test_is_connect_ok():
     from zlog.core.devices import is_connect_ok
 

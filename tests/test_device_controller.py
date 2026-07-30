@@ -50,6 +50,41 @@ def test_choose_index_none_when_nothing_streamable():
     assert c.choose_index() == -1
 
 
+def test_first_ever_refresh_still_honors_preferred_serial():
+    # App startup: no prior refresh baseline, so nothing looks "newly connected"
+    # — remember-device.md must keep working on the very first population.
+    c = DeviceController()
+    c.preferred_serial = "BBB"
+    c.set_devices([_dev("AAA"), _dev("BBB")])
+    assert c.choose_index() == 1
+
+
+def test_second_refresh_prefers_a_device_that_just_appeared():
+    c = DeviceController()
+    c.preferred_serial = "AAA"
+    c.set_devices([_dev("AAA")])
+    assert c.choose_index() == 0  # baseline refresh: AAA remembered, nothing "new"
+    c.set_devices([_dev("AAA"), _dev("BBB")])  # BBB just got plugged in
+    assert c.choose_index() == 1  # BBB wins over the remembered AAA
+
+
+def test_refresh_with_unchanged_devices_still_honors_preferred_serial():
+    c = DeviceController()
+    c.preferred_serial = "AAA"
+    c.set_devices([_dev("AAA"), _dev("BBB")])
+    c.set_devices([_dev("AAA"), _dev("BBB")])  # same devices again, nothing new
+    assert c.choose_index() == 0  # AAA (remembered), not BBB
+
+
+def test_unauthorized_becoming_streamable_counts_as_newly_connected():
+    c = DeviceController()
+    c.preferred_serial = "AAA"
+    c.set_devices([_dev("AAA"), _dev("BBB", "unauthorized")])
+    assert c.choose_index() == 0  # BBB not streamable yet
+    c.set_devices([_dev("AAA"), _dev("BBB", "device")])  # just authorized
+    assert c.choose_index() == 1  # BBB now wins, even though its serial was seen before
+
+
 def test_remember_ignores_none_but_keeps_real():
     c = DeviceController()
     c.remember("AAA")

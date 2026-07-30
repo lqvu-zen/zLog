@@ -71,26 +71,47 @@ def parse_devices(output: str) -> list[Device]:
     return devices
 
 
-def choose_device_index(devices: list[Device], preferred_serial: str | None) -> int:
-    """Index of the source to preselect: the remembered serial if it's present and
-    streamable, else the first streamable **real device**, else the first streamable
-    entry at all (which may be the local 'This PC' source), else -1.
+def choose_device_index(
+    devices: list[Device],
+    preferred_serial: str | None,
+    *,
+    newly_connected=None,
+) -> int:
+    """Index of the source to preselect: a newly-connected real device (if any)
+    wins outright, else the remembered serial if it's present and streamable,
+    else the first streamable **real device**, else the first streamable entry
+    at all (which may be the local 'This PC' source), else -1.
 
     Real devices win over the local source when nothing is remembered, so plugging
     in a phone still Just Works for the Android case; 'This PC' is only the default
     when it's the only thing available.
+
+    `newly_connected` (optional): serials that just appeared since the previous
+    refresh (see `DeviceController`). The **last** streamable, non-local device
+    among them wins — plugging in a different device and hitting Refresh selects
+    it without permanently forgetting the remembered one.
     """
+    newly_connected = newly_connected or ()
     first_real = -1
     first_any = -1
+    last_new = -1
+    preferred_idx = -1
     for i, dev in enumerate(devices):
         if not dev.streamable:
             continue
         if first_any < 0:
             first_any = i
-        if not dev.is_local and first_real < 0:
-            first_real = i
-        if dev.serial == preferred_serial:
-            return i
+        if not dev.is_local:
+            if first_real < 0:
+                first_real = i
+            if dev.serial in newly_connected:
+                last_new = i
+        if dev.serial == preferred_serial and preferred_idx < 0:
+            preferred_idx = i
+    if last_new >= 0:
+        return last_new
+    if preferred_idx >= 0:
+        return preferred_idx
     return first_real if first_real >= 0 else first_any
 
 
