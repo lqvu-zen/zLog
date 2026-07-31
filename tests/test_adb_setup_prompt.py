@@ -30,6 +30,10 @@ def _fail_with_missing_adb(*_a, **_k):
 def test_prompt_fires_on_user_initiated_action_when_adb_resolves_nowhere(window, monkeypatch):
     import zlog.ui.main_window as mw
 
+    # Fetching is only offered on Windows (see bundle-adb.md scope); force it
+    # so this test is deterministic on any CI platform, not just whichever
+    # OS happens to be running it.
+    monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
     monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
@@ -51,6 +55,7 @@ def test_prompt_never_fires_at_cold_start(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(MainWindow, "_managed_adb", lambda self: None)
     import zlog.ui.main_window as mw
 
+    monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
     monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
@@ -63,6 +68,7 @@ def test_prompt_never_fires_at_cold_start(qapp, tmp_path, monkeypatch):
 def test_prompt_asked_at_most_once(window, monkeypatch):
     import zlog.ui.main_window as mw
 
+    monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
     monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
