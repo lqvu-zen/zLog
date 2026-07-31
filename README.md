@@ -56,13 +56,38 @@ the model is **virtualized** (Qt only asks for visible rows); and filtering is a
 
 ## Prerequisites
 
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) installed.
-- [Android platform-tools](https://developer.android.com/tools/releases/platform-tools)
-  on your PATH (run `adb version` to confirm).
-- A device with USB debugging on, or a running emulator.
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) — only to run
+  from source; the released `.exe` needs nothing installed.
+- **For Android devices only:** `adb` (see below).
+- **For Windows debug output / launching an app / following a log file:**
+  nothing extra — these work out of the box.
 
 > Note: `requires-python` is `>=3.14`. uv will fetch a matching Python for you
 > automatically if you don't have one.
+
+### Getting adb (Android only)
+
+zLog runs `adb` to talk to Android devices. It is **not bundled** — Google's SDK
+terms don't permit redistributing the platform-tools binaries — so you supply it
+once. Everything that isn't an Android device works without it.
+
+1. Download **[SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools)**
+   for your OS (a ~10 MB zip; no Android Studio needed).
+2. Unzip it somewhere permanent, e.g. `C:\platform-tools`.
+3. Either add that folder to your **PATH**, or point zLog straight at it:
+   **Settings → adb path** → browse to `adb.exe`. The Settings route avoids
+   touching your system PATH.
+4. Confirm with `adb version` in a terminal, then press **Refresh** in zLog —
+   no restart needed.
+
+If adb is missing, zLog says so once in the status bar and carries on: the
+Windows sources (**This PC**, **Launch App…**, **Follow File…**) stay fully
+usable, and any saved `.log` file still opens.
+
+Already have Android Studio? You very likely have adb at
+`%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe` (Windows) or
+`~/Library/Android/sdk/platform-tools/adb` (macOS) — point Settings there rather
+than downloading a second copy, so zLog and Android Studio share one adb server.
 
 ## User guide
 
