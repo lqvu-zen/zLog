@@ -184,3 +184,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [retire-browse-picker.md](retire-browse-picker.md) | Done | Replace the App row's Browse… button with Launch App…; retire the process picker |
 | [unify-app-filter.md](unify-app-filter.md) | Done | One app filter: Load offers log-seen + running processes; Focus App becomes Browse… |
 | [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md) | Abandoned | Superseded — fixed at the root in 519f9c5 rather than loosening the test |
+| [usable-without-adb.md](usable-without-adb.md) | Draft | Bug: with no adb installed, refresh_devices returns early so "This PC" never lists and Start is dead |
