@@ -7,6 +7,10 @@ through everyday use.
 
 ## Before you start
 
+adb is only needed for **Android** devices — skip straight to launching zLog if
+you just want to capture a **Windows** app's console/debug output (pick **This
+PC** in the device box; see "Debugging a Windows app" below).
+
 1. Install [Android platform-tools](https://developer.android.com/tools/releases/platform-tools)
    and make sure `adb` is on your PATH (run `adb version` to check).
 2. Connect a device with **USB debugging** enabled, or start an emulator.
@@ -319,7 +323,9 @@ picks buffers, and `--dump N` starts from the last N lines. (`proc:` and
 
 ## Troubleshooting
 
-- **"adb not found"** — install platform-tools and add `adb` to your PATH.
+- **"adb not found"** — only matters if you're capturing an Android device;
+  install platform-tools and add `adb` to your PATH. On Windows, **This PC**
+  (debug output) works either way — you don't need adb for it.
 - **No devices listed** — check the USB cable/authorization dialog on the phone,
   then press refresh. `adb devices` in a terminal should show it too.
 - **Something went wrong / reporting a bug** — zLog keeps its own diagnostics log

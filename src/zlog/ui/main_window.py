@@ -169,6 +169,7 @@ class MainWindow(QMainWindow):
         self._density = DEFAULT_DENSITY  # row-padding preset (see core/density.py)
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
+        self._adb_missing_reported = False  # only nag about missing adb once, not every refresh
         self._query_package = ""  # effective proc: value last mirrored into the package box
         self._isolate_prev_query: str | None = None  # saved query while isolated (None = not)
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
@@ -579,14 +580,16 @@ class MainWindow(QMainWindow):
         return None
 
     def refresh_devices(self) -> None:
+        missing_msg = "adb not found — install Android platform-tools and add it to PATH."
         devices = self._run_adb(
             lambda: list_devices(self._adb_path()),
-            missing_msg="adb not found — install Android platform-tools and add it to PATH.",
+            missing_msg=missing_msg,
             error_prefix="Could not list devices",
-            report=self._show_device_error,
+            report=lambda msg: self._on_device_list_failed(msg, missing=msg == missing_msg),
         )
         if devices is None:
             return
+        self._adb_missing_reported = False  # adb works again; re-arm the one-shot notice
         self._populate_devices(devices)
 
     def _connect_over_wifi(self) -> None:
@@ -638,13 +641,26 @@ class MainWindow(QMainWindow):
         real = sum(1 for d in devices if not d.is_local)  # "This PC" isn't a device
         self.statusBar().showMessage(f"{real} device(s) found.")
 
-    def _show_device_error(self, msg: str) -> None:
-        self.devctl.set_devices([])
-        self.device_box.clear()
-        self.device_box.addItem("No devices", None)
-        self.device_box.setEnabled(False)
-        self._update_start_enabled()
-        self.statusBar().showMessage(msg)
+    def _on_device_list_failed(self, msg: str, *, missing: bool) -> None:
+        """adb couldn't be run or failed; still populate the picker (This PC still
+        shows up on Windows — see docs/plans/usable-without-adb.md) instead of
+        leaving it dead. A missing adb is reported once, not on every refresh —
+        a Windows-only user shouldn't be nagged about Android tooling they don't
+        have; a genuine failure (adb present but broken) is reported every time,
+        since that's an actionable problem for someone who does use Android."""
+        announce = not (missing and self._adb_missing_reported)
+        if missing:
+            self._adb_missing_reported = True
+        self._populate_devices([])
+        if not announce:
+            return  # _populate_devices already left an honest, non-alarming status message
+        if is_supported():
+            self.statusBar().showMessage(
+                f"{msg} This PC is still available — set a custom adb path in "
+                "Settings if adb is installed elsewhere."
+            )
+        else:
+            self.statusBar().showMessage(msg)
 
     def _current_serial(self) -> str | None:
         """The device we'd act on: the streaming reader's, else the picker's."""

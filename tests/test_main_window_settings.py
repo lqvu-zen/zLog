@@ -443,13 +443,19 @@ def test_goto_empty_table_no_op(window, monkeypatch):
     assert window.table.currentIndex().row() == -1
 
 
-def test_clear_device_button_no_device(window):
+def test_clear_device_button_no_device(window, monkeypatch):
     # The dedicated device-buffer button exists and, with no device selected,
-    # routes through the guarded path (status message, no crash). The picker
-    # always has at least "This PC" (see local-source-in-device-box.md), so a
-    # genuine "no device" state only arises via the device-listing-failed path.
+    # routes through the guarded path (status message, no crash). On Windows
+    # the picker always has at least "This PC" (see local-source-in-device-box.md
+    # and usable-without-adb.md), so force the platform check off to exercise
+    # the genuinely-empty picker regardless of the OS running the test.
+    import zlog.ui.main_window as mw
+
+    monkeypatch.setattr(mw, "is_supported", lambda: False)
     assert hasattr(window, "clear_device_btn")
-    window._show_device_error("Connect a device and press Refresh (USB debugging on).")
+    window._on_device_list_failed(
+        "Connect a device and press Refresh (USB debugging on).", missing=False
+    )
     window.clear_device_btn.click()
     assert "device" in window.statusBar().currentMessage().lower()
 

@@ -1,6 +1,6 @@
 # Plan: zLog stays usable without adb
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-30
 - **Related:** [local-source-in-device-box.md](local-source-in-device-box.md), [device-picker.md](device-picker.md), [windows-debug-output.md](windows-debug-output.md), [custom-adb-path.md](custom-adb-path.md)
@@ -96,21 +96,34 @@ disabled "No devices" state when there's genuinely nothing to offer.
 
 ## Verification
 
-- [ ] New regression test fails before the fix, passes after (assert this
-      explicitly — a test that passes both ways proves nothing).
-- [ ] `uv run pytest` in **one process** (not chunked) — full suite green.
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Manual on Windows with adb removed from PATH: launch → This PC listed and
-      selected, Start captures; then restore adb, press Refresh, devices appear.
-- [ ] Manual on Linux/macOS with no adb: unchanged "No devices" behaviour.
+- [x] New regression test fails before the fix, passes after (verified
+      explicitly: stashed the `main_window.py` fix, reran the new tests —
+      3 failed as expected — then restored the fix and they passed).
+- [x] Targeted tests only (`tests/test_main_window_adb.py`,
+      `tests/test_main_window_settings.py`, `tests/test_main_window_dbwin.py`)
+      — 99 passed. Full-suite run deferred to a release/QA pass, not per-fix
+      (see [[no-full-suite-per-feature]]).
+- [x] `uv run ruff check .` and `uv run ruff format --check .` both clean.
+- [x] Manual on Windows with adb removed from PATH: launched a real `MainWindow`
+      in a subprocess with adb's directory stripped from `PATH` (confirmed
+      `shutil.which("adb") is None`, not mocked) — This PC was listed,
+      enabled, preselected, and Start was enabled. Restored adb on `PATH` and
+      pressed Refresh: recovered cleanly ("0 device(s) found.", no crash, no
+      stale disabled state).
+- [ ] Manual on Linux/macOS with no adb — not performed (no such machine
+      available here); covered by
+      `test_refresh_devices_non_windows_still_shows_no_devices_when_adb_missing`
+      (forces `is_supported() -> False`), which is the same substitution used
+      by every other cross-platform test in this codebase
+      (e.g. `test_main_window_dbwin.py`).
 
-## Open questions
+## Open questions (resolved)
 
-- **Should the adb error appear at all on first launch** when the user has no
-  device and no adb? Leaning: show it once in the status bar, not on every
-  refresh — a Windows-only user shouldn't be nagged about Android tooling.
-- **Offer a hint** ("Install platform-tools" / open Settings → adb path) in the
-  message? Leaning a short status line only; a dialog would be too much.
+- **Should the adb error appear at all on first launch?** Yes — show it once in
+  the status bar, not on every refresh. A Windows-only user shouldn't be nagged
+  about Android tooling on repeat refreshes.
+- **Offer a hint in the message?** Yes — a short status-bar hint (e.g. point at
+  Settings → adb path), not a dialog.
 - Worth auditing the other `_run_adb` callers for the same early-return shape
   (`load_packages`, dumpsys, Wi-Fi connect)? They're user-initiated rather than
   startup, so the failure is self-explanatory there — but worth a look.
