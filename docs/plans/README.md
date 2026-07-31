@@ -185,3 +185,4 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [unify-app-filter.md](unify-app-filter.md) | Done | One app filter: Load offers log-seen + running processes; Focus App becomes Browse… |
 | [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md) | Abandoned | Superseded — fixed at the root in 519f9c5 rather than loosening the test |
 | [usable-without-adb.md](usable-without-adb.md) | Draft | Bug: with no adb installed, refresh_devices returns early so "This PC" never lists and Start is dead |
+| [bundle-adb.md](bundle-adb.md) | Draft | Ship adb in the release so Android works with no install — licensing decides the route |
