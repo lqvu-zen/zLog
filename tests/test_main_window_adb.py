@@ -13,6 +13,17 @@ def window(qapp, tmp_path, monkeypatch):
     return MainWindow()
 
 
+@pytest.fixture(autouse=True)
+def _no_real_adb_setup_dialog(monkeypatch):
+    """None of the tests below exercise the adb-setup prompt itself (see
+    test_adb_setup_prompt.py) — stub it so a "missing adb" scenario here can
+    never block on a real modal dialog, regardless of whether this test
+    machine actually has adb on PATH."""
+    import zlog.ui.main_window as mw
+
+    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: "later")
+
+
 def test_run_adb_returns_result_on_success(window):
     assert window._run_adb(
         lambda: ["ok"], missing_msg="m", error_prefix="e", report=lambda _m: None

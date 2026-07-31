@@ -14,7 +14,9 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import shutil
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -66,6 +68,8 @@ from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
 from zlog.adb.snapshot import capture_dumpsys
+from zlog.core.adbfetch import expected_sha256, platform_tools_url
+from zlog.core.adbpath import managed_adb_path, resolve_adb
 from zlog.core.anchor import pick_anchor
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
@@ -116,6 +120,8 @@ from zlog.core.theme import LIGHT
 from zlog.core.theme_io import theme_from_dict, theme_to_dict
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.core.watch_action import expand_command
+from zlog.ui.adb_fetcher import AdbFetcher
+from zlog.ui.adb_setup_dialog import DOWNLOAD_PAGE, FETCH, MANUAL, ask_adb_setup
 from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.capture_controller import CaptureController
 from zlog.ui.device_controller import DeviceController
@@ -170,6 +176,8 @@ class MainWindow(QMainWindow):
         self._max_rows = 0  # ring-buffer cap (0 = unlimited), any value
         self._adb_path_setting = ""  # explicit adb path ("" = use "adb" from PATH)
         self._adb_missing_reported = False  # only nag about missing adb once, not every refresh
+        self._adb_setup_asked = False  # offer the fetch-adb prompt at most once (see bundle-adb.md)
+        self._adb_fetcher = None  # the in-flight AdbFetcher, if any
         self._query_package = ""  # effective proc: value last mirrored into the package box
         self._isolate_prev_query: str | None = None  # saved query while isolated (None = not)
         self._syncing_level = False  # guard: programmatic level_box sets skip the query mirror
@@ -240,7 +248,10 @@ class MainWindow(QMainWindow):
 
         # Populate the picker, then restore saved settings over defaults (the
         # last-used device is reselected in _load_and_apply_settings, after this).
-        self.refresh_devices()
+        # user_initiated=False: cold start must stay silent even with no adb —
+        # the adb-setup prompt only fires on an actual Android action (see
+        # docs/plans/bundle-adb.md).
+        self.refresh_devices(user_initiated=False)
         self._load_and_apply_settings()
         self._update_placeholder()
         self._refresh_save_update_button()  # initial Save/Update label from restored state
@@ -563,10 +574,88 @@ class MainWindow(QMainWindow):
         self._rebind_selection()
 
     # --- devices -----------------------------------------------------------
+    def _adb_data_dir(self) -> str:
+        return QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+
+    def _managed_adb(self) -> str | None:
+        """A copy zLog fetched itself (see ui/adb_fetcher.py), if one exists."""
+        path = managed_adb_path(self._adb_data_dir())
+        return path if os.path.isfile(path) else None
+
+    def _resolve_adb(self) -> tuple[str, str]:
+        """(path, source) — see core/adbpath.resolve_adb for the order (Settings
+        > PATH > a managed copy) and why PATH beats a managed copy."""
+        return resolve_adb(self._adb_path_setting, lambda: shutil.which("adb"), self._managed_adb)
+
     def _adb_path(self) -> str:
-        """The adb executable to invoke — the Settings override, or plain "adb"
-        (resolved via PATH) when unset."""
-        return self._adb_path_setting or "adb"
+        """The adb executable to invoke. See `_resolve_adb` for the full order."""
+        path, _source = self._resolve_adb()
+        return path
+
+    def _maybe_offer_adb_setup(self) -> None:
+        """Offer to fetch adb the first time an Android-shaped action fails
+        because adb is nowhere to be found (see docs/plans/bundle-adb.md).
+        Fires on intent, never at cold start, and only once until answered —
+        a Windows-only user should never see this."""
+        if self._adb_setup_asked:
+            return
+        _path, source = self._resolve_adb()
+        if source != "none":
+            return  # something already resolves; this failure was something else
+        self._adb_setup_asked = True
+        self._save_settings()
+        url = platform_tools_url(sys.platform)
+        if url is None:
+            return  # fetch not offered on this OS; the status message already covers manual install
+        choice = ask_adb_setup(self)
+        if choice == FETCH:
+            self._start_adb_fetch(url, expected_sha256(sys.platform))
+        elif choice == MANUAL:
+            QDesktopServices.openUrl(QUrl(DOWNLOAD_PAGE))
+
+    def _download_adb_from_settings(self) -> None:
+        """The Settings 'Download adb…' button — a direct action, so it always
+        runs regardless of the one-shot intent-triggered prompt's state."""
+        url = platform_tools_url(sys.platform)
+        if url is None:
+            QDesktopServices.openUrl(QUrl(DOWNLOAD_PAGE))
+            self.statusBar().showMessage(
+                "Fetching adb isn't available on this OS — opened the download page."
+            )
+            return
+        self._start_adb_fetch(url, expected_sha256(sys.platform))
+
+    def _start_adb_fetch(self, url: str, sha256: str) -> None:
+        if self._adb_fetcher is not None:
+            self.statusBar().showMessage("Already downloading adb…")
+            return
+        dialog = QProgressDialog("Downloading adb…", "Cancel", 0, 100, self)
+        dialog.setWindowModality(Qt.WindowModal)
+        dialog.setMinimumDuration(0)
+        fetcher = AdbFetcher(url, sha256, self._adb_data_dir(), self)
+        self._adb_fetcher = fetcher  # keep alive; also lets Settings reuse cancel later
+
+        def on_progress(read, total):
+            dialog.setValue(int(read * 100 / total) if total else 0)
+
+        def finish():
+            dialog.reset()
+            self._adb_fetcher = None
+
+        def on_done(_path):
+            finish()
+            self.statusBar().showMessage("adb installed.")
+            self.refresh_devices()  # re-resolve and pick it up, no restart
+
+        def on_error(msg):
+            finish()
+            self.statusBar().showMessage(msg)
+
+        fetcher.progress.connect(on_progress)
+        fetcher.done.connect(on_done)
+        fetcher.error.connect(on_error)
+        dialog.canceled.connect(fetcher.cancel)
+        fetcher.start()
 
     def _run_adb(self, fn, *, missing_msg, error_prefix, report):
         """Run an adb-backed call, routing a missing `adb` and any other failure
@@ -579,18 +668,28 @@ class MainWindow(QMainWindow):
             report(f"{error_prefix}: {exc}")
         return None
 
-    def refresh_devices(self) -> None:
+    def refresh_devices(self, *, user_initiated: bool = True) -> None:
         missing_msg = "adb not found — install Android platform-tools and add it to PATH."
         devices = self._run_adb(
             lambda: list_devices(self._adb_path()),
             missing_msg=missing_msg,
             error_prefix="Could not list devices",
-            report=lambda msg: self._on_device_list_failed(msg, missing=msg == missing_msg),
+            report=lambda msg: self._on_device_list_failed(
+                msg, missing=msg == missing_msg, user_initiated=user_initiated
+            ),
         )
         if devices is None:
             return
         self._adb_missing_reported = False  # adb works again; re-arm the one-shot notice
         self._populate_devices(devices)
+
+    def _report_adb_action_failed(self, msg: str, *, missing: bool) -> None:
+        """Status-bar report for a one-shot adb action (Wi-Fi connect, dumpsys);
+        offers the adb-setup prompt the first time one fails because adb is
+        nowhere to be found (see docs/plans/bundle-adb.md)."""
+        self.statusBar().showMessage(msg)
+        if missing:
+            self._maybe_offer_adb_setup()
 
     def _connect_over_wifi(self) -> None:
         host_port, ok = QInputDialog.getText(
@@ -599,11 +698,12 @@ class MainWindow(QMainWindow):
         host_port = host_port.strip()
         if not ok or not host_port:
             return
+        missing_msg = "adb not found — install Android platform-tools and add it to PATH."
         message = self._run_adb(
             lambda: adb_connect(host_port, self._adb_path()),
-            missing_msg="adb not found — install Android platform-tools and add it to PATH.",
+            missing_msg=missing_msg,
             error_prefix="Could not connect",
-            report=self.statusBar().showMessage,
+            report=lambda m: self._report_adb_action_failed(m, missing=m == missing_msg),
         )
         if message is None:
             return
@@ -641,7 +741,9 @@ class MainWindow(QMainWindow):
         real = sum(1 for d in devices if not d.is_local)  # "This PC" isn't a device
         self.statusBar().showMessage(f"{real} device(s) found.")
 
-    def _on_device_list_failed(self, msg: str, *, missing: bool) -> None:
+    def _on_device_list_failed(
+        self, msg: str, *, missing: bool, user_initiated: bool = True
+    ) -> None:
         """adb couldn't be run or failed; still populate the picker (This PC still
         shows up on Windows — see docs/plans/usable-without-adb.md) instead of
         leaving it dead. A missing adb is reported once, not on every refresh —
@@ -651,7 +753,9 @@ class MainWindow(QMainWindow):
         announce = not (missing and self._adb_missing_reported)
         if missing:
             self._adb_missing_reported = True
-        self._populate_devices([])
+        self._populate_devices([])  # picker settles before any dialog goes modal over it
+        if missing and user_initiated:  # never the adb-setup prompt at cold start
+            self._maybe_offer_adb_setup()
         if not announce:
             return  # _populate_devices already left an honest, non-alarming status message
         if is_supported():
@@ -1598,11 +1702,12 @@ class MainWindow(QMainWindow):
         if not ok:
             return
         self.statusBar().showMessage("Capturing dumpsys…")
+        missing_msg = "adb not found."
         output = self._run_adb(
             lambda: capture_dumpsys(serial, section, self._adb_path()),
-            missing_msg="adb not found.",
+            missing_msg=missing_msg,
             error_prefix="Could not capture dumpsys",
-            report=self.statusBar().showMessage,
+            report=lambda m: self._report_adb_action_failed(m, missing=m == missing_msg),
         )
         if not output:
             return
@@ -1977,6 +2082,8 @@ class MainWindow(QMainWindow):
             buffers=["main", "system", "crash", "radio", "events", "kernel"],
             fonts=self._available_log_fonts(),
             on_edit_theme=on_edit_theme,
+            adb_effective=self._resolve_adb(),
+            on_download_adb=self._download_adb_from_settings,
             parent=self,
         )
         if dlg.exec():
@@ -3071,6 +3178,11 @@ class MainWindow(QMainWindow):
             ("wrap", lambda: self.log_delegate.wrap, set_wrap),
             ("line_numbers", lambda: self.log_delegate.line_numbers, set_line_numbers),
             ("adb_path", lambda: self._adb_path_setting, set_adb_path),
+            (
+                "adb_setup_asked",
+                lambda: self._adb_setup_asked,
+                lambda v: setattr(self, "_adb_setup_asked", bool(v)),
+            ),
             ("last_launch", get_last_launch, set_last_launch),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice

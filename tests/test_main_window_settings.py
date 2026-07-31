@@ -345,12 +345,23 @@ def test_max_rows_setting_applies_to_model(window):
     assert window.model._max_rows == 10000
 
 
-def test_adb_path_defaults_to_plain_adb(window):
+def _no_adb_on_path_or_managed(window, monkeypatch):
+    """Isolate `_adb_path()` from whatever this test machine actually has on
+    PATH (see core/adbpath.resolve_adb) so these tests are deterministic."""
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(type(window), "_managed_adb", lambda self: None)
+
+
+def test_adb_path_defaults_to_plain_adb(window, monkeypatch):
+    _no_adb_on_path_or_managed(window, monkeypatch)
     assert window._adb_path_setting == ""
     assert window._adb_path() == "adb"
 
 
-def test_adb_path_setting_overrides_default(window):
+def test_adb_path_setting_overrides_default(window, monkeypatch):
+    _no_adb_on_path_or_managed(window, monkeypatch)
     window._adb_path_setting = "/opt/platform-tools/adb"
     assert window._adb_path() == "/opt/platform-tools/adb"
     got = next(g for k, g, _ in window._settings_specs() if k == "adb_path")()

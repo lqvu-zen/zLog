@@ -324,8 +324,12 @@ picks buffers, and `--dump N` starts from the last N lines. (`proc:` and
 ## Troubleshooting
 
 - **"adb not found"** — only matters if you're capturing an Android device;
-  install platform-tools and add `adb` to your PATH. On Windows, **This PC**
-  (debug output) works either way — you don't need adb for it.
+  install platform-tools and add `adb` to your PATH, or let zLog fetch it for
+  you: the first time you press **Refresh**, **Connect…**, or **Capture
+  dumpsys…** with no adb anywhere, zLog offers to download it (Windows only —
+  macOS/Linux get a link to the download page instead). It asks once; reach
+  it again anytime via **Settings → Capture → Download adb…**. On Windows,
+  **This PC** (debug output) works either way — you don't need adb for it.
 - **No devices listed** — check the USB cable/authorization dialog on the phone,
   then press refresh. `adb devices` in a terminal should show it too.
 - **Something went wrong / reporting a bug** — zLog keeps its own diagnostics log

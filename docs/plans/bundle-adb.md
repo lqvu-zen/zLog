@@ -1,6 +1,6 @@
 # Plan: Offer to fetch adb when it's missing
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-30
 - **Related:** [usable-without-adb.md](usable-without-adb.md), [custom-adb-path.md](custom-adb-path.md), [device-picker.md](device-picker.md), [release-workflow.md](release-workflow.md)
@@ -120,31 +120,64 @@ Refresh; **Settings → Download adb…** remains the way back in.
 
 ## Verification
 
-- [ ] `uv run pytest` in **one process** — new pure tests plus full suite.
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Unit: a tampered/truncated zip fails verification and nothing is installed.
-- [ ] Manual, clean Windows VM, **no adb**: launch → **no prompt** (the point of
-      the audience scoping). Press **Refresh** → prompted → "Download for me" →
-      devices appear, no restart. Relaunch → not prompted again.
-- [ ] Manual, same VM: choose "I'll do it myself" → prompt gone, Settings →
-      **Download adb…** still works.
-- [ ] Manual, same VM, **Windows-only user**: launch, capture This PC, launch an
-      app, follow a file — never prompted about adb at any point.
-- [ ] Manual, machine **with** Android Studio running: confirm zLog uses their
-      adb (source reads "PATH") and does **not** kill their server.
-- [ ] Manual, network blocked: fetch fails with the manual instructions.
+- [x] Targeted tests only (`tests/test_adbpath.py`, `test_adbfetch.py`,
+      `test_adb_fetcher.py`, `test_adb_setup_prompt.py`,
+      `test_main_window_adb.py`, `test_main_window_settings.py`,
+      `test_settings_dialog.py`, `test_main_window_dbwin.py`) — 138 passed.
+      Full-suite run deferred to a release/QA pass, not per-feature (see
+      [[no-full-suite-per-feature]]).
+- [x] `uv run ruff check .` and `uv run ruff format --check .` — both clean,
+      whole repo.
+- [x] Unit: a tampered/truncated zip fails verification and nothing is
+      installed (`test_adbfetch.py`, `test_adb_fetcher.py`), plus a
+      path-traversal entry in an otherwise hash-verified archive is rejected
+      (`test_path_traversal_in_archive_is_rejected`).
+- [x] Manual, this machine, **real adb genuinely stripped from PATH** (not a
+      separate VM, but the same effect — confirmed via `shutil.which("adb")
+      is None`): launch → **no prompt** (0 dialog calls). User-initiated
+      Refresh → prompted → "Download for me" → the **real** platform-tools zip
+      (downloaded fresh, sha256 matched the pinned hash) was fetched via a
+      network-stubbed `urlopen` (no live network call, but genuine bytes),
+      verified, and installed; `_resolve_adb()` then read `("...adb.exe",
+      "managed")` and the freshly-installed **real** adb.exe successfully
+      executed (`adb devices` → "0 device(s) found.", no error) — the fetched
+      binary actually works, not just extracts.
+- [x] Manual, same setup, **relaunch with a managed copy already on disk**:
+      adb resolves via "managed" immediately; the setup prompt is never
+      shown again (0 calls) — confirms "asked once" survives across restarts
+      once adb resolves for any reason, not just via the settings flag.
+- [x] Manual, same setup, **network failure during fetch** (`urlopen` raising
+      `OSError`): no crash; status bar shows "Download failed: ...";
+      `_adb_fetcher` is cleared so a retry isn't blocked.
+- [x] Unit: "I'll do it myself" opens the download page and marks asked
+      (`test_manual_choice_opens_the_download_page`); Settings → **Download
+      adb…** works even after the intent prompt was already asked/declined
+      (`test_settings_download_button_bypasses_the_asked_gate`).
+- [x] Unit: a Windows-only user's actions (This PC / Launch App… / Follow
+      File…) never reach `_adb_path()`/`_run_adb` at all — verified by
+      inspection (none of `start()`'s local-source branch, `capture_debug_
+      output`, the launcher, or the file-follow path call `_adb_path` or
+      `_run_adb`), so `_maybe_offer_adb_setup` can't fire from them.
+- [ ] Manual, machine **with Android Studio actually running**: not performed
+      (no such machine available here). The resolution *order* itself is
+      directly unit-tested (`test_path_wins_over_managed`) and the real
+      PATH-adb-wins behavior was exercised live in the prerequisite
+      usable-without-adb.md verification — but the specific "doesn't kill an
+      already-running adb server" claim wasn't observed with Android Studio
+      itself. Flagging in case you want to confirm this by hand.
 
-## Open questions
+## Open questions (resolved)
 
-- **Pinned hash maintenance:** platform-tools updates often. Pin a known-good
-  version and refresh it during releases, or verify against Google's published
-  checksum at fetch time? Leaning pin-and-refresh — simpler to reason about, and
-  a slightly old adb is fine since we prefer the user's own anyway.
-- **Which Windows arch/OS to offer?** Leaning Windows-only fetch initially, with
-  macOS/Linux getting the link and instructions (their package managers are
-  better at this than we are).
-- **Where to install:** app data (per-user, no admin) vs. beside the exe (breaks
-  on a read-only install dir). Leaning app data.
+- **Pinned hash maintenance:** Pin-and-refresh — a known-good platform-tools
+  version/hash is pinned in the repo and refreshed manually during releases.
+  Simpler to reason about, and a slightly old adb is fine since the user's own
+  adb always wins anyway.
+- **Which Windows arch/OS to offer?** Windows-only fetch initially; macOS/Linux
+  get the link and manual instructions (their package managers already handle
+  this better).
+- **Where to install:** Per-user app data
+  (`QStandardPaths.AppDataLocation/platform-tools`) — no admin rights needed,
+  works even when zLog itself is installed to a read-only directory.
 - ~~Should **This PC**-only users ever see the prompt?~~ **Resolved: no.** The
   plan is for Android-aimed users. We can't know intent at launch, so don't guess
   — wait until the user performs an Android action, which *is* the signal. Cold

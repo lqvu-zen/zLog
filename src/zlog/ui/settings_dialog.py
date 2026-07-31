@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
@@ -24,6 +25,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+# core.adbpath.resolve_adb's `source` values, in human terms.
+_ADB_SOURCE_LABELS = {
+    "setting": "Settings override",
+    "path": "found on PATH",
+    "managed": "downloaded by zLog",
+    "none": "not found",
+}
 
 
 class SettingsDialog(QDialog):
@@ -37,6 +46,8 @@ class SettingsDialog(QDialog):
         buffers,
         fonts=(),
         on_edit_theme=None,
+        adb_effective=None,  # (path, source) from core.adbpath.resolve_adb, for display only
+        on_download_adb=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -138,12 +149,19 @@ class SettingsDialog(QDialog):
         adb_path_row = QHBoxLayout()
         adb_path_row.addWidget(self.adb_path_edit)
         adb_path_row.addWidget(adb_browse)
+        if on_download_adb is not None:
+            download_btn = QPushButton("Download adb…")
+            download_btn.clicked.connect(on_download_adb)
+            adb_path_row.addWidget(download_btn)
         capture = QFormLayout()
         capture.addRow(buf_box)
         capture.addRow("Start from", self.tail_box)
         capture.addRow("Buffer limit (lines)", self.max_spin)
         capture.addRow(self.clear_start_chk)
         capture.addRow("adb path", adb_path_row)
+        if adb_effective is not None:
+            path, source = adb_effective
+            capture.addRow("Currently using", QLabel(f"{path}  ({_ADB_SOURCE_LABELS[source]})"))
         tabs.addTab(self._wrap(capture), "Capture")
 
         # --- Behavior -----------------------------------------------------

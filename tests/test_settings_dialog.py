@@ -58,6 +58,51 @@ def test_dialog_accepts_a_custom_buffer_limit(qapp):
     assert dlg.get_values()["max_rows"] == 37500
 
 
+def test_adb_effective_source_shown_when_provided(qapp):
+    from PySide6.QtWidgets import QLabel
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    dlg = SettingsDialog({}, adb_effective=("/opt/adb", "path"), **_OPTS)
+    texts = [w.text() for w in dlg.findChildren(QLabel)]
+    assert any("/opt/adb" in t and "found on PATH" in t for t in texts)
+
+
+def test_adb_effective_omitted_by_default(qapp):
+    """The 'Currently using' row is opt-in (see bundle-adb.md) — omitted
+    entirely when the caller doesn't pass adb_effective."""
+    from PySide6.QtWidgets import QLabel
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    dlg = SettingsDialog({}, **_OPTS)
+    texts = [w.text() for w in dlg.findChildren(QLabel)]
+    assert not any("found on PATH" in t for t in texts)
+
+
+def test_download_adb_button_present_only_when_callback_given(qapp):
+    from PySide6.QtWidgets import QPushButton
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    with_cb = SettingsDialog({}, on_download_adb=lambda: None, **_OPTS)
+    without_cb = SettingsDialog({}, **_OPTS)
+    assert any(b.text() == "Download adb…" for b in with_cb.findChildren(QPushButton))
+    assert not any(b.text() == "Download adb…" for b in without_cb.findChildren(QPushButton))
+
+
+def test_download_adb_button_invokes_callback(qapp):
+    from PySide6.QtWidgets import QPushButton
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    seen = []
+    dlg = SettingsDialog({}, on_download_adb=lambda: seen.append(1), **_OPTS)
+    btn = next(b for b in dlg.findChildren(QPushButton) if b.text() == "Download adb…")
+    btn.click()
+    assert seen == [1]
+
+
 @pytest.fixture
 def window(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
