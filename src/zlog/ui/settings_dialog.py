@@ -161,7 +161,14 @@ class SettingsDialog(QDialog):
         capture.addRow("adb path", adb_path_row)
         if adb_effective is not None:
             path, source = adb_effective
-            capture.addRow("Currently using", QLabel(f"{path}  ({_ADB_SOURCE_LABELS[source]})"))
+            # word-wrap: a real adb path (e.g. the nested AppData\Local\Android\Sdk\
+            # ...\adb.EXE Android Studio installs to) routinely overflows the field
+            # column width — without it Qt clips the text at the widget boundary
+            # instead of reflowing it.
+            effective_label = QLabel(f"{path}  ({_ADB_SOURCE_LABELS[source]})")
+            effective_label.setWordWrap(True)
+            effective_label.setToolTip(path)
+            capture.addRow("Currently using", effective_label)
         tabs.addTab(self._wrap(capture), "Capture")
 
         # --- Behavior -----------------------------------------------------

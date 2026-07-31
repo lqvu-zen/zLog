@@ -31,6 +31,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 
 | Plan | Status | Summary |
 |---|---|---|
+| [ui-polish-adb-status.md](ui-polish-adb-status.md) | Done | UI review: Settings adb-path label clips mid-word; cold-start status message clobbers reopen-last with plugin count |
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
 | [release-1.1.0.md](release-1.1.0.md) | Done | Cut the 1.1.0 release |
 | [release-1.0.0.md](release-1.0.0.md) | Done | Cut the 1.0.0 release |

@@ -110,7 +110,13 @@ def _shot(window: MainWindow, name: str) -> None:
     # processEvents() loop with no elapsed wall-clock time can still grab a
     # mid-repaint (visually broken) frame after a selectRow()/scrollTo(). A short
     # sleep between spins gives that timer a chance to actually fire.
-    for _ in range(10):
+    # A whole-app QApplication.setStyleSheet() swap (theme changes) needs more
+    # settle time than a single-widget repaint for its style repolish to reach
+    # every top-level chrome widget under the offscreen platform — 10 iterations
+    # was marginal and could grab menu bar/toolbar rows still in their old
+    # colors while the table below (which gets an explicit .update() call) had
+    # already repainted. 25 is comfortably past where that was observed to settle.
+    for _ in range(25):
         QApplication.processEvents()
         time.sleep(0.02)
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -310,11 +316,37 @@ def _guide_setup(window: MainWindow, dark: bool = False) -> None:
     _seed(window, 20)
 
 
-def scenario_columns(window: MainWindow) -> None:
-    _seed(window, 8)
-    window._column_actions[1].setChecked(False)  # hide PID
-    window._column_actions[2].setChecked(False)  # hide TID
-    _shot(window, "columns")
+def scenario_settings_capture(window: MainWindow) -> None:
+    # SettingsDialog.exec() blocks; show it non-modally instead (same trick as
+    # scenario_jank_summary below) so it can be grabbed like any other widget.
+    from PySide6.QtWidgets import QDialog, QTabWidget
+
+    QDialog.exec = lambda self: (self.show(), QApplication.processEvents(), 0)[-1]
+    window._open_settings()
+    dlg = next(w for w in QApplication.topLevelWidgets() if type(w).__name__ == "SettingsDialog")
+    tabs = dlg.findChild(QTabWidget)
+    for i in range(tabs.count()):
+        if tabs.tabText(i) == "Capture":
+            tabs.setCurrentIndex(i)
+            break
+    _shot(dlg, "settings-capture")
+
+
+def scenario_adb_setup_prompt(window: MainWindow) -> None:
+    from PySide6.QtWidgets import QMessageBox
+
+    from zlog.ui.adb_setup_dialog import ask_adb_setup
+
+    holder = {}
+
+    def capture_exec(self):
+        holder["box"] = self
+        self.show()
+        return 0
+
+    QMessageBox.exec = capture_exec
+    ask_adb_setup(window)
+    _shot(holder["box"], "adb-setup-prompt")
 
 
 def scenario_jank_summary(window: MainWindow) -> None:
@@ -562,7 +594,8 @@ SCENARIOS = {
     "density-compact": scenario_density_compact,
     "density-comfortable": scenario_density_comfortable,
     "details": scenario_details,
-    "columns": scenario_columns,
+    "settings-capture": scenario_settings_capture,
+    "adb-setup-prompt": scenario_adb_setup_prompt,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,
     "guide-level": scenario_guide_level,

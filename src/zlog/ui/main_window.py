@@ -1771,10 +1771,18 @@ class MainWindow(QMainWindow):
         colorizers, errors = load_colorizers(path)
         self.model.set_colorizers(colorizers)
         self.table.viewport().update()
-        msg = f"Loaded {len(colorizers)} colorizer plugin(s) from {path}."
-        if errors:
-            msg += f" {len(errors)} failed."
-        self.statusBar().showMessage(msg)
+        _log.info(
+            "Loaded %d colorizer plugin(s) from %s (%d failed)", len(colorizers), path, len(errors)
+        )
+        # Status bar stays silent in the common case (nobody has plugins
+        # installed) — this runs after _maybe_reopen_last() in __init__, and
+        # unconditionally showing "Loaded 0 colorizer plugin(s)..." clobbered
+        # a more useful reopened-session message on every cold start.
+        if colorizers or errors:
+            msg = f"Loaded {len(colorizers)} colorizer plugin(s) from {path}."
+            if errors:
+                msg += f" {len(errors)} failed."
+            self.statusBar().showMessage(msg)
 
     # --- watch pattern -----------------------------------------------------
     def _set_watch_dialog(self) -> None:

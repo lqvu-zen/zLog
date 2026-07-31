@@ -80,6 +80,21 @@ def test_adb_effective_omitted_by_default(qapp):
     assert not any("found on PATH" in t for t in texts)
 
 
+def test_adb_effective_label_wraps_and_has_tooltip(qapp):
+    """A real adb path routinely overflows the field column width; without
+    word-wrap Qt clips it at the widget boundary instead of reflowing (see
+    docs/plans/ui-polish-adb-status.md)."""
+    from PySide6.QtWidgets import QLabel
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    long_path = "C:/Users/Admin/AppData/Local/Android/Sdk/platform-tools/adb.EXE"
+    dlg = SettingsDialog({}, adb_effective=(long_path, "path"), **_OPTS)
+    label = next(w for w in dlg.findChildren(QLabel) if long_path in w.text())
+    assert label.wordWrap() is True
+    assert label.toolTip() == long_path
+
+
 def test_download_adb_button_present_only_when_callback_given(qapp):
     from PySide6.QtWidgets import QPushButton
 
