@@ -7,9 +7,14 @@
 
 ## Goal
 
-A user with no `adb` is **told once, clearly**, and offered two ways forward:
-let zLog fetch platform-tools for them, or download it themselves. After either,
-Android devices work without a restart.
+**A user who is trying to use an Android device** and has no `adb` is told
+clearly, once, and offered two ways forward: let zLog fetch platform-tools for
+them, or download it themselves. After either, devices appear without a restart.
+
+**Audience:** Android users only. Someone using zLog purely for Windows debug
+output, a launched app, or a followed log file should never be asked about adb —
+they have no use for it, and [usable-without-adb.md](usable-without-adb.md)
+already makes those flows work without it.
 
 ## Why this shape (decision recorded)
 
@@ -57,13 +62,28 @@ Resolution is the only production logic; the rest is a dialog and a download.
 > with Android Studio open ("adb server version doesn't match"). Never shadow an
 > adb the user already has.
 
+**When the prompt appears — on Android intent, not at launch.** A startup prompt
+would interrupt every Windows-only user with a question about tooling they don't
+need, which is exactly the audience this plan excludes. Instead it fires the
+first time the user *asks for something Android* and adb is unresolvable:
+
+- pressing **Refresh** on the device picker,
+- picking an Android device entry (they can't — the list is empty — but a Wi-Fi
+  **Connect…** attempt counts),
+- **Capture dumpsys…**, or any other adb-backed action.
+
+Cold start stays silent: the existing one-line status note from
+`usable-without-adb` is enough for someone who never touches Android. Record
+"already asked" in settings so a declined prompt doesn't reappear on the next
+Refresh; **Settings → Download adb…** remains the way back in.
+
 | File | Layer | Change |
 |---|---|---|
 | `src/zlog/core/adbpath.py` (new) | core | Pure, OS-free: `resolve_adb(setting, path_lookup, managed) -> (path, source)` implementing the order above and reporting **which** source won. Existence checks injected as callables, so it unit-tests with no filesystem. |
 | `src/zlog/core/adbfetch.py` (new) | core | Pure: `platform_tools_url(os_name)`, and `verify_download(data, expected_sha256)`. Keeping URL-building and integrity checking pure makes them testable without network. |
 | `src/zlog/ui/adb_setup_dialog.py` (new) | ui | The one-time prompt: what adb is, why it's needed (Android only), the three choices, and a link to the download page. Plain and skippable — not a wizard. |
 | `src/zlog/ui/adb_fetcher.py` (new) | ui | `AdbFetcher(QThread)` — download to a temp file with progress, verify, unzip into `QStandardPaths.AppDataLocation/platform-tools`, emit `done(path)` / `error(msg)`. Same signal discipline as every other reader; cancellable. |
-| `src/zlog/ui/main_window.py` | ui | `_adb_path()` delegates to `resolve_adb(...)`. On startup, **if** adb is unresolvable **and** the user hasn't been asked before, show the prompt once (a flag in settings). After a successful fetch, re-resolve and `refresh_devices()` — no restart. Status/Settings show which adb is in use. |
+| `src/zlog/ui/main_window.py` | ui | `_adb_path()` delegates to `resolve_adb(...)`. **Trigger on Android intent, never on startup** (see below). After a successful fetch, re-resolve and `refresh_devices()` — no restart. Status/Settings show which adb is in use. |
 | `src/zlog/ui/settings_dialog.py` | ui | Show the effective adb path + source; a **Download adb…** button so it's reachable again after dismissing the prompt. |
 | `README.md` | — | **Done in this change:** adb is Android-only, how to get it, how to point Settings at an existing Android Studio copy. |
 | `docs/GUIDE.md` | — | Same, in the walkthrough's voice. |
@@ -103,11 +123,13 @@ Resolution is the only production logic; the rest is a dialog and a download.
 - [ ] `uv run pytest` in **one process** — new pure tests plus full suite.
 - [ ] `uv run ruff check .` and `uv run ruff format --check .`
 - [ ] Unit: a tampered/truncated zip fails verification and nothing is installed.
-- [ ] Manual, clean Windows VM, **no adb**: launch → prompted once → "Download
-      for me" → devices appear after Refresh, no restart. Relaunch → not prompted
-      again.
+- [ ] Manual, clean Windows VM, **no adb**: launch → **no prompt** (the point of
+      the audience scoping). Press **Refresh** → prompted → "Download for me" →
+      devices appear, no restart. Relaunch → not prompted again.
 - [ ] Manual, same VM: choose "I'll do it myself" → prompt gone, Settings →
       **Download adb…** still works.
+- [ ] Manual, same VM, **Windows-only user**: launch, capture This PC, launch an
+      app, follow a file — never prompted about adb at any point.
 - [ ] Manual, machine **with** Android Studio running: confirm zLog uses their
       adb (source reads "PATH") and does **not** kill their server.
 - [ ] Manual, network blocked: fetch fails with the manual instructions.
@@ -123,6 +145,7 @@ Resolution is the only production logic; the rest is a dialog and a download.
   better at this than we are).
 - **Where to install:** app data (per-user, no admin) vs. beside the exe (breaks
   on a read-only install dir). Leaning app data.
-- Should **This PC**-only users ever see the prompt? Arguably not — but we can't
-  know their intent at first launch. Leaning: show once, worded so it's obviously
-  skippable and Android-specific.
+- ~~Should **This PC**-only users ever see the prompt?~~ **Resolved: no.** The
+  plan is for Android-aimed users. We can't know intent at launch, so don't guess
+  — wait until the user performs an Android action, which *is* the signal. Cold
+  start stays silent.
