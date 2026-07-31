@@ -6,7 +6,9 @@ code; deeper rationale lives in `docs/ARCHITECTURE.md`, plans live in `docs/plan
 and the actual workflows live in `.claude/skills/` (`add-zlog-feature`,
 `review-zlog-ui`, `run-zlog`, `release-zlog`).
 
-zLog is a **Windows-first desktop GUI for viewing Android `adb logcat`**, inspired
+zLog is a **Windows-first live log viewer**: Android `adb logcat`, Windows
+debug output/Event Log, a launched app's console, and followed log files all land
+in one filterable view. Originally an Android-only logcat viewer, inspired
 by [plog](https://github.com/katatunix/plog). Built with **Python + PySide6 (Qt)**,
 managed with **uv**. The code is intentionally cross-platform.
 

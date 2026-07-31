@@ -31,7 +31,7 @@ build_exe_options = {
 setup(
     name="zlog",
     version=__version__,
-    description="A desktop GUI for viewing Android logcat.",
+    description="A live log viewer for Android devices, Windows apps, and log files.",
     options={"build_exe": build_exe_options},
     executables=[
         Executable(

@@ -1,6 +1,11 @@
-# zLog — Android Log Viewer
+# zLog — Live Log Viewer
 
-A desktop GUI for viewing Android `adb logcat`, inspired by
+One viewer for the logs you're debugging, wherever they come from: an Android
+device over `adb logcat`, a Windows app's `OutputDebugString`, a program you
+launch from zLog, a log file being written right now, or the Windows Event Log.
+Same filters, tabs, and export for all of them.
+
+Originally an Android logcat viewer inspired by
 [plog](https://github.com/katatunix/plog). Built with **Python + PySide6 (Qt)**
 and managed with **[uv](https://docs.astral.sh/uv/)**. Targets Windows first;
 the code is cross-platform.

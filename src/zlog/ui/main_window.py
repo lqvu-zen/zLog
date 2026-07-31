@@ -162,7 +162,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("zLog — Android Log Viewer")
+        self.setWindowTitle("zLog — Live Log Viewer")
         self.resize(1100, 700)
 
         # Runtime state, created before widgets so slots can rely on it existing.
