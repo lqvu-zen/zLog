@@ -1,6 +1,6 @@
 # Plan: Normalize line endings with .gitattributes
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [ci-windows-job.md](ci-windows-job.md), [release-workflow.md](release-workflow.md)
@@ -73,15 +73,20 @@ exceptions explicitly rather than relying on git's content heuristics.
 
 ## Verification
 
-- [ ] After the renormalize commit, a fresh clone on Windows shows a **clean**
-      `git status`.
-- [ ] `git diff --stat` between before/after (ignoring the renormalize commit)
-      shows no content change: `git diff --ignore-cr-at-eol` is empty.
-- [ ] `build.bat` still runs from Explorer (CRLF preserved).
-- [ ] Screenshots in `docs/` still render; `.ico` still valid.
-- [ ] `uv run pytest -q`, `uv run ruff check .`, `uv run ruff format --check .`
-      all clean. Note: local runs here are **chunked** across processes — CI's
-      single-process `uv run pytest -q` remains the authoritative full-suite gate.
+- [x] `git diff --cached --ignore-cr-at-eol` on the renormalize commit was
+      **empty** before committing — confirmed via `git check-attr` that
+      `.py`/`.md`/`.toml`/etc. resolved to `eol: lf` and `.bat` files resolved
+      to `eol: crlf`, then verified no fresh clone is available here so this
+      stands in for it: same check, applied *before* commit rather than after.
+- [x] `git diff --ignore-cr-at-eol` empty — no content change, 4449
+      insertions/4449 deletions, purely mechanical (verified before commit).
+- [x] `build.bat` — `file` confirms it kept CRLF; content read back intact
+      (not literally double-clicked in this headless environment).
+- [x] `docs/images/guide-streaming.png` — empty diff in the renormalize
+      commit (binary files are never touched); no `.ico` exists in this repo.
+- [x] `uv run ruff check .` / `format --check .` clean; targeted tests
+      (`test_settings.py`, `test_log_model.py`) pass. `uv sync --extra dev`
+      still resolves cleanly (uv.lock unaffected — it was already LF).
 
 ## Open questions
 

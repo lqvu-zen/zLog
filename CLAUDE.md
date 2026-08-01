@@ -159,3 +159,5 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
   matching interpreter automatically if you don't have one.
 - The live app needs Android **platform-tools** (`adb`) on PATH and a connected
   device/emulator. The parser/filter tests need neither.
+- Line endings are normalized by `.gitattributes` (LF by default; `.bat` files
+  stay CRLF). Don't fight it with editor/`core.autocrlf` settings.

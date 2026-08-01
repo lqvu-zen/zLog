@@ -33,7 +33,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 |---|---|---|
 | [ui-toolbar-width-and-tab-labels.md](ui-toolbar-width-and-tab-labels.md) | Draft | UI review: device bar hard-floors the window at ~1671px; "This PC" tab shows raw `local:dbwin` instead of a name |
 | [ci-windows-job.md](ci-windows-job.md) | Draft | Run CI on `windows-latest` too — 754 lines of Windows-only code currently never execute |
-| [gitattributes-line-endings.md](gitattributes-line-endings.md) | Draft | `.gitattributes` to stop CRLF/LF churn masking real diffs (prereq for the Windows CI job) |
+| [gitattributes-line-endings.md](gitattributes-line-endings.md) | Done | `.gitattributes` to stop CRLF/LF churn masking real diffs (prereq for the Windows CI job) |
 | [release-1.1.1.md](release-1.1.1.md) | Draft | Cut 1.1.1 — ships the fix for a shipped bug that makes the Windows flow unreachable |
 | [architecture-doc-refresh.md](architecture-doc-refresh.md) | Draft | ARCHITECTURE/ROADMAP/README describe none of `winlog`, `dbwin`, `file_follower`, `capture_controller`, `tabstate` |
 | [main-window-drift.md](main-window-drift.md) | Draft | `main_window.py` regrew to 3,581 lines — add a "where new UI goes" rule + two example extractions |
