@@ -36,6 +36,9 @@ packages = ["src/zlog"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "windows_only: needs a real win32 host (skipped elsewhere, see conftest.py)",
+]
 
 [tool.ruff]
 line-length = 100

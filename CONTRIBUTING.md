@@ -37,6 +37,12 @@ uv run pytest
 
 Run `uv run ruff format .` to auto-fix formatting.
 
+CI runs on **both Linux and Windows** (`ubuntu-latest` and `windows-latest`), since
+a meaningful chunk of zLog is Windows-only code (`winlog/`, and the `os.name ==
+"nt"` branches in `core/`) that a Linux-only job would never execute. A test that
+must run on a real win32 host (not just with `is_supported()` forced True) gets
+`@pytest.mark.windows_only`; it's skipped everywhere else automatically.
+
 ## Architecture rules (read these first)
 
 zLog has three layers — `core/` (pure, Qt-free), `adb/` (the streaming thread),

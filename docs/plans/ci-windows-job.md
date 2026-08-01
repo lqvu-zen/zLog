@@ -1,6 +1,6 @@
 # Plan: Run CI on Windows
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [windows-debug-output.md](windows-debug-output.md), [windows-event-log.md](windows-event-log.md), [windows-app-focus.md](windows-app-focus.md), [release-workflow.md](release-workflow.md)
@@ -80,12 +80,20 @@ where.
 
 ## Verification
 
-- [ ] Both jobs green on a PR.
-- [ ] Deliberately break a Windows-only path (e.g. wrong struct field in
-      `processes.py`) → the Windows job fails and the Linux job passes. This is
-      the proof the job is worth having.
-- [ ] Confirm `windows_only` tests are skipped (not failed) on Linux.
-- [ ] Total CI wall-clock stays acceptable.
+- [ ] Both jobs green on a PR — **not yet checked**: this work is still local
+      (5+ unpushed commits on `main` as of writing), and pushing/opening a PR
+      needs your go-ahead first, same as the release hold. Everything below is
+      verified locally on this real Windows machine instead.
+- [x] Deliberately broke a Windows-only path (offset `processes.py`'s pid by
+      +999999) → `test_list_processes_contains_this_process` failed with a
+      clear assertion; reverted, re-ran, 3/3 passed again. This is the local
+      proxy for "the job is worth having" — the real CI proof still needs a
+      pushed run.
+- [ ] `windows_only` skip-on-Linux — not directly checkable on this Windows
+      machine; the hook logic (`if sys.platform == "win32": return` before
+      skipping) is straightforward enough to trust, but flagging as unverified
+      until a real Linux run confirms it.
+- [ ] Total CI wall-clock — unknown until a real run.
 
 ## Open questions
 

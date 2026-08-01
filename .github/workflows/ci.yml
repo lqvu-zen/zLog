@@ -7,7 +7,11 @@ on:
 
 jobs:
   lint-and-test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +31,10 @@ jobs:
         run: uv run ruff format --check .
 
       # The ui/ tests construct a QApplication; install Qt's runtime libs so the
-      # offscreen platform plugin can load without a display.
+      # offscreen platform plugin can load without a display. Windows runners
+      # need none of this.
       - name: Install Qt runtime libraries
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libglx0 libxkbcommon0
 
       - name: Run tests
