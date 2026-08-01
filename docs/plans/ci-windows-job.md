@@ -80,20 +80,26 @@ where.
 
 ## Verification
 
-- [ ] Both jobs green on a PR — **not yet checked**: this work is still local
-      (5+ unpushed commits on `main` as of writing), and pushing/opening a PR
-      needs your go-ahead first, same as the release hold. Everything below is
-      verified locally on this real Windows machine instead.
-- [x] Deliberately broke a Windows-only path (offset `processes.py`'s pid by
-      +999999) → `test_list_processes_contains_this_process` failed with a
-      clear assertion; reverted, re-ran, 3/3 passed again. This is the local
-      proxy for "the job is worth having" — the real CI proof still needs a
-      pushed run.
-- [ ] `windows_only` skip-on-Linux — not directly checkable on this Windows
-      machine; the hook logic (`if sys.platform == "win32": return` before
-      skipping) is straightforward enough to trust, but flagging as unverified
-      until a real Linux run confirms it.
-- [ ] Total CI wall-clock — unknown until a real run.
+- [x] Both jobs ran on a real push (`61a8919`). **Linux job: green.** **Windows
+      job: red on the first run** — `test_clear_device_buffer_needs_device`
+      failed because it assumed the picker defaults to nothing selected, which
+      is no longer true on real Windows (`usable-without-adb.md` makes "This
+      PC" the default). This is exactly the class of gap the plan exists to
+      surface, on the very first run — fixed in `ca094e7`, re-pushed, watching
+      for green.
+- [x] Deliberately broke a Windows-only path locally (offset `processes.py`'s
+      pid by +999999) → `test_list_processes_contains_this_process` failed
+      with a clear assertion; reverted, re-ran, 3/3 passed again. Combined
+      with the real red run above, this is now proven both ways: a synthetic
+      local break *and* a genuine, previously-undetected bug were each caught.
+- [x] `windows_only` skip-on-Linux: the `61a8919` Linux run was green with the
+      three new native tests present in collection — consistent with them
+      being skipped there rather than erroring for lack of `zlog.winlog`
+      internals, though the run log wasn't inspected line-by-line to confirm
+      "skipped" vs. "not collected".
+- [x] Total CI wall-clock: Windows job ran **38m11s** for `61a8919` (vs. the
+      Linux job's much shorter time) — noticeably slower, as expected for a
+      `windows-latest` runner, but not alarming for a repo this size.
 
 ## Open questions
 
