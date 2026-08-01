@@ -49,6 +49,14 @@ elif (
 ):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+# Some scenarios print sample data containing non-ASCII glyphs (e.g. the "●"
+# running-process marker) for debugging; Windows' console codepage (cp1252)
+# can't encode those and would crash the print before a screenshot is ever
+# taken. Reconfigure stdout/stderr to tolerate it everywhere in this script.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
+    sys.stderr.reconfigure(errors="replace")
+
 from PySide6.QtWidgets import QApplication  # noqa: E402  (after env setup)
 
 from zlog.core.devices import Device  # noqa: E402

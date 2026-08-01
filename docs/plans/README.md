@@ -31,6 +31,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 
 | Plan | Status | Summary |
 |---|---|---|
+| [ui-toolbar-width-and-tab-labels.md](ui-toolbar-width-and-tab-labels.md) | Draft | UI review: device bar hard-floors the window at ~1671px; "This PC" tab shows raw `local:dbwin` instead of a name |
 | [ui-polish-adb-status.md](ui-polish-adb-status.md) | Done | UI review: Settings adb-path label clips mid-word; cold-start status message clobbers reopen-last with plugin count |
 | [backlog.md](backlog.md) | Ideas | Candidate features to implement later (design sketches + effort) |
 | [release-1.1.0.md](release-1.1.0.md) | Done | Cut the 1.1.0 release |
