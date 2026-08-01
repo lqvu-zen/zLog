@@ -321,8 +321,12 @@ def test_log_buffers_persist(window):
     assert set(got) == {"radio", "events"}
 
 
-def test_clear_device_buffer_needs_device(window):
-    # No device selected -> guidance message, no crash.
+def test_clear_device_buffer_needs_device(window, monkeypatch):
+    # No device selected -> guidance message, no crash. On Windows the picker
+    # always has at least "This PC" selected by default (see
+    # usable-without-adb.md), so _current_serial() is never actually None
+    # there — stub it directly rather than trying to reconstruct that state.
+    monkeypatch.setattr(window, "_current_serial", lambda: None)
     window._clear_device_buffer()
     assert "device" in window.statusBar().currentMessage().lower()
 
