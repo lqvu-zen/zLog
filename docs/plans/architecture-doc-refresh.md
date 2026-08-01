@@ -1,6 +1,6 @@
 # Plan: Refresh ARCHITECTURE.md and ROADMAP.md
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [windows-debug-output.md](windows-debug-output.md), [file-follow.md](file-follow.md), [main-window-split.md](main-window-split.md), [main-window-drift.md](main-window-drift.md)
@@ -67,14 +67,36 @@ Two docs, prose only. The structure is right; the content is stale.
 
 ## Verification
 
-- [ ] `grep -c` for `winlog`, `dbwin`, `file_follower`, `capture_controller`,
-      `tabstate` in `docs/ARCHITECTURE.md` — all non-zero.
-- [ ] Every module named in the doc exists at the path given (spot-check by
-      opening each).
-- [ ] No statement in `ARCHITECTURE.md` contradicts `CLAUDE.md`'s rules section.
-- [ ] README's layout tree matches `ls src/zlog/**`.
-- [ ] A cold read: does someone who's never seen the repo end up putting a new
-      log source in the right package? That's the doc's actual job.
+- [x] `grep -c` for `winlog` (10), `dbwin` (3), `file_follower` (1),
+      `capture_controller` (1), `tabstate` (4) in `docs/ARCHITECTURE.md` — all
+      non-zero.
+- [x] Every module path named in the doc verified to exist (`test -f` on 17
+      spot-checked paths across `core/`, `adb/`, `winlog/`, `ui/`).
+- [x] `ARCHITECTURE.md`'s `ui → {adb, winlog} → core` is a refinement of
+      `CLAUDE.md`'s `ui → adb → core`, not a contradiction — `CLAUDE.md` itself
+      already lists `winlog/dbwin_reader.py`/`launcher.py` in its file table,
+      it just doesn't spell out the dependency rule at that granularity.
+      Per scope, `CLAUDE.md` itself is untouched (already correct).
+- [x] README's layout tree now shows all four packages (`core`, `adb`,
+      `winlog`, `ui`) with representative files from each, and points to
+      `docs/ARCHITECTURE.md` for the full map rather than trying to be
+      exhaustive (avoids a second stale copy).
+- [x] Cold-read check: the reader contract section states explicitly *where*
+      a sixth log source goes (a reader class in `adb/` or `winlog/`, or a new
+      peer package) and *what* it must honor (QThread, parse to `LogEntry`
+      off-thread, signal-only communication, batching) — that's the concrete
+      answer the old doc couldn't give since it only described `AdbReader`.
+- [x] `ROADMAP.md` was also truncated mid-sentence ("Feature sprawl vs.
+      focus —" with nothing after) and described a 2026-07-08 snapshot with
+      version phases all stuck at "DONE (unreleased)" long after 1.1.0 shipped.
+      Rewritten to the current tech-debt-program framing, listing this plan's
+      five siblings as the live work register.
+- [x] Correction while writing: this plan's own Design table said
+      `etw-tracing.md` is "the one open Draft" — it's actually **Abandoned**
+      (checked the file directly rather than trusting the plan's paraphrase).
+      `ROADMAP.md` now says Abandoned.
+- [x] `uv run ruff check .` / `format --check .` clean (docs-only change, but
+      confirms nothing else regressed).
 
 ## Open questions
 

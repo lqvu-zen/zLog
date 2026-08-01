@@ -21,33 +21,57 @@ zLog/
 │   └── zlog/
 │       ├── app.py            # entry point  → main()
 │       ├── __main__.py       # enables `python -m zlog`
-│       ├── core/             # pure logic, NO Qt (easy to test)
+│       ├── cli.py            # headless `zlog --tail` mode
+│       ├── core/             # pure logic, NO Qt (easy to test) — ~45 files:
 │       │   ├── models.py     #   LogEntry, level ranks
-│       │   └── parser.py     #   logcat line parsing
+│       │   ├── parser.py     #   logcat line parsing
+│       │   ├── query.py      #   query-bar grammar (level:/tag:/-exclude/...)
+│       │   ├── settings.py   #   load/save settings as plain JSON
+│       │   ├── tabstate.py   #   what a saved tab looks like, for restore
+│       │   ├── dbwin.py      #   Windows DBWIN buffer → LogEntry (pure half)
+│       │   └── winevent.py   #   Windows Event Log XML → LogEntry (pure half)
 │       ├── adb/
-│       │   └── reader.py     # background QThread running `adb logcat`
-│       └── ui/
-│           ├── log_model.py  # Qt table model + filter proxy
-│           └── main_window.py# window, toolbar, wiring
+│       │   ├── reader.py     # background QThread running `adb logcat`
+│       │   └── devices.py    # `adb devices` parsing, connect-over-Wi-Fi
+│       ├── winlog/           # Windows-only sources, lazily imported
+│       │   ├── dbwin_reader.py   # OutputDebugString capture (QThread)
+│       │   ├── evtlog_reader.py  # Event Log subscription (QThread)
+│       │   └── launcher.py       # launch + capture an app (QThread)
+│       └── ui/                # ~35 files, Qt only
+│           ├── main_window.py       # window, wiring, thin slots
+│           ├── build.py             # widget construction + layout
+│           ├── menus.py             # menu bar
+│           ├── log_model.py         # Qt table model + filter proxy
+│           ├── log_delegate.py      # one-line-per-row paint delegate
+│           ├── capture_controller.py# attach/detach readers per tab
+│           └── device_controller.py # device list + package/PID filter state
 └── tests/
     └── test_parser.py    # unit tests for the parser (no display needed)
 ```
 
+See `docs/ARCHITECTURE.md` for the full module map and the reader contract every
+log source honors, and `CLAUDE.md`'s "Where things live" table for the exhaustive,
+kept-current file list.
+
 **Why this shape?** The `core` layer has no Qt imports, so it can be unit-tested
-without a display and reused if the UI ever changes. `adb` owns the streaming
-thread, `ui` owns everything Qt. Each concern lives in one place, which is what
-makes the project easy to grow.
+without a display and reused if the UI ever changes. `adb` and `winlog` each own
+one family of streaming threads, `ui` owns everything Qt. Each concern lives in
+one place, which is what makes the project easy to grow — five log sources now
+share the same model/proxy/delegate stack without any of them knowing about the
+others.
 
 ## Data flow
 
 ```
-AdbReader (background thread)
-    runs `adb logcat -v threadtime`, parses each line
-        │  batch_ready  (signal, ~50 lines at a time)
+AdbReader / DebugOutputReader / EventLogReader / LaunchReader / FileFollower
+    each a background QThread; parses its own source to LogEntry
+        │  batch_ready  (signal, batched per source)
+        ▼
+CaptureController routes the batch to its session
         ▼
 LogTableModel  ── master list of every line (virtualized)
         │
-LogFilterProxy ── decides which rows show (level + tag + text + package/pid/proc + exclude)
+LogFilterProxy ── decides which rows show (level + tag + text + package/pid/proc + time + exclude)
         │
 LogItemDelegate ─ paints one dense line per visible row (no grid)
 ```
