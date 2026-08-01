@@ -1,6 +1,6 @@
 # Plan: UI review — device-bar minimum width and local-source tab labels
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-07-31
 - **Related:** [ui-polish-adb-status.md](ui-polish-adb-status.md), [two-bar-header.md](two-bar-header.md), [toolbar-tidy.md](toolbar-tidy.md), [single-header-bar.md](single-header-bar.md), [local-source-in-device-box.md](local-source-in-device-box.md)
@@ -159,17 +159,21 @@ package filter (proxy- and query-driven), regex search, an opened log.
 
 ## Verification
 
-- [ ] Targeted tests (`tests/test_main_window_tabs.py` or wherever tab
-      labeling is covered, plus anything asserting device-bar widths) —
-      full suite deferred to a release/QA pass.
-- [ ] `uv run ruff check .` and `uv run ruff format --check .`
-- [ ] Re-measure `MainWindow().minimumWidth()` directly (same diagnostic used
-      to find H1) — confirm it dropped from 1671px by roughly the amount
-      trimmed, and note the new floor in this checklist once measured.
-- [ ] Re-shoot `two-tabs` — confirm the first tab reads a friendly name, not
-      `local:dbwin`.
-- [ ] Manual: pick a real (fake-populated) device, open a second tab, confirm
-      its label is still the bare serial, unchanged from before this plan.
+- [x] Targeted tests — `tests/test_main_window_tabs.py` (22 passed, including
+      2 new: `test_idle_local_source_tab_shows_friendly_name`,
+      `test_idle_real_device_tab_still_shows_bare_serial`). Full suite
+      deferred to a release/QA pass.
+- [x] `uv run ruff check .` and `uv run ruff format --check .` clean.
+- [x] Re-measured `MainWindow().minimumWidth()`: **1671px → 1561px** (−110px,
+      matching the ~110-160px trimmed off the two comboboxes). Confirms H1's
+      in-scope fix is real — and confirms, as documented, that this alone
+      doesn't reach a genuinely narrow floor (1561px is still wider than a
+      1366/1440px laptop panel; see Deferred for the actual fix).
+- [x] Re-shot `two-tabs` — first tab now reads "This PC (debug outpu…(28)"
+      (elided by the existing tab-width truncation, same as any other name —
+      not `local:dbwin`).
+- [x] Test: `test_idle_real_device_tab_still_shows_bare_serial` covers the
+      real-device-unchanged case directly.
 
 ## Open questions
 

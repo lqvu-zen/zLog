@@ -63,6 +63,28 @@ def test_streaming_label_wins_over_title(window, tmp_path):
     assert window.tab_bar.tabText(0) == "● emulator-5554"
 
 
+def test_idle_local_source_tab_shows_friendly_name(window):
+    """An idle "This PC" tab must read a name, not the raw internal sentinel
+    (see docs/plans/ui-toolbar-width-and-tab-labels.md) — the device dropdown
+    right below it already shows "This PC (debug output)" for the same
+    source, so the tab must agree rather than leak `local:dbwin`."""
+    from zlog.core.devices import LOCAL_DBWIN
+
+    sess = window._active
+    sess.serial = LOCAL_DBWIN
+    window._set_tab_label(sess)
+    assert window.tab_bar.tabText(0) == "This PC (debug output)"
+
+
+def test_idle_real_device_tab_still_shows_bare_serial(window):
+    """A real adb serial *is* already the recognizable name — must be
+    unaffected by the local-source label resolution."""
+    sess = window._active
+    sess.serial = "emulator-5554"
+    window._set_tab_label(sess)
+    assert window.tab_bar.tabText(0) == "emulator-5554"
+
+
 def test_clear_drops_title_and_frees_tab(window, tmp_path):
     path = _write_log(tmp_path, "a.log")
     window._open_log_in_tab(path)

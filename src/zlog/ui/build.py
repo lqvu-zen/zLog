@@ -121,7 +121,7 @@ def build_widgets(win) -> None:
 
     # Row 1: device + stream controls.
     win.device_box = QComboBox()
-    win.device_box.setMinimumWidth(180)
+    win.device_box.setMinimumWidth(130)
     win.refresh_btn = QPushButton("Refresh")
     win.connect_btn = QPushButton("Wi-Fi…")
     win.connect_btn.setToolTip(
@@ -146,7 +146,7 @@ def build_widgets(win) -> None:
     # Row 2: filters.
     win.package_box = QComboBox()
     win.package_box.setEditable(True)
-    win.package_box.setMinimumWidth(220)
+    win.package_box.setMinimumWidth(160)
     win.package_box.lineEdit().setPlaceholderText("App, e.g. com.example.app or myapp.exe")
     win.load_pkgs_btn = QPushButton("Load")
     win.load_pkgs_btn.setToolTip("List apps seen in the log and (on Windows) currently running")

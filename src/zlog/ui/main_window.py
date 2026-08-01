@@ -320,11 +320,15 @@ class MainWindow(QMainWindow):
             return
         i = self._sessions.index(sess)
         state = self._tab_state(sess)
+        # Resolve through Device.label so a local pseudo-serial (e.g. the
+        # This-PC sentinel) reads as "This PC (debug output)" instead of its
+        # raw internal id — a real device's serial is already its own label.
+        source = Device(sess.serial, "device").label if sess.serial else ""
         if sess.reader is not None or sess.want_stream:
             # A live/reconnecting tab is named by its source, not a stale file.
-            name = sess.stream_label or sess.serial or "Device"
+            name = sess.stream_label or source or "Device"
         else:
-            name = sess.title or sess.serial or "Device"
+            name = sess.title or source or "Device"
         count = sess.model.rowCount()
         self.tab_bar.setTabText(i, tab_label(name, state, count))
         self.tab_bar.setTabToolTip(i, tab_tooltip(name, state, count))
