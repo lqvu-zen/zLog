@@ -1,0 +1,26 @@
+# Normalize line endings so a Windows checkout and a Linux checkout produce
+# identical repository content — without this, every text file "changes" on
+# whichever OS didn't create it, and real diffs get lost in the noise.
+# See docs/plans/gitattributes-line-endings.md.
+
+* text=auto eol=lf
+
+*.py  text
+*.md  text
+*.toml text
+*.yml text
+*.json text
+*.qss text
+*.gitignore text
+*.gitattributes text
+
+# Batch files are a double-click entry point on Windows (build.bat, run.bat,
+# test.bat) — cmd.exe can misbehave on a script with LF-only line endings, so
+# these are the one deliberate exception to the LF default.
+*.bat text eol=crlf
+
+# Binary — never let git attempt line-ending normalization on these.
+*.png binary
+*.ico binary
+*.zip binary
+*.exe binary
