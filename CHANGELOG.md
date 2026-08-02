@@ -4,6 +4,32 @@ All notable changes to zLog are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] — 2026-08-02
+
+### Fixed
+- **zLog no longer requires adb to use the Windows sources.** In 1.1.0,
+  `refresh_devices()` returned early when adb couldn't be resolved, so **This
+  PC** never appeared in the device picker and Start stayed disabled — the
+  Windows debug-output/Event Log/Launch-App capture flow was unreachable
+  without Android platform-tools installed, even though none of it needs adb.
+- A capture reader (`AdbReader`, Windows debug-output, Event Log, Launch App,
+  or file-follow) that was stopped in the narrow window right after starting
+  could, rarely, keep running instead of actually stopping.
+
+### Added
+- If adb is missing, zLog now offers to **fetch and install platform-tools**
+  for you (scoped to when you're actually picking an Android device), instead
+  of only pointing you at a manual download.
+
+### Changed
+- Retitled the app window from "Android Log Viewer" to **"Live Log Viewer"**,
+  reflecting that Windows capture doesn't need Android at all.
+- Settings' adb-path field no longer clips long paths, and the cold-start
+  status bar is quieter about adb resolution.
+- The device bar's minimum width dropped from 1671px to 1561px so the window
+  is usable on smaller displays; a local source's tab now shows a readable
+  name ("This PC") instead of the raw internal serial.
+
 ## [1.1.0] — 2026-07-31
 
 ### Log view
@@ -141,5 +167,6 @@ PySide6 and managed with uv.
   log for troubleshooting (Help → Open Log Folder); illustrated user guide in
   `docs/GUIDE.md`.
 
+[1.1.1]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.0.0

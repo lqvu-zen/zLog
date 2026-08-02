@@ -1,6 +1,6 @@
 [project]
 name = "zlog"
-version = "1.1.0"
+version = "1.1.1"
 description = "A live log viewer for Android devices, Windows apps, and log files."
 readme = "README.md"
 requires-python = ">=3.14"
