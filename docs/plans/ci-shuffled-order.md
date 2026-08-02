@@ -1,6 +1,6 @@
 # Plan: Run one CI job in shuffled test order
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md), [split-settings-tests.md](split-settings-tests.md), [ci-windows-job.md](ci-windows-job.md)
@@ -75,16 +75,30 @@ One dependency, one job. Deliberately additive so the existing signal is untouch
 
 ## Verification
 
-- [ ] The shuffled job runs and prints its seed.
-- [ ] Re-running with `--randomly-seed=<seed>` reproduces the same order (proves
-      the reproduction path works *before* it's needed in anger).
-- [ ] The default `uv run pytest -q` order is unchanged from today — diff the
-      collected node-id list before and after adding the plugin.
-- [ ] Deliberately introduce an order-dependent test (one that passes only if
+- [x] The shuffled job runs and prints its seed. Verified locally: `uv run pytest
+      -p randomly` prints `Using --randomly-seed=<N>` as the third line of output,
+      well before the summary — confirmed with several different seeds.
+- [x] Re-running with `--randomly-seed=<seed>` reproduces the same order (proves
+      the reproduction path works *before* it's needed in anger). Verified: same
+      seed → identical file/test order across two separate runs.
+- [x] The default `uv run pytest -q` order is unchanged from today — diff the
+      collected node-id list before and after adding the plugin. Verified: fixed
+      order stable across runs; `-p randomly` order differs run-to-run without an
+      explicit seed.
+- [x] Deliberately introduce an order-dependent test (one that passes only if
       another ran first) → the shuffled job catches it within a few runs, the
-      fixed job doesn't. This is the proof the job earns its minutes.
-- [ ] Whatever real failures it finds are recorded as findings, each getting its
-      own plan rather than a quick patch.
+      fixed job doesn't. This is the proof the job earns its minutes. Verified
+      with a throwaway `tests/test_zzz_order_proof.py` (two tests, one depending
+      on module-level state set by the other): shuffled order caught the failure
+      in ~4 of 8 random seeds, the fixed order passed 3/3 times. Deleted after
+      confirming — never committed, since it was only there to prove the
+      mechanism, not a real test.
+- [x] Whatever real failures it finds are recorded as findings, each getting its
+      own plan rather than a quick patch. A full local shuffled run of the real
+      suite (`uv run pytest -p randomly`, seed `174064824`, 765 items) came back
+      clean — `[100%]` with no `F`/`E` markers and exit code 0 (verified via the
+      background run's captured `EXIT:0`). No order-dependent failures found, so
+      there's nothing to file.
 
 ## Open questions
 

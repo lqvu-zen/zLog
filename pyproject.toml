@@ -22,6 +22,11 @@ dev = [
     # Capped: some releases' formatter mangles tuple `except` clauses (see
     # core/settings.py). Pin the upper bound so an upgrade can't rewrite valid code.
     "ruff>=0.5,<0.16",
+    # Seeds and shuffles collection order, printing the seed on every run so a
+    # shuffled failure is reproducible. Opt-in only (see addopts below) --
+    # the `shuffled` CI job passes -p randomly explicitly; default runs stay
+    # in fixed order. See docs/plans/ci-shuffled-order.md.
+    "pytest-randomly>=3.15",
 ]
 build = [
     "cx_Freeze>=7.2",
@@ -39,6 +44,10 @@ testpaths = ["tests"]
 markers = [
     "windows_only: needs a real win32 host (skipped elsewhere, see conftest.py)",
 ]
+# pytest-randomly is installed (dev extra) but disabled by default so the
+# primary signal stays in a fixed, comparable order; the `shuffled` CI job
+# re-enables it explicitly with -p randomly. See docs/plans/ci-shuffled-order.md.
+addopts = "-p no:randomly"
 
 [tool.ruff]
 line-length = 100

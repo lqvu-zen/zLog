@@ -41,3 +41,32 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: uv run pytest -q
+
+  shuffled:
+    # A separate, additive job: the default suite above stays in a fixed,
+    # comparable order (pyproject.toml disables the plugin by default), and
+    # this one deliberately re-enables it to surface order-dependent tests on
+    # purpose rather than by accident (see docs/plans/ci-shuffled-order.md).
+    # Linux only and after the Windows job proved its own value first.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Install Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libglx0 libxkbcommon0
+
+      # No -q: pytest-randomly's "Using --randomly-seed=..." banner line is
+      # suppressed by -q, and a shuffled failure with no seed is unfixable.
+      - name: Run tests (shuffled order)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run pytest -p randomly

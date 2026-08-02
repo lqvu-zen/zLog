@@ -43,6 +43,20 @@ a meaningful chunk of zLog is Windows-only code (`winlog/`, and the `os.name ==
 must run on a real win32 host (not just with `is_supported()` forced True) gets
 `@pytest.mark.windows_only`; it's skipped everywhere else automatically.
 
+A third CI job (`shuffled`, Linux) runs the suite in a **shuffled** collection
+order to catch order-dependent tests deliberately, rather than by accident. The
+default order (locally and in the other CI jobs) stays fixed — `pytest-randomly`
+is installed but disabled via `addopts` in `pyproject.toml`, so shuffling is
+opt-in. If the `shuffled` job goes red, its log prints a line like
+`Using --randomly-seed=1234567890`; reproduce it locally with:
+
+```bash
+uv run pytest -p randomly -p no:cacheprovider --randomly-seed=1234567890
+```
+
+(the exact seed from the failing run's log). A shuffled failure with no seed is
+unfixable, so that banner line matters more than the rest of the output.
+
 ## Architecture rules (read these first)
 
 zLog has three layers — `core/` (pure, Qt-free), `adb/` (the streaming thread),
