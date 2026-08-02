@@ -60,7 +60,11 @@ class LaunchReader(QThread):
         self.serial = ""  # not a device; keeps adb-oriented UI paths safe
         self.pid = 0  # the child's pid, once started (used to focus the query)
         self._proc: subprocess.Popen | None = None
-        self._running = False
+        # Set here rather than in run(): stop() can land before the thread body
+        # begins, and setting it True there would resurrect a cancelled launch
+        # (see ui/file_follower.py's FileFollower for the same fix, and
+        # docs/plans/ci-windows-job.md for how this class of race was found).
+        self._running = True
 
     @property
     def app_name(self) -> str:
@@ -68,7 +72,6 @@ class LaunchReader(QThread):
         return os.path.basename(self.argv[0]) if self.argv else ""
 
     def run(self) -> None:
-        self._running = True
         try:
             self._proc = subprocess.Popen(
                 self.argv,

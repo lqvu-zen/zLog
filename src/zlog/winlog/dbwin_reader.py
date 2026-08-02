@@ -70,7 +70,12 @@ class DebugOutputReader(QThread):
         # Not a device stream, but the UI reads `reader.serial` in a few adb paths
         # (process-map refresh, current-serial); "" keeps those safe/no-ops.
         self.serial = ""
-        self._running = False
+        # Set here rather than in run(): stop() can land before the thread body
+        # begins (or finishes its Win32 setup), and setting it True there would
+        # resurrect a cancelled capture (see ui/file_follower.py's FileFollower
+        # for the same fix, and docs/plans/ci-windows-job.md for how this was
+        # found — a real race, not just test hygiene).
+        self._running = True
         self._names = ProcessNameCache()
 
     def run(self) -> None:  # pragma: no cover - Windows-only capture loop
@@ -109,7 +114,6 @@ class DebugOutputReader(QThread):
             return
 
         _log.info("DBWIN capture started (global=%s)", self.global_capture)
-        self._running = True
         batch: list[LogEntry] = []
         last = time.monotonic()
         try:

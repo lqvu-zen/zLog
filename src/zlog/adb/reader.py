@@ -89,7 +89,10 @@ class AdbReader(QThread):
         # label (the device serial) so the model can tell sources apart.
         self.source = source
         self._proc: subprocess.Popen | None = None
-        self._running = False
+        # Set here rather than in run(): stop() can land before the thread body
+        # begins, and setting it True there would resurrect a cancelled reader
+        # (see file_follower.py's FileFollower for the same fix).
+        self._running = True
 
     def _command(self) -> list[str]:
         return build_logcat_command(
@@ -98,7 +101,6 @@ class AdbReader(QThread):
 
     def run(self) -> None:
         """Runs on the background thread once start() is called."""
-        self._running = True
         try:
             self._proc = subprocess.Popen(
                 self._command(),

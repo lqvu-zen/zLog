@@ -56,7 +56,12 @@ class EventLogReader(QThread):
         # Not a device stream, but the UI reads `reader.serial` in a few adb
         # paths (process-map refresh, current-serial); "" keeps those no-ops.
         self.serial = ""
-        self._running = False
+        # Set here rather than in run(): stop() can land before the thread body
+        # begins (or finishes backfill/subscribe setup), and setting it True
+        # there would resurrect a cancelled capture (see ui/file_follower.py's
+        # FileFollower for the same fix, and docs/plans/ci-windows-job.md for
+        # how this was found — a real race, not just test hygiene).
+        self._running = True
 
     def run(self) -> None:  # pragma: no cover - Windows-only capture loop
         if not is_supported():
@@ -68,8 +73,6 @@ class EventLogReader(QThread):
         except Exception as exc:
             self.error.emit(f"Event Log capture unavailable: {exc}")
             return
-
-        self._running = True
 
         try:
             backfilled = self._backfill(win32evtlog)

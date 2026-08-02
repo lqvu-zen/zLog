@@ -26,10 +26,13 @@ class FileLoader(QThread):
     def __init__(self, path: str, parent=None):
         super().__init__(parent)
         self._path = path
-        self._running = False
+        # Set here rather than in run(): stop() can land before the thread body
+        # begins, and setting it True there would resurrect a cancelled load
+        # (see ui/file_follower.py's FileFollower for the same fix, and
+        # docs/plans/ci-windows-job.md for how this class of race was found).
+        self._running = True
 
     def run(self) -> None:
-        self._running = True
         try:
             total = os.path.getsize(self._path)
         except OSError:

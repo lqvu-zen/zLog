@@ -25,6 +25,13 @@ def test_capture_off_windows_is_graceful(window):
     if sys.platform != "win32":
         assert window._active.reader is None  # nothing started
         assert "Windows" in window.statusBar().currentMessage()
+    else:
+        # On real Windows this starts a genuine DebugOutputReader thread
+        # capturing the live DBWIN buffer — leaving it running past the test
+        # crashed the whole session at interpreter shutdown (a real bug this
+        # test itself introduced; see docs/plans/ci-windows-job.md). Stop it
+        # the same way a user closing the tab would.
+        window.stop()
 
 
 # --- "This PC" in the device box -------------------------------------------
