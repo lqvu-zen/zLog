@@ -38,11 +38,15 @@ def test_specs_cover_exactly_defaults(window):
 
 def test_redact_toggle_drives_maybe_redact(window):
     from zlog.core.models import LogEntry
+    from zlog.ui.export_actions import maybe_redact
 
     entries = [LogEntry("t", "1", "2", "I", "Net", "mail a@b.com")]
-    assert window._maybe_redact(entries)[0].message == "mail a@b.com"  # off by default
+    # maybe_redact itself just takes the flag now (see export_actions.py); this
+    # test's real job is confirming the checkbox state is what MainWindow feeds
+    # it, which the second assert (post-toggle) exercises end to end.
+    assert maybe_redact(entries, window.redact_action.isChecked())[0].message == "mail a@b.com"
     window.redact_action.setChecked(True)
-    assert window._maybe_redact(entries)[0].message == "mail [email]"
+    assert maybe_redact(entries, window.redact_action.isChecked())[0].message == "mail [email]"
 
 
 def test_settings_round_trip(qapp, tmp_path, monkeypatch):
@@ -854,7 +858,16 @@ def test_session_save_and_restore(window, tmp_path):
     window.model.toggle_bookmark(1)
     set_query(window, "level:E")
     path = str(tmp_path / "s.zsession")
-    window._write_session(path)
+    from zlog.ui.export_actions import write_session
+
+    write_session(
+        path,
+        window.model.all_entries(),
+        window.query.text(),
+        window.model.tag_colors(),
+        window.model.bookmarks(),
+        window.statusBar().showMessage,
+    )
 
     w2 = type(window)()
     w2._read_session(path)

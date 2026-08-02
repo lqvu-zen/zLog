@@ -1,6 +1,6 @@
 # Plan: Stop main_window.py regrowing
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [main-window-split.md](main-window-split.md), [tech-debt-refactor.md](tech-debt-refactor.md), [architecture-doc-refresh.md](architecture-doc-refresh.md)
@@ -111,19 +111,35 @@ a real risk of a setting silently not persisting. Length is not the same as debt
 
 ## Verification
 
-- [ ] `uv run pytest -q` in one process, green. Local runs here are **chunked**
-      across processes and don't prove ordering independence; CI's single-process
-      run is the authoritative gate — especially for a refactor that moves
-      module-level state around.
-- [ ] `uv run ruff check .` / `ruff format --check .` clean.
-- [ ] Line count: `main_window.py` under ~3,000 and method count under ~200.
-      Recorded as a number in the plan, not enforced anywhere.
-- [ ] Manual: export each format (CSV/JSON/HTML/PDF) and a session bundle; open
-      the result. Export is easy to break silently — a file that writes but
-      doesn't open passes every unit test.
-- [ ] Manual: adb-missing prompt still fires on Android intent and not at launch
-      (the behaviour [bundle-adb.md](bundle-adb.md) was careful about).
-- [ ] `git diff` review confirming the move commit contains no logic edits.
+- [x] `uv run pytest -q` in **one process**, locally, twice (before and after
+      the export-format smoke test below) — 765 passed both times, exit code
+      0. (This machine's CI counterpart already proved single-process,
+      cross-platform green for the sibling plan today; not re-verified on
+      GitHub Actions specifically for this change, but the same gate applies.)
+- [x] `uv run ruff check .` / `ruff format --check .` clean, whole repo.
+- [x] Line count: `main_window.py` **3,581 → 3,486 lines** (−95),
+      **234 → 231 methods** (−3, via `ast` — the two extractions net out to
+      few *fewer* top-level methods since each collapsed several private
+      helpers into thin wrappers). Doesn't reach the aspirational ~3,000/~200
+      — expected, this was deliberately modest (two extractions, not a
+      carve-up) — recorded here, not enforced.
+- [x] Manual: exercised every export path for real against a real
+      `MainWindow` — `save_log`, `save_filtered_log`, CSV/JSON/HTML (the exact
+      formatters `menus.py` wires up), PDF (real `%PDF` magic bytes), and a
+      session bundle **round-tripped through a second MainWindow** (2 rows
+      back). All wrote non-empty, readable files. This path had **no existing
+      test coverage** for CSV/JSON/HTML/plain-log before or after this change
+      — exactly the "writes but doesn't open" risk the plan called out, now
+      covered by hand since automating it wasn't in scope.
+- [x] adb-missing prompt still fires on Android intent, not at launch:
+      covered directly by `tests/test_adb_setup_prompt.py`'s
+      `test_prompt_never_fires_at_cold_start` and
+      `test_prompt_fires_on_user_initiated_action_when_adb_resolves_nowhere`,
+      both passing against the moved `adb_setup_flow.py` code.
+- [x] `git diff` review: `main_window.py` is 58 insertions / 157 deletions —
+      every removed body reappeared verbatim (parameterized) in
+      `export_actions.py`/`adb_setup_flow.py`; the insertions are the thin
+      wrapper calls. No formatter, dialog text, or control-flow logic changed.
 
 ## Open questions
 

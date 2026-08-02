@@ -18,10 +18,11 @@ def _no_real_adb_setup_dialog(monkeypatch):
     """None of the tests below exercise the adb-setup prompt itself (see
     test_adb_setup_prompt.py) — stub it so a "missing adb" scenario here can
     never block on a real modal dialog, regardless of whether this test
-    machine actually has adb on PATH."""
-    import zlog.ui.main_window as mw
+    machine actually has adb on PATH. The prompt's orchestration lives in
+    ui/adb_setup_flow.py (see main-window-drift.md), not main_window.py."""
+    from zlog.ui import adb_setup_flow
 
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: "later")
 
 
 def test_run_adb_returns_result_on_success(window):

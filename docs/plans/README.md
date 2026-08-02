@@ -36,7 +36,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [gitattributes-line-endings.md](gitattributes-line-endings.md) | Done | `.gitattributes` to stop CRLF/LF churn masking real diffs (prereq for the Windows CI job) |
 | [release-1.1.1.md](release-1.1.1.md) | Draft | Cut 1.1.1 — ships the fix for a shipped bug that makes the Windows flow unreachable |
 | [architecture-doc-refresh.md](architecture-doc-refresh.md) | Done | ARCHITECTURE/ROADMAP/README describe none of `winlog`, `dbwin`, `file_follower`, `capture_controller`, `tabstate` |
-| [main-window-drift.md](main-window-drift.md) | Draft | `main_window.py` regrew to 3,581 lines — add a "where new UI goes" rule + two example extractions |
+| [main-window-drift.md](main-window-drift.md) | Done | `main_window.py` regrew to 3,581 lines — add a "where new UI goes" rule + two example extractions |
 | [split-settings-tests.md](split-settings-tests.md) | Draft | Split the 1,277-line settings test grab-bag by subject |
 | [ci-shuffled-order.md](ci-shuffled-order.md) | Draft | One CI job in shuffled order, to surface order-dependent tests deliberately |
 | [ui-polish-adb-status.md](ui-polish-adb-status.md) | Done | UI review: Settings adb-path label clips mid-word; cold-start status message clobbers reopen-last with plugin count |

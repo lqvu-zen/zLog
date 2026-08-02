@@ -1,6 +1,9 @@
 """The one-time "fetch adb for me" prompt and its wiring into MainWindow (see
-docs/plans/bundle-adb.md). Never touches the network or a real dialog — adb
-resolution and the prompt's own choice are both monkeypatched.
+docs/plans/bundle-adb.md, docs/plans/main-window-drift.md). Never touches the
+network or a real dialog — adb resolution and the prompt's own choice are
+both monkeypatched. The orchestration itself lives in ui/adb_setup_flow.py;
+MainWindow keeps the "asked" flag and the in-flight fetcher as its own state
+and thin wrapper methods, so tests still drive it through `window.*`.
 """
 
 from __future__ import annotations
@@ -9,6 +12,8 @@ import shutil
 
 import pytest
 from PySide6.QtCore import QThread, Signal
+
+from zlog.ui import adb_setup_flow
 
 
 @pytest.fixture
@@ -36,7 +41,7 @@ def test_prompt_fires_on_user_initiated_action_when_adb_resolves_nowhere(window,
     monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: calls.append(1) or "later")
 
     window.refresh_devices()  # user_initiated=True by default — this is a Refresh click
 
@@ -58,7 +63,7 @@ def test_prompt_never_fires_at_cold_start(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: calls.append(1) or "later")
 
     MainWindow()  # __init__ calls refresh_devices(user_initiated=False)
 
@@ -71,7 +76,7 @@ def test_prompt_asked_at_most_once(window, monkeypatch):
     monkeypatch.setattr(mw.sys, "platform", "win32")
     monkeypatch.setattr(mw, "list_devices", _fail_with_missing_adb)
     calls = []
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: calls.append(1) or "later")
 
     window.refresh_devices()
     window.refresh_devices()
@@ -84,11 +89,9 @@ def test_prompt_skipped_when_something_already_resolves(window, monkeypatch):
     """A guard independent of the caller's own "missing" classification: if
     adb actually resolves (e.g. found on PATH after all), never offer to fetch
     a redundant copy."""
-    import zlog.ui.main_window as mw
-
     monkeypatch.setattr(shutil, "which", lambda name: "C:/real/adb.exe")
     calls = []
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: calls.append(1) or "later")
 
     window._maybe_offer_adb_setup()
 
@@ -103,7 +106,7 @@ def test_prompt_skipped_but_marked_asked_on_unsupported_os(window, monkeypatch):
 
     monkeypatch.setattr(mw.sys, "platform", "linux")
     calls = []
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: calls.append(1) or "later")
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: calls.append(1) or "later")
 
     window._maybe_offer_adb_setup()
 
@@ -115,7 +118,7 @@ def test_fetch_choice_starts_the_download(window, monkeypatch):
     import zlog.ui.main_window as mw
 
     monkeypatch.setattr(mw.sys, "platform", "win32")
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: mw.FETCH)
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: adb_setup_flow.FETCH)
     started = []
     monkeypatch.setattr(window, "_start_adb_fetch", lambda url, sha: started.append((url, sha)))
 
@@ -130,15 +133,15 @@ def test_manual_choice_opens_the_download_page(window, monkeypatch):
     import zlog.ui.main_window as mw
 
     monkeypatch.setattr(mw.sys, "platform", "win32")
-    monkeypatch.setattr(mw, "ask_adb_setup", lambda parent: mw.MANUAL)
+    monkeypatch.setattr(adb_setup_flow, "ask_adb_setup", lambda parent: adb_setup_flow.MANUAL)
     opened = []
     monkeypatch.setattr(
-        mw.QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url))
+        adb_setup_flow.QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url))
     )
 
     window._maybe_offer_adb_setup()
 
-    assert len(opened) == 1 and opened[0].toString() == mw.DOWNLOAD_PAGE
+    assert len(opened) == 1 and opened[0].toString() == adb_setup_flow.DOWNLOAD_PAGE
 
 
 def test_settings_download_button_bypasses_the_asked_gate(window, monkeypatch):
@@ -162,7 +165,7 @@ def test_settings_download_button_off_windows_opens_link_instead(window, monkeyp
     monkeypatch.setattr(mw.sys, "platform", "linux")
     opened = []
     monkeypatch.setattr(
-        mw.QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url))
+        adb_setup_flow.QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url))
     )
     started = []
     monkeypatch.setattr(window, "_start_adb_fetch", lambda url, sha: started.append(1))
@@ -201,9 +204,7 @@ class _FakeFailingFetcher(_FakeFetcher):
 
 
 def test_start_adb_fetch_success_refreshes_devices(window, monkeypatch):
-    import zlog.ui.main_window as mw
-
-    monkeypatch.setattr(mw, "AdbFetcher", _FakeFetcher)
+    monkeypatch.setattr(adb_setup_flow, "AdbFetcher", _FakeFetcher)
     refreshed = []
     monkeypatch.setattr(window, "refresh_devices", lambda **k: refreshed.append(k))
 
@@ -215,9 +216,7 @@ def test_start_adb_fetch_success_refreshes_devices(window, monkeypatch):
 
 
 def test_start_adb_fetch_error_reports_and_clears(window, monkeypatch):
-    import zlog.ui.main_window as mw
-
-    monkeypatch.setattr(mw, "AdbFetcher", _FakeFailingFetcher)
+    monkeypatch.setattr(adb_setup_flow, "AdbFetcher", _FakeFailingFetcher)
 
     window._start_adb_fetch("http://x", "hash")
 

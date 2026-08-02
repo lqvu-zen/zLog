@@ -68,12 +68,11 @@ from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
 from zlog.adb.snapshot import capture_dumpsys
-from zlog.core.adbfetch import expected_sha256, platform_tools_url
 from zlog.core.adbpath import managed_adb_path, resolve_adb
 from zlog.core.anchor import pick_anchor
 from zlog.core.applog import get_logger
 from zlog.core.autosave import AUTOSAVE_CAP, rotate_path, should_rotate
-from zlog.core.bundle import make_bundle, parse_bundle
+from zlog.core.bundle import parse_bundle
 from zlog.core.density import DEFAULT_DENSITY, DENSITY_NAMES, density_pad
 from zlog.core.devices import (
     Device,
@@ -83,7 +82,7 @@ from zlog.core.devices import (
     local_device,
 )
 from zlog.core.diff import diff_logs, line_key
-from zlog.core.export import to_html, to_markdown, to_messages, to_print_html
+from zlog.core.export import to_html, to_markdown, to_messages
 from zlog.core.heat import heat_marks
 from zlog.core.highlight_rules import normalize_rules
 from zlog.core.histogram import bucketize
@@ -101,7 +100,6 @@ from zlog.core.presets import (
     upsert_preset,
 )
 from zlog.core.query import parse_query, remove_span
-from zlog.core.redact import redact_entries
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
@@ -120,8 +118,7 @@ from zlog.core.theme import LIGHT
 from zlog.core.theme_io import theme_from_dict, theme_to_dict
 from zlog.core.timefmt import first_at_or_after, parse_logcat_time, parse_time_of_day
 from zlog.core.watch_action import expand_command
-from zlog.ui.adb_fetcher import AdbFetcher
-from zlog.ui.adb_setup_dialog import DOWNLOAD_PAGE, FETCH, MANUAL, ask_adb_setup
+from zlog.ui import adb_setup_flow, export_actions
 from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.capture_controller import CaptureController
 from zlog.ui.device_controller import DeviceController
@@ -129,7 +126,6 @@ from zlog.ui.file_loader import FileLoader
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_session import LogSession
 from zlog.ui.menus import build_menus
-from zlog.ui.pdf_export import write_pdf
 from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
@@ -154,7 +150,6 @@ LOG_FONT_FAMILIES = [
     "Courier New",
 ]
 BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
-PDF_ROW_CAP = 50_000  # rows above this freeze the UI thread for too long to render
 
 
 class MainWindow(QMainWindow):
@@ -597,69 +592,34 @@ class MainWindow(QMainWindow):
         return path
 
     def _maybe_offer_adb_setup(self) -> None:
-        """Offer to fetch adb the first time an Android-shaped action fails
-        because adb is nowhere to be found (see docs/plans/bundle-adb.md).
-        Fires on intent, never at cold start, and only once until answered —
-        a Windows-only user should never see this."""
-        if self._adb_setup_asked:
-            return
-        _path, source = self._resolve_adb()
-        if source != "none":
-            return  # something already resolves; this failure was something else
-        self._adb_setup_asked = True
-        self._save_settings()
-        url = platform_tools_url(sys.platform)
-        if url is None:
-            return  # fetch not offered on this OS; the status message already covers manual install
-        choice = ask_adb_setup(self)
-        if choice == FETCH:
-            self._start_adb_fetch(url, expected_sha256(sys.platform))
-        elif choice == MANUAL:
-            QDesktopServices.openUrl(QUrl(DOWNLOAD_PAGE))
+        adb_setup_flow.maybe_offer_setup(
+            self,
+            sys.platform,
+            self._resolve_adb,
+            lambda: self._adb_setup_asked,
+            lambda v: setattr(self, "_adb_setup_asked", v),
+            self._save_settings,
+            self._start_adb_fetch,
+        )
 
     def _download_adb_from_settings(self) -> None:
         """The Settings 'Download adb…' button — a direct action, so it always
         runs regardless of the one-shot intent-triggered prompt's state."""
-        url = platform_tools_url(sys.platform)
-        if url is None:
-            QDesktopServices.openUrl(QUrl(DOWNLOAD_PAGE))
-            self.statusBar().showMessage(
-                "Fetching adb isn't available on this OS — opened the download page."
-            )
-            return
-        self._start_adb_fetch(url, expected_sha256(sys.platform))
+        adb_setup_flow.download_from_settings(
+            sys.platform, self.statusBar().showMessage, self._start_adb_fetch
+        )
 
     def _start_adb_fetch(self, url: str, sha256: str) -> None:
-        if self._adb_fetcher is not None:
-            self.statusBar().showMessage("Already downloading adb…")
-            return
-        dialog = QProgressDialog("Downloading adb…", "Cancel", 0, 100, self)
-        dialog.setWindowModality(Qt.WindowModal)
-        dialog.setMinimumDuration(0)
-        fetcher = AdbFetcher(url, sha256, self._adb_data_dir(), self)
-        self._adb_fetcher = fetcher  # keep alive; also lets Settings reuse cancel later
-
-        def on_progress(read, total):
-            dialog.setValue(int(read * 100 / total) if total else 0)
-
-        def finish():
-            dialog.reset()
-            self._adb_fetcher = None
-
-        def on_done(_path):
-            finish()
-            self.statusBar().showMessage("adb installed.")
-            self.refresh_devices()  # re-resolve and pick it up, no restart
-
-        def on_error(msg):
-            finish()
-            self.statusBar().showMessage(msg)
-
-        fetcher.progress.connect(on_progress)
-        fetcher.done.connect(on_done)
-        fetcher.error.connect(on_error)
-        dialog.canceled.connect(fetcher.cancel)
-        fetcher.start()
+        adb_setup_flow.start_fetch(
+            self,
+            url,
+            sha256,
+            self._adb_data_dir(),
+            lambda: self._adb_fetcher,
+            lambda f: setattr(self, "_adb_fetcher", f),
+            self.statusBar().showMessage,
+            self.refresh_devices,
+        )
 
     def _run_adb(self, fn, *, missing_msg, error_prefix, report):
         """Run an adb-backed call, routing a missing `adb` and any other failure
@@ -2420,118 +2380,59 @@ class MainWindow(QMainWindow):
             for row in range(self.proxy.rowCount())
         ]
 
-    def _maybe_redact(self, entries: list[LogEntry]) -> list[LogEntry]:
-        """Mask secrets when the Redact-on-Export toggle is on; else pass through.
-        Non-destructive — redaction runs on a copy, never the master list."""
-        return redact_entries(entries) if self.redact_action.isChecked() else entries
-
-    def _write_log(self, entries: list[LogEntry], default_name: str) -> None:
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save Log", default_name, "Log files (*.log);;All files (*)"
-        )
-        if not path:
-            return
-        entries = self._maybe_redact(entries)
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(entries_to_text(entries))
-        except OSError as exc:
-            self.statusBar().showMessage(f"Could not save: {exc}")
-            return
-        redacted = " (redacted)" if self.redact_action.isChecked() else ""
-        self.statusBar().showMessage(f"Saved {len(entries)} lines to {Path(path).name}{redacted}.")
-        self._remember_recent(path)
-
     def save_log(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-        self._write_log(self.model.all_entries(), f"zlog-{stamp}.log")
+        export_actions.write_log(
+            self,
+            self.model.all_entries(),
+            f"zlog-{stamp}.log",
+            self.redact_action.isChecked(),
+            self.statusBar().showMessage,
+            self._remember_recent,
+        )
 
     def save_filtered_log(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-        self._write_log(self._filtered_entries(), f"zlog-{stamp}-filtered.log")
+        export_actions.write_log(
+            self,
+            self._filtered_entries(),
+            f"zlog-{stamp}-filtered.log",
+            self.redact_action.isChecked(),
+            self.statusBar().showMessage,
+            self._remember_recent,
+        )
 
     def _export(self, name, formatter, ext) -> None:
         """Save the currently-visible entries via `formatter` (CSV/JSON/HTML)."""
-        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-        path, _ = QFileDialog.getSaveFileName(
-            self, f"Export {name}", f"zlog-{stamp}.{ext}", f"{name} (*.{ext});;All files (*)"
-        )
-        if not path:
-            return
-        entries = self._maybe_redact(self._filtered_entries())
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(formatter(entries))
-        except OSError as exc:
-            self.statusBar().showMessage(f"Could not export: {exc}")
-            return
-        redacted = " (redacted)" if self.redact_action.isChecked() else ""
-        self.statusBar().showMessage(
-            f"Exported {len(entries)} lines to {Path(path).name}{redacted}."
+        export_actions.export_formatted(
+            self,
+            name,
+            formatter,
+            ext,
+            self._filtered_entries(),
+            self.redact_action.isChecked(),
+            self.statusBar().showMessage,
         )
 
     def _export_pdf(self) -> None:
-        """Export the filtered view to PDF. Capped at PDF_ROW_CAP — rendering a
-        huge document synchronously on the UI thread would otherwise freeze zLog
-        for a very long time to produce an unusably large file."""
-        entries = self._maybe_redact(self._filtered_entries())
-        if len(entries) > PDF_ROW_CAP:
-            reply = QMessageBox.question(
-                self,
-                "Large export",
-                f"The filtered view has {len(entries):,} lines. PDF export is capped at "
-                f"{PDF_ROW_CAP:,} to avoid a huge, slow file — narrow the filter first for "
-                "everything, or export just the first "
-                f"{PDF_ROW_CAP:,} lines now?",
-                QMessageBox.Yes | QMessageBox.Cancel,
-                QMessageBox.Cancel,
-            )
-            if reply != QMessageBox.Yes:
-                return
-            entries = entries[:PDF_ROW_CAP]
-        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export PDF", f"zlog-{stamp}.pdf", "PDF files (*.pdf);;All files (*)"
-        )
-        if not path:
-            return
-        doc_html = to_print_html(entries, title="zLog export", query=self.query.text())
-        try:
-            pages = write_pdf(doc_html, path)
-        except OSError as exc:
-            self.statusBar().showMessage(f"Could not export PDF: {exc}")
-            return
-        redacted = " (redacted)" if self.redact_action.isChecked() else ""
-        self.statusBar().showMessage(
-            f"Exported {len(entries)} lines ({pages} page(s)) to {Path(path).name}{redacted}."
+        export_actions.export_pdf(
+            self,
+            self._filtered_entries(),
+            self.redact_action.isChecked(),
+            self.query.text(),
+            self.statusBar().showMessage,
         )
 
     # --- sessions ----------------------------------------------------------
     def save_session(self) -> None:
-        stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
-        path, _ = QFileDialog.getSaveFileName(
+        export_actions.save_session(
             self,
-            "Save Session",
-            f"zlog-{stamp}.zsession",
-            "Session files (*.zsession);;All files (*)",
-        )
-        if path:
-            self._write_session(path)
-
-    def _write_session(self, path: str) -> None:
-        text = make_bundle(
-            entries_to_text(self.model.all_entries()),
+            self.model.all_entries(),
             self.query.text(),
             self.model.tag_colors(),
             self.model.bookmarks(),
+            self.statusBar().showMessage,
         )
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                fh.write(text)
-        except OSError as exc:
-            self.statusBar().showMessage(f"Could not save session: {exc}")
-            return
-        self.statusBar().showMessage(f"Saved session to {Path(path).name}.")
 
     def open_session(self) -> None:
         path, _ = QFileDialog.getOpenFileName(

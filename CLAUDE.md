@@ -82,6 +82,8 @@ Ruff is configured with `line-length = 100` and rules `E, F, I, UP, B`.
 | widget creation + layout (`build_widgets`, `build_layout`) | `src/zlog/ui/build.py` |
 | menu bar (`build_menus`) | `src/zlog/ui/menus.py` |
 | reader attach/detach per session (`CaptureController`) | `src/zlog/ui/capture_controller.py` |
+| save/export flows (log, CSV/JSON/HTML/PDF, session bundles, redaction) | `src/zlog/ui/export_actions.py` |
+| adb resolution/prompt/fetch orchestration | `src/zlog/ui/adb_setup_flow.py` |
 | headless-Qt test setup (`offscreen` qapp fixture) | `tests/conftest.py` |
 | self-diagnostics log (`configure`, `get_logger`) | `src/zlog/core/applog.py` |
 | `QApplication` bootstrap (`main`) + logging setup | `src/zlog/app.py` |
@@ -152,6 +154,15 @@ The invariants. Most "looked fine, broke in practice" bugs come from violating o
 - **Version bumps happen only on release.** Don't change `__version__`
   (`src/zlog/__init__.py`) or `version` (`pyproject.toml`) per feature or fix —
   bump them only when cutting a release.
+- **A new dialog, menu action, or feature flow gets its own `ui/` module.**
+  `MainWindow` wires it up — constructs it, connects signals — and holds no
+  more than a thin slot. If you're adding more than ~30 lines of logic to
+  `main_window.py`, that logic belongs in a new file (see `export_actions.py`
+  and `adb_setup_flow.py` for the shape: plain functions/callables, never
+  importing `main_window`, taking what they need as parameters instead of
+  reaching into `self.`). `main_window.py` has regrown past a carve-up once
+  already ([main-window-drift.md](docs/plans/main-window-drift.md)) — this
+  rule is what's meant to keep it from happening again, not another refactor.
 
 ## Environment notes
 

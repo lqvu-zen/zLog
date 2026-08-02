@@ -69,9 +69,9 @@ def test_export_pdf_cancelled_save_dialog_writes_nothing(window, tmp_path, monke
 def test_export_pdf_over_cap_prompts_and_respects_cancel(window, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-    import zlog.ui.main_window as mw
+    import zlog.ui.export_actions as export_actions
 
-    monkeypatch.setattr(mw, "PDF_ROW_CAP", 5)
+    monkeypatch.setattr(export_actions, "PDF_ROW_CAP", 5)
     window.model.append_entries(_entries(10))
     save_calls = []
     monkeypatch.setattr(

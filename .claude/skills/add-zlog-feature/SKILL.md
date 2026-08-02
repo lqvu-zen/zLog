@@ -29,6 +29,8 @@ a feature that isn't planned and verified isn't done.
 | Qt table model, filter proxy | `src/zlog/ui/log_model.py` |
 | color themes (Light/Dark) + palette tokens | `src/zlog/ui/theme.py` |
 | main window, toolbar, wiring | `src/zlog/ui/main_window.py` |
+| save/export flows (log, CSV/JSON/HTML/PDF, session bundles) | `src/zlog/ui/export_actions.py` |
+| adb resolution/prompt/fetch orchestration | `src/zlog/ui/adb_setup_flow.py` |
 | `QApplication` bootstrap (`main`) | `src/zlog/app.py` |
 | `__version__` | `src/zlog/__init__.py` |
 | deps, scripts, tooling config | `pyproject.toml` |
@@ -96,6 +98,16 @@ bugs come from violating one, so internalize the *why*, not just the rule.
 - **Version bumps happen only on release.** Don't change `__version__`
   (`src/zlog/__init__.py`) or `pyproject.toml`'s `version` for individual features
   or fixes — bump them only when cutting a release.
+
+- **A new dialog, menu action, or feature flow gets its own `ui/` module** —
+  `MainWindow` wires it up and holds no more than a thin slot. If a feature
+  would add more than ~30 lines of logic to `main_window.py`, put that logic
+  in a new file instead (see `export_actions.py`/`adb_setup_flow.py`: plain
+  functions taking what they need as parameters, never importing
+  `main_window`). `main_window.py` has already regrown past one carve-up
+  ([main-window-drift.md](../../../docs/plans/main-window-drift.md)) — this
+  rule, applied at the point of writing, is what's meant to prevent a repeat,
+  not another refactor later.
 
 ## The workflow
 
