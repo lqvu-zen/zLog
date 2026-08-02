@@ -1,6 +1,6 @@
 # Plan: Run CI on Windows
 
-- **Status:** In progress  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [windows-debug-output.md](windows-debug-output.md), [windows-event-log.md](windows-event-log.md), [windows-app-focus.md](windows-app-focus.md), [release-workflow.md](release-workflow.md)
@@ -85,8 +85,18 @@ where.
       failed because it assumed the picker defaults to nothing selected, which
       is no longer true on real Windows (`usable-without-adb.md` makes "This
       PC" the default). This is exactly the class of gap the plan exists to
-      surface, on the very first run — fixed in `ca094e7`, re-pushed, watching
-      for green.
+      surface, on the very first run — fixed in `ca094e7`.
+- [x] **Second red run** (`bdb37ad`): all 765 tests passed, but the *process*
+      still exited 1 during Python's interpreter shutdown — a genuine race in
+      five QThread readers' `_running` flag (set inside `run()` instead of
+      `__init__`, so `stop()` landing early got silently undone), caught via
+      a leaking `DebugOutputReader` thread in the crash dump. Fixed in
+      `84c9ff5` (all five readers, plus a `pytest_sessionfinish` hook that
+      reports the correct exit code regardless of residual Qt-teardown noise).
+- [x] **Both jobs green** on the resulting run (`84c9ff5`, run 30754708289):
+      Linux 8m39s, Windows 38m49s, "Run tests" passing on both. This is the
+      real proof — two real, previously-undetected Windows-only bugs caught
+      on the first two runs this job ever made.
 - [x] Deliberately broke a Windows-only path locally (offset `processes.py`'s
       pid by +999999) → `test_list_processes_contains_this_process` failed
       with a clear assertion; reverted, re-ran, 3/3 passed again. Combined
