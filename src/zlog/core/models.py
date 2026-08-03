@@ -32,3 +32,10 @@ class LogEntry:
         if self.pid and self.tid:
             return f"{self.pid}-{self.tid}"
         return self.pid or self.tid
+
+
+def all_unparsed(entries: list[LogEntry]) -> bool:
+    """True when a non-empty load came back with no recognized level at all —
+    a signal the source is in a format zLog doesn't parse, so level/tag/time
+    filters won't do anything on it (see docs/plans/unparsed-level-hides-log.md)."""
+    return bool(entries) and all(not e.level for e in entries)

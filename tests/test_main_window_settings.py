@@ -633,6 +633,24 @@ def test_open_recent_tracks_and_dedups(window, tmp_path):
     assert window._recent.count(str(f)) == 1
 
 
+def test_open_unrecognized_format_notes_it_in_status(window, tmp_path):
+    # Plain text with no logcat-shaped lines: every entry comes back unparsed
+    # (level ""), so the status bar should say so rather than silently loading
+    # a file whose level/tag/time filters will never do anything.
+    f = tmp_path / "plain.txt"
+    f.write_text("just some\nplain text\nno timestamps here\n", encoding="utf-8")
+    window._load_log_file(str(f))
+    assert window.model.rowCount() == 3
+    assert "not recognized" in window.statusBar().currentMessage()
+
+
+def test_open_recognized_format_has_no_unparsed_note(window, tmp_path):
+    f = tmp_path / "cap.log"
+    f.write_text("06-30 12:00:00.000 1 2 I Tag: hi\n", encoding="utf-8")
+    window._load_log_file(str(f))
+    assert "not recognized" not in window.statusBar().currentMessage()
+
+
 def test_open_missing_recent_is_forgotten(window, tmp_path):
     missing = str(tmp_path / "gone.log")
     window._recent = [missing]

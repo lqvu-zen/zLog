@@ -89,7 +89,7 @@ from zlog.core.histogram import bucketize
 from zlog.core.history import normalize_history, push_history
 from zlog.core.incidents import format_incident_summary
 from zlog.core.jank import jank_summary
-from zlog.core.models import LEVEL_RANK, LogEntry
+from zlog.core.models import LEVEL_RANK, LogEntry, all_unparsed
 from zlog.core.palette import match_commands
 from zlog.core.plugins import load_colorizers
 from zlog.core.presets import (
@@ -150,6 +150,7 @@ LOG_FONT_FAMILIES = [
     "Courier New",
 ]
 BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
+_UNPARSED_NOTE = " Format not recognized — level/tag/time filters won't apply."
 
 
 class MainWindow(QMainWindow):
@@ -2615,7 +2616,8 @@ class MainWindow(QMainWindow):
             return
         entries = text_to_entries(text)
         self.model.append_entries(entries)
-        self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.")
+        note = _UNPARSED_NOTE if all_unparsed(entries) else ""
+        self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.{note}")
         self._remember_recent(path)
 
     def _load_log_file_async(self, path: str) -> None:
@@ -2639,7 +2641,8 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message)
 
         def on_done(n):
-            finish(f"Loaded {n} lines from {Path(path).name}.")
+            note = _UNPARSED_NOTE if all_unparsed(self.model.all_entries()) else ""
+            finish(f"Loaded {n} lines from {Path(path).name}.{note}")
             self._remember_recent(path)
 
         def on_error(msg):
