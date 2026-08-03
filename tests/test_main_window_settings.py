@@ -189,23 +189,6 @@ def test_bookmark_toggle_and_navigation(window):
     assert window.model.bookmarked_rows() == []
 
 
-def test_font_zoom(window):
-    base = window.table.font().pointSize()
-    window._zoom(2)
-    assert window.table.font().pointSize() == base + 2
-    assert window.detail.font().pointSize() == base + 2
-    window._reset_zoom()
-    assert window.table.font().pointSize() == base
-    # persists through the settings spec
-    window._zoom(3)
-    window._save_settings()
-    from zlog.ui.main_window import MainWindow
-
-    w2 = MainWindow()
-    w2._load_and_apply_settings()
-    assert w2._font_delta == 3
-
-
 def test_query_bar_drives_filters(window):
     from zlog.core.models import LogEntry
 
@@ -479,38 +462,6 @@ def test_clear_device_button_no_device(window, monkeypatch):
     assert "device" in window.statusBar().currentMessage().lower()
 
 
-def _wheel(dy, ctrl):
-    from PySide6.QtCore import QPoint, QPointF, Qt
-    from PySide6.QtGui import QWheelEvent
-
-    mods = Qt.ControlModifier if ctrl else Qt.NoModifier
-    return QWheelEvent(
-        QPointF(5, 5),
-        QPointF(5, 5),
-        QPoint(0, 0),
-        QPoint(0, dy),
-        Qt.NoButton,
-        mods,
-        Qt.ScrollUpdate,
-        False,
-    )
-
-
-def test_ctrl_wheel_zooms(window):
-    before = window._font_delta
-    assert window.eventFilter(window.table.viewport(), _wheel(120, ctrl=True)) is True
-    assert window._font_delta == before + 1
-    # and down over the detail pane
-    assert window.eventFilter(window.detail.viewport(), _wheel(-120, ctrl=True)) is True
-    assert window._font_delta == before
-
-
-def test_plain_wheel_not_consumed(window):
-    before = window._font_delta
-    assert window.eventFilter(window.table.viewport(), _wheel(120, ctrl=False)) is False
-    assert window._font_delta == before
-
-
 def test_clear_device_button_clears_view(window, monkeypatch):
     import zlog.ui.main_window as mw
     from zlog.core.models import LogEntry
@@ -543,16 +494,6 @@ def test_clear_device_button_keeps_view_on_failure(window, monkeypatch):
     assert window.model.rowCount() == 1  # failed clear must not wipe the view
 
 
-def test_log_font_readable(window):
-    from PySide6.QtGui import QFont
-
-    f = window.table.font()
-    assert f.styleHint() == QFont.Monospace
-    assert f.pointSize() == 11  # BASE_FONT_PT at zero zoom
-    window._zoom(2)
-    assert window.table.font().pointSize() == 13  # zoom still shifts the base
-
-
 def test_show_narrows_the_presets_dock_once(window, qapp):
     from PySide6.QtCore import Qt
 
@@ -570,134 +511,6 @@ def test_show_narrows_the_presets_dock_once(window, qapp):
     for _ in range(5):
         qapp.processEvents()
     assert calls == [([window.presets_dock], [160], Qt.Horizontal)]  # still just the one call
-
-
-def test_follow_stays_manual_and_never_yanks(window, qapp):
-    from PySide6.QtTest import QTest
-
-    from zlog.core.models import LogEntry
-
-    window.resize(1100, 700)
-    window.show()
-    qapp.processEvents()
-
-    def batch(n):
-        window.on_batch(
-            [
-                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
-                for i in range(n)
-            ]
-        )
-
-    window.follow_check.setChecked(True)
-    for _ in range(20):
-        batch(50)
-    QTest.qWait(150)  # the follow scroll is coalesced onto a short timer
-    sb = window.table.verticalScrollBar()
-    assert sb.maximum() > 0 and sb.value() == sb.maximum()  # tailing at the bottom
-
-    # scroll up to read: Follow is a manual toggle, so it stays checked...
-    sb.setValue(0)
-    qapp.processEvents()
-    assert window.follow_check.isChecked() is True
-    # ...and incoming logs must NOT yank the viewport back down
-    batch(50)
-    QTest.qWait(150)
-    assert sb.value() == 0
-
-    # scroll back to the bottom and tailing resumes on the next batch
-    sb.setValue(sb.maximum())
-    qapp.processEvents()
-    batch(50)
-    QTest.qWait(150)
-    assert sb.value() == sb.maximum()
-
-
-def test_follow_pauses_while_a_row_is_selected(window, qapp):
-    from PySide6.QtTest import QTest
-
-    from zlog.core.models import LogEntry
-
-    window.resize(1100, 700)
-    window.show()
-    qapp.processEvents()
-
-    def batch(n):
-        window.on_batch(
-            [
-                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
-                for i in range(n)
-            ]
-        )
-
-    window.follow_check.setChecked(True)
-    for _ in range(20):
-        batch(50)
-    QTest.qWait(150)
-    sb = window.table.verticalScrollBar()
-    assert sb.value() >= sb.maximum() - 4  # tailing at the bottom (same tolerance as the gate)
-
-    # select a row while still at the bottom (a click doesn't move the scrollbar)
-    window.table.selectRow(window.proxy.rowCount() - 1)
-    assert window.table.selectionModel().hasSelection()
-    stuck_at = sb.value()
-
-    # the next batch must not yank the view away from the selected row
-    batch(50)
-    QTest.qWait(150)
-    assert sb.value() == stuck_at
-
-    # clearing the selection and returning to the bottom resumes tailing
-    window.table.clearSelection()
-    sb.setValue(sb.maximum())
-    qapp.processEvents()
-    batch(50)
-    QTest.qWait(150)
-    assert sb.value() >= sb.maximum() - 4
-
-
-def test_follow_resumes_on_scroll_to_bottom_without_manually_deselecting(window, qapp):
-    """Regression: scrolling back to the newest line should let go of a stale
-    selection itself — the user shouldn't have to deselect by hand for Follow
-    to resume."""
-    from PySide6.QtTest import QTest
-
-    from zlog.core.models import LogEntry
-
-    window.resize(1100, 700)
-    window.show()
-    qapp.processEvents()
-
-    def batch(n):
-        window.on_batch(
-            [
-                LogEntry(f"06-30 12:00:{i % 60:02d}.000", "1", "2", "I", "T", f"l{i}")
-                for i in range(n)
-            ]
-        )
-
-    window.follow_check.setChecked(True)
-    for _ in range(20):
-        batch(50)
-    QTest.qWait(150)
-    sb = window.table.verticalScrollBar()
-
-    # select the last row while it's already fully visible (no scroll induced —
-    # the case that broke the naive "consume on next scroll" suppression)
-    window.table.selectRow(window.proxy.rowCount() - 1)
-    assert window.table.selectionModel().hasSelection()
-
-    batch(50)  # must not yank while selected
-    QTest.qWait(150)
-
-    # user scrolls back to the bottom themselves, without touching the selection
-    sb.setValue(sb.maximum())
-    qapp.processEvents()
-    assert not window.table.selectionModel().hasSelection()  # auto-cleared
-
-    batch(50)
-    QTest.qWait(150)
-    assert sb.value() >= sb.maximum() - 4  # tailing resumed
 
 
 def test_min_level_dropdown_and_query_stay_in_sync(window):

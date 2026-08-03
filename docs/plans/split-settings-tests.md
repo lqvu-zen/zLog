@@ -1,6 +1,6 @@
 # Plan: Split test_main_window_settings.py
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-01
 - **Related:** [fix-follow-scroll-flake.md](fix-follow-scroll-flake.md), [ci-shuffled-order.md](ci-shuffled-order.md), [main-window-drift.md](main-window-drift.md)
@@ -78,17 +78,47 @@ commit that's hard to verify.
 
 ## Verification
 
-- [ ] `pytest --collect-only -q | wc -l` identical before and after.
-- [ ] Each new file passes **alone** (`pytest tests/test_follow_scroll.py`) — the
-      point of the split is that this is now useful.
-- [ ] `uv run pytest -q` in **one process** (CI's command) — green. Local runs
-      here are chunked across processes and cannot prove the ordering
-      independence this change specifically affects, so CI is the real gate.
-- [ ] Run 3× to catch anything the reshuffle destabilized. If
-      [ci-shuffled-order.md](ci-shuffled-order.md) has landed, run shuffled too.
-- [ ] Per-file timings recorded, to confirm the "run just the relevant slice"
-      benefit is real and not imagined.
-- [ ] `uv run ruff check .` / `ruff format --check .` clean.
+- [x] `pytest --collect-only -q` identical before and after: **80** tests across
+      the three files both before (all in one file) and after (73 + 3 + 4), and
+      **765** repo-wide, unchanged from the pre-split baseline.
+- [x] Each new file passes **alone**: `test_follow_scroll.py` (3 tests, ~3.4s)
+      and `test_view_modes.py` (4 tests, ~2.8s) both green standalone.
+- [x] `uv run pytest -q` in **one process** (CI's command) — green: 765 passed,
+      exit 0 (the `Windows fatal exception: access violation` line after
+      `[100%]` is the pre-existing, already-root-caused shutdown artifact
+      `conftest.py`'s `pytest_sessionfinish` hook exists to paper over — see
+      [ci-windows-job.md](ci-windows-job.md); exit code is still correct).
+- [x] Run 3× (shuffled, `-p randomly`, since
+      [ci-shuffled-order.md](ci-shuffled-order.md) has since landed): all three
+      runs of the touched files (80 tests) green, no failures in any order.
+- [x] Per-file timings recorded (local Windows dev machine, standalone):
+      `test_main_window_settings.py` (73 tests) ~120s, `test_follow_scroll.py`
+      (3 tests) ~3.4s, `test_view_modes.py` (4 tests) ~2.8s. The absolute
+      numbers are higher than the plan's original CI-based "~40s" estimate for
+      the *whole* file (this machine's per-test `MainWindow` construction
+      overhead is higher than CI's offscreen Linux runner), but the relative
+      win the split was for is real: touching follow-scroll or zoom/font logic
+      no longer requires waiting on the other 73 tests.
+- [x] `uv run ruff check .` / `ruff format --check .` clean on all three files.
+
+Note on scope: the plan named three destination files, but the tests actually
+in this file span far more subjects than "persistence" alone (query bar,
+presets, watch, tabs, sessions, autosave, goto, bookmarks, adb path, …). Per
+this plan's own non-goal ("splitting other large files" is out of scope), only
+the two subjects it explicitly named — follow-scroll and the zoom/font
+presentation toggles — were extracted; everything else stays. The remaining
+`test_main_window_settings.py` is smaller (73 tests) but still a grab bag; a
+further split, if wanted, is new scope for a new plan.
+
+Note on the shared fixture: the plan called for moving the shared `window`
+fixture into `conftest.py`. Six other `test_main_window_*.py` files
+(`test_main_window_tabs.py`, `_adb.py`, `_evtlog.py`, `_plugins.py`,
+`_presets.py`, `_dbwin.py`) already each define the identical fixture locally
+rather than sharing one from `conftest.py` — that's the codebase's actual,
+established convention for this fixture. Matching it (defining `window`
+locally in the two new files too) was judged safer and more consistent than
+introducing the first shared instance of a fixture six other files
+deliberately duplicate.
 
 ## Open questions
 
