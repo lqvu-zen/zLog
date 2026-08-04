@@ -13,6 +13,18 @@ def test_round_trip():
     assert tabs_from_json(tabs_to_json(states)) == states
 
 
+def test_format_round_trips():
+    states = [TabState(path="/logs/a.log", format="MyProject")]
+    assert tabs_from_json(tabs_to_json(states)) == states
+
+
+def test_settings_file_without_format_key_defaults_to_auto():
+    # A settings file written before custom-log-format-editor.md landed has no
+    # "format" key at all — the tab must still restore, not be dropped.
+    got = tabs_from_json([{"path": "/a.log", "query": "level:E"}])
+    assert got == [TabState(path="/a.log", query="level:E", level="V", format="")]
+
+
 def test_empty_tab_is_not_persisted():
     """A blank tab with no file and no filter isn't worth restoring."""
     assert tabs_to_json([TabState()]) == []

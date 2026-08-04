@@ -183,6 +183,8 @@ def build_menus(win) -> None:
     jank_summary_act.triggered.connect(win._show_jank_summary)
     extract_act = view_menu.addAction("&Extract Fields…")
     extract_act.triggered.connect(win._edit_extractors)
+    log_formats_act = view_menu.addAction("Log &Formats…")
+    log_formats_act.triggered.connect(win._open_log_format_dialog)
     highlight_rules_act = view_menu.addAction("&Highlight Rules…")
     highlight_rules_act.triggered.connect(win._show_highlight_rules_dialog)
     view_menu.addAction(win.fold_action)  # Fold Stack Traces (checkable)

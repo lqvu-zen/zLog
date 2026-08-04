@@ -27,6 +27,7 @@ class LogSession:
         self.query = ""  # this tab's query-bar text
         self.level = "V"  # this tab's min-level selection
         self.package = ""  # this tab's package-box text
+        self.format = ""  # chosen LogFormat name for this tab ("" = auto-detect/built-ins)
         self.paused = False
         self.pause_buffer: list[LogEntry] = []
         self.want_stream = False  # intends to stream (drives auto-reconnect)

@@ -12,6 +12,7 @@ import os
 
 from PySide6.QtCore import QThread, Signal
 
+from zlog.core.logformat import CompiledFormat
 from zlog.core.session import iter_entry_batches
 
 _BATCH_SIZE = 50  # small batches keep the UI responsive during a big load
@@ -23,9 +24,13 @@ class FileLoader(QThread):
     done = Signal(int)  # total lines loaded
     error = Signal(str)
 
-    def __init__(self, path: str, parent=None):
+    def __init__(self, path: str, formats: list[CompiledFormat] | None = None, parent=None):
         super().__init__(parent)
         self._path = path
+        # Read-only snapshot handed in at construction, same rule as every
+        # other reader — a running loader never reaches back for "the current
+        # format".
+        self._formats = formats
         # Set here rather than in run(): stop() can land before the thread body
         # begins, and setting it True there would resurrect a cancelled load
         # (see ui/file_follower.py's FileFollower for the same fix, and
@@ -51,7 +56,7 @@ class FileLoader(QThread):
                         lines += 1
                         yield raw
 
-                for batch in iter_entry_batches(_counting_lines(), _BATCH_SIZE):
+                for batch in iter_entry_batches(_counting_lines(), _BATCH_SIZE, self._formats):
                     if not self._running:
                         break
                     self.batch_ready.emit(batch)

@@ -15,6 +15,7 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from zlog.core.applog import get_logger
+from zlog.core.logformat import CompiledFormat
 from zlog.core.models import LogEntry
 from zlog.core.parser import parse_line
 
@@ -75,6 +76,7 @@ class AdbReader(QThread):
         tail: int = 0,
         since_time: str | None = None,
         source: str = "",
+        formats: list[CompiledFormat] | None = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -85,6 +87,11 @@ class AdbReader(QThread):
         self.buffers = buffers
         self.tail = tail
         self.since_time = since_time
+        # Read-only snapshot handed in at construction — a running reader must
+        # never reach back for "the current format" (worker threads only take
+        # data via signals/construction, never poll UI-owned state). None keeps
+        # the original built-in-only behaviour.
+        self.formats = formats
         # In a merged multi-device view, each reader stamps its lines with this
         # label (the device serial) so the model can tell sources apart.
         self.source = source
@@ -130,7 +137,7 @@ class AdbReader(QThread):
             for raw in self._proc.stdout:
                 if not self._running:
                     break
-                entry = parse_line(raw.rstrip("\n"))
+                entry = parse_line(raw.rstrip("\n"), self.formats)
                 if self.source:
                     entry = dataclasses.replace(entry, source=self.source)
                 batch.append(entry)

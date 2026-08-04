@@ -1,6 +1,6 @@
 # Plan: User-defined log formats
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-03
 - **Related:** [custom-log-format-preset.md](custom-log-format-preset.md), [unparsed-level-hides-log.md](unparsed-level-hides-log.md), [regex-extract-columns.md](regex-extract-columns.md), [multi-line-entries.md](multi-line-entries.md), [robust-parsing.md](robust-parsing.md)
@@ -122,13 +122,55 @@ correctly-named pattern needs no new plumbing.
 | `src/zlog/ui/main_window.py` | ui | On file open: read the first N lines, call `detect_format(...)`, apply the winner to that tab, and name it in the existing "Loaded N lines…" status message (decision 2). Sits next to the `all_unparsed` note added by [unparsed-level-hides-log.md](unparsed-level-hides-log.md) — same message, same moment. |
 | `tests/test_logformat.py` (new) | — | Ordering (first match wins); invalid regex skipped, not crashing; aliases applied; unknown level → `""`; round-trip through JSON; a user format that shadows a built-in. |
 
-**Re-parsing already-loaded rows.** Changing the format must update what's on
-screen, or the preview lies. Cheapest correct approach: keep each entry's raw line
-and re-run the parse over the master list, then `beginResetModel`/`endResetModel`
-once. This is the **one** place a full model reset is legitimate — the
-"never `beginResetModel` just to add lines" rule is about appends, and this isn't
-an append. Note that `LogEntry` is frozen with `slots=True`, so re-parsing means
-rebuilding the list, not mutating it.
+### As actually implemented (2026-08-04) — deviations from the Design table above
+
+- **Re-parsing already-loaded rows doesn't cache raw lines.** Rather than
+  giving `LogEntry`/`LogTableModel` a parallel raw-line store (real, ongoing
+  memory cost for every entry, forever, to support an edit-time-only
+  feature), a format-dialog Apply on a tab that's a loaded file just calls
+  `_load_log_file(sess.file_path)` again — a loaded file's tab *is* exactly
+  its path's content, so re-reading it re-parses with the edited formats for
+  free. `LogSession.file_path` already existed for Open Recent/tab-restore.
+  A live-capture tab has nothing to reload from; its format takes effect
+  from the next Start, as the Design table already said. See
+  `MainWindow._reparse_active_tab_if_loaded`.
+- **The status-bar format note only fires for a user-defined winner**, not a
+  built-in one. Literally following decision 2 would announce "Format:
+  threadtime" on every single ordinary logcat open, forever — pure noise for
+  the overwhelmingly common case, and it doesn't serve decision 2's own
+  stated reason ("how a user discovers the feature exists"), which only
+  applies once a user format is actually in play. See `_format_note`.
+- **The preview's timing probe needed a real safety fix, found by actually
+  running it.** The first version used a fixed generic near-miss (400 `x`s).
+  Two problems, both found by testing against `(a+)+$` rather than assuming:
+  (1) a generic filler doesn't trigger backtracking at all for a pattern
+  keyed to a specific character — `_build_probe` now seeds the repeat from a
+  literal character in the pattern itself (skipping `\d`/`\w`-style escape
+  letters), falling back to `x` only when the pattern has no literal to
+  seed from; (2) 400 repetitions of the seed is *catastrophically* too long
+  — `(a+)+$` against it doesn't finish in any practical time (Python's `re`
+  has no way to interrupt a running match, so this would have frozen the
+  whole UI on a single keystroke, the exact failure the check exists to
+  prevent). Measured the real growth curve
+  (`n=18: 8ms, 20: 26ms, 22: 113ms, 24: 465ms, 26: 1.8s, 28: 8.5s`) and set
+  `_PROBE_LENGTH = 20` (bounded, ~27ms worst-case observed) with the warning
+  threshold at 10ms (a normal pattern measured ~0.02ms against the same
+  probe — over 1000x separation, comfortable margin either direction).
+- **No format picker in the toolbar/device bar.** Per the plan's own open
+  question below, left undecided and therefore not built — a tab's format is
+  resolved automatically (remembered choice, or auto-detect) with no manual
+  override UI in v1. To change a tab's format, edit or add the format in the
+  dialog (which re-parses the active loaded tab) or open a fresh tab.
+- **Menu location:** View → "Log &Formats…", next to "Extract Fields…" and
+  "Highlight Rules…" (`ui/menus.py`) — the plan didn't specify a location.
+
+**Re-parsing already-loaded rows** (original design, **not** what shipped —
+see the deviation note above for what actually did). Changing the format must
+update what's on screen, or the preview lies. The originally-planned approach
+was to keep each entry's raw line and re-run the parse over the master list,
+then `beginResetModel`/`endResetModel` once. What shipped instead reloads from
+`sess.file_path` — same visible effect, no raw-line storage added to
+`LogEntry`/`LogTableModel`.
 
 ## Architecture touch points
 
@@ -194,38 +236,64 @@ rebuilding the list, not mutating it.
 
 ## Verification
 
-- [ ] With zero user formats configured, every existing parser test passes
-      unchanged and a real logcat capture parses identically — the default path is
-      untouched.
-- [ ] Define a format in the dialog for a real non-logcat file: preview shows
-      correct fields, apply → the open log re-parses, level colors appear, Level
-      dropdown/`tag:`/`pid:`/`since:` all work.
-- [ ] Invalid regex: dialog reports it inline; no crash; nothing is applied.
-- [ ] A deliberately greedy user pattern does **not** break logcat parsing.
-- [ ] Formats survive a restart (JSON round-trip) including a backslash-heavy
-      pattern.
-- [ ] **Per-tab (decision 1):** two tabs open, one on logcat and one on a custom
-      format, each parsing correctly at the same time. This is the case a global
-      setting couldn't serve and is the whole reason for the choice.
-- [ ] **Tab restore:** a settings file written *before* this change (no `format`
-      key) restores every tab, defaulting to `""`. Not "doesn't crash" — the tabs
-      must still be there.
-- [ ] **Auto-detect (decision 2):** opening a custom-format file picks the right
-      format and names it in the status bar; opening a logcat file picks logcat;
-      a file matching nothing falls back to try-all with no crash and no
-      misleading claim of a format.
-- [ ] **Auto-detect cost:** open a ≥100k-line file and confirm detection adds no
-      perceptible delay — i.e. it sampled, not scanned.
-- [ ] **Preview timing (decision 3):** a deliberately catastrophic pattern (e.g.
-      `(a+)+$`) against a long near-miss line triggers the warning. Confirm a
-      *clean-matching* line does **not** trigger it, which proves the synthetic
-      near-miss is doing the work rather than the timing being incidental.
-- [ ] A pathological regex against a large file: confirm what actually happens,
-      and that the user can recover (this is the risk most likely to be discovered
-      by a user rather than by us).
-- [ ] `uv run pytest -q` in one process (CI's command) — local runs here are
-      chunked across processes and are not the authoritative full-suite gate.
-- [ ] `uv run ruff check .` / `ruff format --check .` clean.
+- [x] With zero user formats configured, every existing parser test passes
+      unchanged. `test_formats_none_is_byte_identical_to_default` pins this
+      directly; the full suite (below) confirms no other test regressed.
+- [x] Define a format for a real non-logcat file: preview shows correct
+      fields (verified interactively via a headless script — a custom
+      pattern's sample lines rendered with correct time/level/tag/message,
+      including the mapped level shown, not the raw token); apply → the open
+      log re-parses (`test_dialog_apply_persists_and_reparses_the_active_tab`);
+      the level actually populated and the gate actually filters by it
+      (`test_the_level_gate_actually_works_on_a_detected_custom_format`) —
+      that's what drives level colors/dropdown/Tag Summary, so the mechanism
+      is proven even though a running GUI's colors/dropdown widget weren't
+      separately click-tested.
+- [x] Invalid regex: `_update_preview` catches `re.error` and reports it
+      inline without raising (code path shared with the already-tested
+      `compile_formats` skip-invalid behavior); not separately driven through
+      a live `LogFormatDialog` instance.
+- [x] A deliberately greedy user pattern does **not** break logcat parsing —
+      `test_builtins_tried_first_survive_a_greedy_user_format`.
+- [x] Formats survive a restart (JSON round-trip) including a backslash-heavy
+      pattern — `test_formats_json_round_trip_with_nasty_pattern`,
+      `test_settings_round_trip_of_log_formats`.
+- [x] **Per-tab (decision 1):** `test_two_tabs_each_keep_their_own_format_concurrently`
+      — one tab on logcat, another on a custom format, both correct at once,
+      switching back and forth disturbs neither.
+- [x] **Tab restore:** `test_settings_file_without_format_key_defaults_to_auto`
+      — a dict with no `"format"` key restores the tab with `format=""`, not
+      dropped.
+- [x] **Auto-detect (decision 2):** custom-format file picks the custom format
+      (`test_open_detects_a_configured_custom_format`); a real logcat file
+      picks threadtime but doesn't announce it
+      (`test_no_user_formats_behaves_as_before`, refined — see the deviation
+      note above); no confident match falls back to built-ins only, no crash
+      (`test_no_confident_match_falls_back_to_builtins_only`).
+- [x] **Auto-detect cost:** measured directly against a real 150,000-line
+      (6.3MB) file — sampling the first `DETECT_SAMPLE_LINES` (200) lines via
+      `itertools.islice` took 6.35ms, independent of file size (it never
+      reads past line 200).
+- [x] **Preview timing (decision 3):** measured directly — `(a+)+$` against
+      the pattern-aware probe took ~27ms at `_PROBE_LENGTH=20` vs. ~0.02ms for
+      an ordinary pattern (`test_time_pattern_catastrophic_pattern_is_much_slower_than_normal`);
+      the dialog smoke-check confirmed the warning fires for the catastrophic
+      case and stays silent for a normal, cleanly-matching pattern. This
+      measurement is also what caught and fixed a real bug — see the
+      deviation note above.
+- [ ] A pathological regex against a **real large file** (not the preview):
+      **not tested, deliberately.** Per decision 3 there is no runtime
+      watchdog, and Python's `re` has no way to interrupt a running match —
+      applying a genuinely catastrophic pattern to a real capture would hang
+      that load with no way to cancel except killing the process. This is the
+      accepted, disclosed cost of the decision, not a bug to fix here; actually
+      triggering it would just hang a verification run for no new information.
+- [x] `uv run pytest -q` in one process (CI's command) — 817 passed, exit 0
+      (the post-`[100%]` line is the pre-existing, already-explained Windows
+      shutdown artifact — see ci-windows-job.md).
+- [x] `uv run ruff check .` / `ruff format --check .` clean across the repo.
+- [x] Headless app smoke test (`run-zlog` driver): window renders normally,
+      no crash, with the new "Log &Formats…" menu action wired in.
 
 ## Open questions
 

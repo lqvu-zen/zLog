@@ -25,6 +25,7 @@ class TabState:
     query: str = ""
     level: str = "V"
     package: str = ""
+    format: str = ""  # chosen LogFormat name for this tab ("" = auto-detect/built-ins)
 
     @property
     def restorable(self) -> bool:
@@ -38,7 +39,15 @@ def tabs_to_json(states) -> list[dict]:
     for st in states:
         if not st.restorable:
             continue
-        out.append({"path": st.path, "query": st.query, "level": st.level, "package": st.package})
+        out.append(
+            {
+                "path": st.path,
+                "query": st.query,
+                "level": st.level,
+                "package": st.package,
+                "format": st.format,
+            }
+        )
         if len(out) >= MAX_TABS:
             break
     return out
@@ -61,6 +70,7 @@ def tabs_from_json(data) -> list[TabState]:
             query=str(item.get("query") or ""),
             level=str(item.get("level") or "V"),
             package=str(item.get("package") or ""),
+            format=str(item.get("format") or ""),
         )
         if state.restorable:
             states.append(state)

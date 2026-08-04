@@ -11,6 +11,7 @@ Data flow:
 
 from __future__ import annotations
 
+import itertools
 import os
 import re
 import shlex
@@ -89,8 +90,19 @@ from zlog.core.histogram import bucketize
 from zlog.core.history import normalize_history, push_history
 from zlog.core.incidents import format_incident_summary
 from zlog.core.jank import jank_summary
+from zlog.core.logformat import (
+    DETECT_SAMPLE_LINES,
+    CompiledFormat,
+    LogFormat,
+    compile_formats,
+    detect_format,
+    formats_from_json,
+    formats_to_json,
+    resolve_format,
+)
 from zlog.core.models import LEVEL_RANK, LogEntry, all_unparsed
 from zlog.core.palette import match_commands
+from zlog.core.parser import BUILTIN_LOG_FORMATS
 from zlog.core.plugins import load_colorizers
 from zlog.core.presets import (
     make_preset,
@@ -124,6 +136,7 @@ from zlog.ui.capture_controller import CaptureController
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
+from zlog.ui.log_format_dialog import LogFormatDialog
 from zlog.ui.log_session import LogSession
 from zlog.ui.menus import build_menus
 from zlog.ui.preset_dialog import PresetDialog
@@ -186,6 +199,7 @@ class MainWindow(QMainWindow):
         self._watch_command = ""  # optional argv template run on a watch hit
         self._watch_cmd_last = 0.0  # monotonic time of last command spawn (throttle)
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
+        self._log_formats: list[LogFormat] = []  # user-defined formats (see core.logformat)
         # Owns reader attach/detach for every capture kind (see CaptureController);
         # `capture.extra_readers` holds the merged-view / DBWIN companions.
         self.capture = CaptureController(
@@ -2482,6 +2496,7 @@ class MainWindow(QMainWindow):
                     query=self.query.text() if active else sess.query,
                     level=(self.level_box.currentData() if active else sess.level) or "V",
                     package=(self.package_box.currentText() if active else sess.package) or "",
+                    format=sess.format,
                 )
             )
         return states
@@ -2508,6 +2523,7 @@ class MainWindow(QMainWindow):
                 continue
             if not self._tab_is_reusable(self._active):
                 self._new_tab()
+            self._active.format = state.format
             if state.path:
                 self._load_log_file(state.path)
                 self._active.title = Path(state.path).name
@@ -2582,6 +2598,83 @@ class MainWindow(QMainWindow):
         self._active.file_path = path  # so the tab can be reopened next launch
         self._set_tab_label(self._active)
 
+    # --- log formats --------------------------------------------------------
+    def _all_log_formats(self) -> list[LogFormat]:
+        return list(BUILTIN_LOG_FORMATS) + self._log_formats
+
+    def _format_note(self, format_name: str) -> str:
+        """Status-bar suffix naming the resolved format — but only when it's a
+        user-defined one. Naming a built-in winner (e.g. "threadtime") on
+        every ordinary logcat open would be noise on the common case; the
+        note earns its place by surfacing an unusual, possibly-wrong pick
+        (decision 2 in the plan), which a built-in winner never is."""
+        if format_name and any(f.name == format_name for f in self._log_formats):
+            return f" Format: {format_name}."
+        return ""
+
+    def _open_log_format_dialog(self) -> None:
+        dialog = LogFormatDialog(self._all_log_formats(), self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        self._log_formats = dialog.get_values()
+        self._save_settings()
+        self._reparse_active_tab_if_loaded()
+
+    def _reparse_active_tab_if_loaded(self) -> None:
+        """A format edit should be visible on what's already on screen. A
+        loaded file's tab is exactly its source path's content, so re-running
+        the same load re-parses it with the edited formats — the "keep each
+        entry re-parseable" requirement, done by reloading from the path
+        rather than caching every entry's raw line (see
+        docs/plans/custom-log-format-editor.md's Design note on this choice).
+        A live-capture tab has nothing to reload from; its format takes effect
+        from the next Start instead."""
+        sess = self._active
+        if sess.reader is None and sess.file_path and os.path.exists(sess.file_path):
+            self._load_log_file(sess.file_path)
+
+    def _read_first_lines(self, path: str, n: int) -> list[str]:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                return [line.rstrip("\n") for line in itertools.islice(fh, n)]
+        except OSError:
+            return []
+
+    def _resolve_active_format(
+        self, sample_lines: list[str]
+    ) -> tuple[list[CompiledFormat] | None, str]:
+        """Decide which format applies to the active tab's next parse: its own
+        remembered choice if it still resolves, else auto-detect against a
+        sample of lines already read from the source. Returns (matchers to
+        use, resolved name); matchers is None for "" — try only the built-ins,
+        today's exact, unchanged behaviour. Also updates the tab's remembered
+        choice, so a later reader-start (nothing left to sample) can reuse it
+        without re-detecting (see `_compiled_formats_for_live_start`)."""
+        all_formats = self._all_log_formats()
+        name = self._active.format
+        chosen = resolve_format(name, all_formats) if name else None
+        if name and chosen is None:
+            name = ""  # a remembered format that no longer exists -> re-detect
+        if not name:
+            winner = detect_format(sample_lines, compile_formats(all_formats))
+            name = winner.name if winner else ""
+            chosen = winner
+        self._active.format = name
+        if chosen is None:
+            return None, ""
+        return compile_formats([chosen]), name
+
+    def _compiled_formats_for_live_start(self, sess=None) -> list[CompiledFormat] | None:
+        """`sess`'s already-resolved format, for starting a reader with
+        nothing yet read to sample (adb output, or a reconnect). Defaults to
+        the active tab. None means built-ins only."""
+        sess = sess if sess is not None else self._active
+        name = sess.format
+        if not name:
+            return None
+        chosen = resolve_format(name, self._all_log_formats())
+        return compile_formats([chosen]) if chosen else None
+
     _LARGE_FILE_BYTES = 5_000_000  # above this, load in the background with progress
 
     def _load_log_file(self, path: str) -> None:
@@ -2614,9 +2707,12 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Could not open: {exc}")
             self._forget_recent(path)
             return
-        entries = text_to_entries(text)
+        lines = text.splitlines()
+        formats, format_name = self._resolve_active_format(lines[:DETECT_SAMPLE_LINES])
+        entries = text_to_entries(text, formats)
         self.model.append_entries(entries)
         note = _UNPARSED_NOTE if all_unparsed(entries) else ""
+        note += self._format_note(format_name)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.{note}")
         self._remember_recent(path)
 
@@ -2629,7 +2725,9 @@ class MainWindow(QMainWindow):
         dialog = QProgressDialog(f"Opening {Path(path).name}…", "Cancel", 0, 100, self)
         dialog.setWindowModality(Qt.WindowModal)
         dialog.setMinimumDuration(0)
-        loader = FileLoader(path, self)
+        sample = self._read_first_lines(path, DETECT_SAMPLE_LINES)
+        formats, format_name = self._resolve_active_format(sample)
+        loader = FileLoader(path, formats=formats, parent=self)
         self._file_loader = loader
 
         def on_progress(read, total):
@@ -2642,6 +2740,7 @@ class MainWindow(QMainWindow):
 
         def on_done(n):
             note = _UNPARSED_NOTE if all_unparsed(self.model.all_entries()) else ""
+            note += self._format_note(format_name)
             finish(f"Loaded {n} lines from {Path(path).name}.{note}")
             self._remember_recent(path)
 
@@ -2904,6 +3003,9 @@ class MainWindow(QMainWindow):
             self._extract_patterns = [str(p) for p in items if str(p).strip()]
             self.model.set_extractors(self._extract_patterns)
 
+        def set_log_formats(v):
+            self._log_formats = formats_from_json(v)
+
         def set_collapse(v):
             self.collapse_action.setChecked(bool(v))
             self.proxy.set_collapse(bool(v))
@@ -3054,6 +3156,7 @@ class MainWindow(QMainWindow):
             ("watch", lambda: self._watch_pattern, set_watch),
             ("watch_command", lambda: self._watch_command, set_watch_command),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
+            ("log_formats", lambda: formats_to_json(self._log_formats), set_log_formats),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             ("fold_traces", self.fold_action.isChecked, set_fold),
             (
@@ -3150,6 +3253,7 @@ class MainWindow(QMainWindow):
             buffers=buffers or None,
             tail=tail,
             since_time=since_time,
+            formats=self._compiled_formats_for_live_start(sess),
         )
         # A device stream labels by serial, so no stream_label.
         self.capture.attach(sess, reader, serial=serial or "", track_end=True)
@@ -3183,6 +3287,7 @@ class MainWindow(QMainWindow):
         buffers = [name for name, act in self._buffer_actions.items() if act.isChecked()]
         tail = next((c for c, a in self._tail_actions.items() if a.isChecked()), 0)
         sess = self._active
+        formats = self._compiled_formats_for_live_start(sess)
         for serial in serials:
             reader = AdbReader(
                 serial=serial,
@@ -3190,6 +3295,7 @@ class MainWindow(QMainWindow):
                 buffers=buffers or None,
                 tail=tail,
                 source=serial,
+                formats=formats,
             )
             self.capture.attach(sess, reader, primary=False)
         self.device_box.setEnabled(False)
@@ -3270,13 +3376,17 @@ class MainWindow(QMainWindow):
         sess = self._active
         if self.clear_on_start_action.isChecked():
             self.model.clear()
-        reader = FileFollower(path)
+        sample = self._read_first_lines(path, DETECT_SAMPLE_LINES)
+        formats, format_name = self._resolve_active_format(sample)
+        reader = FileFollower(path, formats=formats)
         self.capture.attach(sess, reader, stream_label=reader.name or "File")
         self._set_tab_label(sess)
         self._set_streaming_controls()
         self._remember_recent(path)  # it's a log file like any other
         _log.info("Following file: %r", path)
-        self.statusBar().showMessage(f"Following {reader.name} — new lines appear live.")
+        self.statusBar().showMessage(
+            f"Following {reader.name} — new lines appear live.{self._format_note(format_name)}"
+        )
 
     def launch_app(self) -> None:
         """Start a program and capture it from its first line: its console output

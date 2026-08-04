@@ -18,6 +18,7 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from zlog.core.applog import get_logger
+from zlog.core.logformat import CompiledFormat
 from zlog.core.models import LogEntry
 from zlog.core.parser import parse_line
 from zlog.core.tailer import READ, REWIND, TailState, next_action, split_complete_lines
@@ -63,11 +64,20 @@ class FileFollower(QThread):
     error = Signal(str)
     stream_ended = Signal()
 
-    def __init__(self, path: str, from_end: bool = False, parent=None):
+    def __init__(
+        self,
+        path: str,
+        from_end: bool = False,
+        formats: list[CompiledFormat] | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.path = path
         self.from_end = from_end  # skip existing content, show only new lines
         self.serial = ""  # not a device; keeps adb-oriented UI paths safe
+        # Read-only snapshot handed in at construction, same rule as AdbReader —
+        # a running reader never reaches back for "the current format".
+        self.formats = formats
         # Set here rather than in run(): stop() can land before the thread body
         # begins, and setting it True there would resurrect a cancelled follow.
         self._running = True
@@ -144,7 +154,8 @@ class FileFollower(QThread):
                     break
                 lines, self._partial = split_complete_lines(self._partial + chunk)
                 batch.extend(
-                    parse_line(raw.decode("utf-8", errors="replace").rstrip("\r")) for raw in lines
+                    parse_line(raw.decode("utf-8", errors="replace").rstrip("\r"), self.formats)
+                    for raw in lines
                 )
             return fh.tell()
 

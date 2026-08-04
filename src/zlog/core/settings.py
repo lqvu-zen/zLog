@@ -54,6 +54,7 @@ DEFAULTS: dict = {
     "adb_path": "",  # explicit adb executable path ("" = use "adb" from PATH)
     "adb_setup_asked": False,  # the fetch-adb prompt has been offered once (see bundle-adb.md)
     "last_launch": {"exe": "", "args": "", "cwd": ""},  # prefills Launch App… next time
+    "log_formats": [],  # user-defined LogFormat dicts (see core/logformat.py); builtins are code
 }
 
 
