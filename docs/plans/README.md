@@ -31,6 +31,10 @@ For the prioritized, cross-release picture these plans execute against, see the
 
 | Plan | Status | Summary |
 |---|---|---|
+| [unparsed-level-hides-log.md](unparsed-level-hides-log.md) | Done | Status-bar note when a load comes back fully unparsed (the level-gate bug it was written for didn't reproduce) |
+| [custom-log-format-preset.md](custom-log-format-preset.md) | Draft — blocked on sample lines | Phase 1: a built-in `parse_line` pattern for one project's log format |
+| [custom-log-format-editor.md](custom-log-format-editor.md) | Draft | Phase 2: user-defined formats — `LogFormat`, live-preview dialog, persistence |
+| [multi-line-entries.md](multi-line-entries.md) | Draft — deferred | Stack traces/payloads as one entry — recorded so the decision isn't re-litigated |
 | [ui-toolbar-width-and-tab-labels.md](ui-toolbar-width-and-tab-labels.md) | Done | UI review: device bar hard-floors the window at ~1671px; "This PC" tab shows raw `local:dbwin` instead of a name |
 | [ci-windows-job.md](ci-windows-job.md) | Done | Run CI on `windows-latest` too — 754 lines of Windows-only code currently never execute |
 | [gitattributes-line-endings.md](gitattributes-line-endings.md) | Done | `.gitattributes` to stop CRLF/LF churn masking real diffs (prereq for the Windows CI job) |
