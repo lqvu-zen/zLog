@@ -1,6 +1,6 @@
 # Plan: User-defined log formats
 
-- **Status:** Draft  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-03
 - **Related:** [custom-log-format-preset.md](custom-log-format-preset.md), [unparsed-level-hides-log.md](unparsed-level-hides-log.md), [regex-extract-columns.md](regex-extract-columns.md), [multi-line-entries.md](multi-line-entries.md), [robust-parsing.md](robust-parsing.md)
@@ -11,10 +11,18 @@ A user can teach zLog their own log format — paste sample lines, write a
 named-group regex, see it parse live — and every filter, color, and summary that
 works on logcat then works on their log. zLog stops being Android-shaped.
 
-Phase 2 of two. [custom-log-format-preset.md](custom-log-format-preset.md) proves
-the mechanism against one real format; this generalizes it. The four built-in
-logcat patterns and the phase-1 preset become entries in the same list as the
-user's own — one code path, not two.
+**This is the primary plan for custom formats, and it stands alone.** It depends
+on nothing unbuilt: the four built-in logcat patterns become entries in the same
+list as the user's own, so there's one code path rather than two.
+
+> **Ordering note (2026-08-04).** This was originally written as "phase 2 of
+> two", after [custom-log-format-preset.md](custom-log-format-preset.md) added a
+> single hard-coded pattern for one project's format. That ordering was wrong and
+> has been reversed. The preset was never a technical prerequisite — it was meant
+> to ship value while this was designed, but it turned out to be the plan that's
+> *blocked* (it needs sample lines from the format's owner) while this one isn't.
+> Worse, doing the preset first is largely wasted: once the editor exists, adding
+> a format is a data entry in a built-in list, not parser work. Build this first.
 
 ## Why
 

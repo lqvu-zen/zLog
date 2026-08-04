@@ -1,6 +1,6 @@
 # Plan: Built-in preset for a custom project log format
 
-- **Status:** Draft — **blocked on input** (see "Required input" below)
+- **Status:** Draft — optional follow-up to [custom-log-format-editor.md](custom-log-format-editor.md); **blocked on input** (see below)
   <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-03
@@ -8,14 +8,38 @@
 
 ## Goal
 
-zLog parses one specific non-logcat format — a log from another project — into
-real `time`/`pid`/`level`/`tag`/`message` fields, so the level filter, `tag:`,
-`pid:`, `since:`/`until:`, level colors, and Tag Summary all work on it.
+One specific non-logcat format — a log from another project — parses out of the
+box, with no user configuration, into real `time`/`pid`/`level`/`tag`/`message`
+fields.
 
-This is **phase 1 of two**. It ships value immediately with no new UI.
-[custom-log-format-editor.md](custom-log-format-editor.md) then generalizes it so
-users can define their own formats; the pattern added here becomes one entry in
-that editor's built-in list, not throwaway work.
+## Read this first: do the editor instead
+
+**This plan is optional, and it should not be done before
+[custom-log-format-editor.md](custom-log-format-editor.md).**
+
+It was originally written as "phase 1 of two", on the reasoning that a single
+hard-coded pattern is cheap and ships value while the editor gets designed. Two
+things killed that argument:
+
+1. **This is the blocked plan; the editor isn't.** This one can't start until the
+   format's owner supplies sample lines. The editor depends on nothing unbuilt.
+   Sequencing the blocked work first stalls everything.
+2. **Once the editor exists, most of this evaporates.** Adding a format stops
+   being parser work and becomes a data entry in a built-in list — the regex, the
+   alias map, and a name. The editor's live preview is also a far better way to
+   *develop* the pattern than writing it blind against sample lines in a test
+   file.
+
+**What remains worth doing afterwards**, and it's genuinely not nothing:
+
+- **Zero-config for the team.** If several people use zLog against this format,
+  shipping it as a default means nobody writes a regex or imports anything.
+- **A non-logcat built-in.** Gives the editor's list a worked example that isn't
+  Android-shaped, which is a better starting point for someone writing their own.
+
+Neither is urgent. Treat this as "promote a proven format to a shipped default"
+once the editor has been used to get the pattern right — at which point the
+design below is mostly reference for *where* the pattern goes.
 
 ## Required input — this plan cannot be implemented without it
 
@@ -38,24 +62,33 @@ Do not guess these from a single sample line. A regex built from one example is
 the classic way to silently mis-parse 5% of a log, and mis-parsed is worse than
 unparsed — an unparsed line at least shows its full text.
 
+If the editor has already shipped, this requirement softens considerably: the
+pattern gets developed interactively against a real file in the preview, and what
+lands here is a pattern already known to work rather than one derived from a
+handful of pasted lines.
+
 ## Why this shape
 
 `parse_line` already tries four logcat variants in order and falls back to putting
-the raw line in `message`. Adding a fifth pattern is a ~10-line change to a pure,
-70-line, fully-tested module. There is no cheaper way to get the structured
-filters working, and it needs no dialog, no settings key, and no persistence.
+the raw line in `message`. Adding one more pattern is a small change to a pure,
+70-line, fully-tested module — no dialog, no settings key, no persistence.
 
-The cost is that it only helps *this* format — which is exactly why phase 2
-exists.
+If [custom-log-format-editor.md](custom-log-format-editor.md) has landed first
+(recommended), the shape changes: `_PATTERNS` will already have become a list of
+`LogFormat` values, so this becomes **one more `LogFormat(builtin=True)` entry**
+plus its tests, not a new regex constant wired into `parse_line`. Same outcome,
+less code, and the ordering rules below still apply verbatim.
 
 ## Scope
 
 - **In:** one new compiled pattern in `core/parser.py`; a level-alias map so
   `ERROR` → `E`; a timestamp normalization if the format's timestamp doesn't
   already sort lexicographically; tests built from the real sample lines.
-- **Out (non-goals):** any UI, user-editable formats (phase 2), multi-line
-  entries ([multi-line-entries.md](multi-line-entries.md)), per-source format
-  selection (phase 2), and changing how the existing logcat patterns behave.
+- **Out (non-goals):** any UI, user-editable formats
+  ([custom-log-format-editor.md](custom-log-format-editor.md)), multi-line
+  entries ([multi-line-entries.md](multi-line-entries.md)), per-tab format
+  selection (the editor plan owns that), and changing how the existing logcat
+  patterns behave.
 
 ## Design
 
