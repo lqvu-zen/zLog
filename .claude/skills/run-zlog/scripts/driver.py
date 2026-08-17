@@ -352,7 +352,8 @@ def scenario_log_formats(window: MainWindow) -> None:
         LogFormat(
             name="MyProject",
             pattern=(
-                r"^\[(?P<level>\w+)\]\[\w+\]\[(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\] "
+                r"^\[(?P<level>\w+)\]\[\w+\]"
+                r"\[(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\] "
                 r"\[(?P<tag>[^\]]+)\]:?\s*(?P<message>.*)$"
             ),
             level_aliases={"DEBUG": "D", "INFO": "I"},
