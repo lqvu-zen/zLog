@@ -4,6 +4,23 @@ All notable changes to zLog are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-08-17
+
+### Added
+- **User-defined log formats.** zLog no longer requires a logcat-shaped line to
+  give you real fields: **View → Log Formats…** opens an editor to define a
+  named regex (with `time`/`pid`/`tid`/`level`/`tag`/`message` groups) and a
+  level-alias map for your own project's log, with a live preview against
+  pasted sample lines. Opening a file that matches a configured format
+  **auto-detects** it — no manual picking — and each tab remembers its own
+  format independently. Once matched, the Level dropdown, `level:`/`tag:`,
+  colors, and every other field-aware feature work on that format exactly like
+  they do on logcat.
+- **Export/Import** your custom formats as a `.json` file from the same
+  dialog, to back them up or hand a working format to a teammate.
+- The status bar now notes when an opened log came back with **no format
+  recognized**, so an unparsed file doesn't look identical to a normal one.
+
 ## [1.1.1] — 2026-08-02
 
 ### Fixed
@@ -167,6 +184,7 @@ PySide6 and managed with uv.
   log for troubleshooting (Help → Open Log Folder); illustrated user guide in
   `docs/GUIDE.md`.
 
+[1.2.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.2.0
 [1.1.1]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.0.0
