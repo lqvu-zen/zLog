@@ -76,8 +76,8 @@ nothing bespoke here.
       `run-zlog` `log-formats` screenshot scenario, not re-clicked through
       manually in the frozen exe — same bar `release-1.1.1.md` used for its
       own Windows-source fix.
-- [ ] Tag pushed, release notes published (via `release.yml` off the `v1.2.0`
-      tag).
+- [x] Tag pushed, release notes published (via `release.yml` off the `v1.2.0`
+      tag) — `zlog-v1.2.0-win64.zip` attached, published 2026-08-17T15:17:20Z.
 
 ## Open questions
 
