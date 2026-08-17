@@ -10,17 +10,20 @@ back (see main-window-drift.md).
 from __future__ import annotations
 
 import dataclasses
+import json
 import re
 
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSplitter,
@@ -34,6 +37,8 @@ from zlog.core.logformat import (
     LogFormat,
     aliases_to_text,
     apply_aliases,
+    formats_from_json,
+    formats_to_json,
     parse_aliases_text,
     time_pattern,
 )
@@ -61,9 +66,15 @@ class LogFormatDialog(QDialog):
         add_btn.clicked.connect(self._add)
         self.remove_btn = QPushButton("Remove")
         self.remove_btn.clicked.connect(self._remove)
+        export_btn = QPushButton("Export…")
+        export_btn.clicked.connect(self._export)
+        import_btn = QPushButton("Import…")
+        import_btn.clicked.connect(self._import)
         list_buttons = QHBoxLayout()
         list_buttons.addWidget(add_btn)
         list_buttons.addWidget(self.remove_btn)
+        list_buttons.addWidget(export_btn)
+        list_buttons.addWidget(import_btn)
         left = QVBoxLayout()
         left.addWidget(QLabel("Formats (built-ins are read-only):"))
         left.addWidget(self.list)
@@ -159,6 +170,61 @@ class LogFormatDialog(QDialog):
         del self._formats[removed]
         self._current = -1
         self._reload_list(select=min(removed, len(self._formats) - 1))
+
+    # --- export / import ---------------------------------------------------
+    def _export(self) -> None:
+        """Write every user-defined format (builtins excluded) to a JSON file
+        — a backup of the whole list, not a per-format share."""
+        path, _ = QFileDialog.getSaveFileName(self, "Export Log Formats", "", "JSON (*.json)")
+        if not path:
+            return
+        user_formats = [f for f in self._formats if not f.builtin]
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(formats_to_json(user_formats), fh, indent=2)
+        except OSError as exc:
+            QMessageBox.warning(self, "Export Log Formats", f"Could not write file:\n{exc}")
+
+    def _import(self) -> None:
+        """Merge formats from a JSON file into the working list: a name that
+        already exists is overwritten, a new name is appended. Only takes
+        effect once the user confirms and, like Add/Remove/edits, only sticks
+        if the dialog itself is then accepted."""
+        path, _ = QFileDialog.getOpenFileName(self, "Import Log Formats", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Import Log Formats", f"Could not read file:\n{exc}")
+            return
+        imported = formats_from_json(data)
+        if not imported:
+            QMessageBox.warning(self, "Import Log Formats", "No valid formats found in that file.")
+            return
+        existing_by_name = {f.name: i for i, f in enumerate(self._formats) if not f.builtin}
+        overwrite_names = [f.name for f in imported if f.name in existing_by_name]
+        new_count = len(imported) - len(overwrite_names)
+        summary = f"Import {len(imported)} format(s): {new_count} new"
+        if overwrite_names:
+            names = ", ".join(overwrite_names)
+            summary += f", overwriting {len(overwrite_names)} existing ({names})"
+        summary += ". Continue?"
+        buttons = QMessageBox.Yes | QMessageBox.Cancel
+        reply = QMessageBox.question(
+            self, "Import Log Formats", summary, buttons, QMessageBox.Cancel
+        )
+        if reply != QMessageBox.Yes:
+            return
+        for f in imported:
+            idx = existing_by_name.get(f.name)
+            if idx is not None:
+                self._formats[idx] = f
+            else:
+                self._formats.append(f)
+                existing_by_name[f.name] = len(self._formats) - 1
+        self._reload_list(select=len(self._formats) - 1)
 
     # --- selection --------------------------------------------------------
     def _select(self, row: int) -> None:

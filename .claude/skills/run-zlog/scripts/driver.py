@@ -340,6 +340,34 @@ def scenario_settings_capture(window: MainWindow) -> None:
     _shot(dlg, "settings-capture")
 
 
+def scenario_log_formats(window: MainWindow) -> None:
+    # LogFormatDialog.exec() blocks; show it non-modally instead (same trick
+    # as scenario_settings_capture) so it can be grabbed like any other widget.
+    from PySide6.QtWidgets import QDialog
+
+    from zlog.core.logformat import LogFormat
+
+    QDialog.exec = lambda self: (self.show(), QApplication.processEvents(), 0)[-1]
+    window._log_formats = [
+        LogFormat(
+            name="MyProject",
+            pattern=(
+                r"^\[(?P<level>\w+)\]\[\w+\]\[(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\] "
+                r"\[(?P<tag>[^\]]+)\]:?\s*(?P<message>.*)$"
+            ),
+            level_aliases={"DEBUG": "D", "INFO": "I"},
+        )
+    ]
+    window._open_log_format_dialog()
+    dlg = next(w for w in QApplication.topLevelWidgets() if type(w).__name__ == "LogFormatDialog")
+    dlg.list.setCurrentRow(dlg.list.count() - 1)  # the user format, past the builtins
+    dlg.samples_edit.setPlainText(
+        "[DEBUG][GLOTv3][2026-07-23 22:47:15.109] [Manager]: Timer fired(Logger.cpp:29)\n"
+        "[INFO][IAP][2026-07-23 22:47:16.701] [IOSBilling] Push Request(iap_ios_billing.mm:350)"
+    )
+    _shot(dlg, "log-formats")
+
+
 def scenario_adb_setup_prompt(window: MainWindow) -> None:
     from PySide6.QtWidgets import QMessageBox
 
@@ -603,6 +631,7 @@ SCENARIOS = {
     "density-comfortable": scenario_density_comfortable,
     "details": scenario_details,
     "settings-capture": scenario_settings_capture,
+    "log-formats": scenario_log_formats,
     "adb-setup-prompt": scenario_adb_setup_prompt,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,

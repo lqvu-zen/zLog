@@ -34,6 +34,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [unparsed-level-hides-log.md](unparsed-level-hides-log.md) | Done | Status-bar note when a load comes back fully unparsed (the level-gate bug it was written for didn't reproduce) |
 | [custom-log-format-editor.md](custom-log-format-editor.md) | Done | User-defined formats — `LogFormat`, per-tab choice, auto-detect, live-preview dialog (View → Log Formats…) |
 | [custom-log-format-preset.md](custom-log-format-preset.md) | Draft — optional follow-up, blocked on sample lines | Ship one project's format as a built-in default, after the editor exists |
+| [log-format-export-import.md](log-format-export-import.md) | Done | Export/Import buttons in the Log Formats dialog to save/share user-defined formats as JSON |
 | [multi-line-entries.md](multi-line-entries.md) | Draft — deferred | Stack traces/payloads as one entry — recorded so the decision isn't re-litigated |
 | [ui-toolbar-width-and-tab-labels.md](ui-toolbar-width-and-tab-labels.md) | Done | UI review: device bar hard-floors the window at ~1671px; "This PC" tab shows raw `local:dbwin` instead of a name |
 | [ci-windows-job.md](ci-windows-job.md) | Done | Run CI on `windows-latest` too — 754 lines of Windows-only code currently never execute |
