@@ -2071,6 +2071,7 @@ class MainWindow(QMainWindow):
             on_edit_theme=on_edit_theme,
             adb_effective=self._resolve_adb(),
             on_download_adb=self._download_adb_from_settings,
+            managed_adb_path=self._managed_adb(),
             parent=self,
         )
         if dlg.exec():

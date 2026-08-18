@@ -48,6 +48,7 @@ class SettingsDialog(QDialog):
         on_edit_theme=None,
         adb_effective=None,  # (path, source) from core.adbpath.resolve_adb, for display only
         on_download_adb=None,
+        managed_adb_path=None,  # path of a copy zLog already downloaded, if any (see bundle-adb.md)
         parent=None,
     ):
         super().__init__(parent)
@@ -149,6 +150,11 @@ class SettingsDialog(QDialog):
         adb_path_row = QHBoxLayout()
         adb_path_row.addWidget(self.adb_path_edit)
         adb_path_row.addWidget(adb_browse)
+        if managed_adb_path is not None:
+            use_managed_btn = QPushButton("Use downloaded copy")
+            use_managed_btn.setToolTip(managed_adb_path)
+            use_managed_btn.clicked.connect(lambda: self.adb_path_edit.setText(managed_adb_path))
+            adb_path_row.addWidget(use_managed_btn)
         if on_download_adb is not None:
             download_btn = QPushButton("Download adb…")
             download_btn.clicked.connect(on_download_adb)

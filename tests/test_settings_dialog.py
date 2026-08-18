@@ -118,6 +118,32 @@ def test_download_adb_button_invokes_callback(qapp):
     assert seen == [1]
 
 
+def test_use_downloaded_copy_button_present_only_when_a_managed_path_is_given(qapp):
+    from PySide6.QtWidgets import QPushButton
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    with_managed = SettingsDialog({}, managed_adb_path="/data/platform-tools/adb", **_OPTS)
+    without_managed = SettingsDialog({}, **_OPTS)
+    assert any(b.text() == "Use downloaded copy" for b in with_managed.findChildren(QPushButton))
+    assert not any(
+        b.text() == "Use downloaded copy" for b in without_managed.findChildren(QPushButton)
+    )
+
+
+def test_use_downloaded_copy_button_fills_the_adb_path_field(qapp):
+    from PySide6.QtWidgets import QPushButton
+
+    from zlog.ui.settings_dialog import SettingsDialog
+
+    managed = "/data/platform-tools/adb"
+    dlg = SettingsDialog({"adb_path": "/usr/local/bin/adb"}, managed_adb_path=managed, **_OPTS)
+    assert dlg.get_values()["adb_path"] == "/usr/local/bin/adb"
+    btn = next(b for b in dlg.findChildren(QPushButton) if b.text() == "Use downloaded copy")
+    btn.click()
+    assert dlg.get_values()["adb_path"] == managed
+
+
 @pytest.fixture
 def window(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
