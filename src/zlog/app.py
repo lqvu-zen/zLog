@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import platform
 import sys
+from pathlib import Path
 
 from PySide6 import __version__ as _pyside_version
 from PySide6.QtCore import (
@@ -14,6 +15,7 @@ from PySide6.QtCore import (
     qInstallMessageHandler,
     qVersion,
 )
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from zlog import __version__
@@ -27,6 +29,14 @@ _QT_MSG_LEVEL = {
     QtMsgType.QtCriticalMsg: 40,  # logging.ERROR
     QtMsgType.QtFatalMsg: 50,  # logging.CRITICAL
 }
+
+
+def _icon_path() -> str:
+    """The bundled app icon, resolved relative to this file so it works both
+    from a source checkout and inside the cx_Freeze build (which mirrors
+    `src/zlog/<x>` to `lib/zlog/<x>`, keeping this file and `assets/` siblings
+    either way — see docs/plans/app-icon.md)."""
+    return str(Path(__file__).resolve().parent / "assets" / "icon.png")
 
 
 def _config_dir() -> str:
@@ -90,6 +100,10 @@ def main() -> int:
     # Names give QStandardPaths a proper per-user config dir for settings + the log.
     app.setApplicationName("zlog")
     app.setOrganizationName("zlog")
+    # Every top-level window that doesn't set its own icon inherits this one
+    # (MainWindow doesn't), so this single call covers the window, its
+    # dialogs, and the taskbar/Alt-Tab icon.
+    app.setWindowIcon(QIcon(_icon_path()))
 
     applog.configure(_config_dir())
     _install_excepthook()

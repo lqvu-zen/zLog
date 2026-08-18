@@ -26,6 +26,10 @@ build_exe_options = {
     "packages": ["zlog"],
     "excludes": ["tkinter", "unittest", "test", "pydoc_data"],
     "include_msvcr": True,  # bundle the MSVC runtime so it runs on a clean Windows
+    # cx_Freeze's module finder only follows imports, so a package's own
+    # non-.py data files (the app icon) need to be listed explicitly or the
+    # frozen build won't have them at the path app._icon_path() resolves to.
+    "include_files": [("src/zlog/assets", "lib/zlog/assets")],
 }
 
 setup(
@@ -38,6 +42,7 @@ setup(
             "src/zlog/__main__.py",
             base=base,
             target_name="zlog",
+            icon="src/zlog/assets/icon.ico",
         )
     ],
 )
