@@ -31,18 +31,21 @@ Releasing doesn't run the test suite itself — that's `ci.yml`'s job, and it
 already ran on every commit going into this release when it was pushed.
 Re-running the full suite here is slow (routinely exceeds a 10-minute
 foreground command and has to background) and redundant. Instead, confirm CI
-is actually green on the commit that's about to be tagged:
+is actually green on the **last commit that actually changes app code/data**
+— not necessarily the literal tip of `main`, since a trailing docs/plan/skill
+commit doesn't need its own CI wait, and there's no reason to block a release
+on CI for a commit that couldn't have broken anything CI checks:
 
 ```bash
-gh run list --branch main --limit 5
+git log --oneline -3 -- src/ tests/ pyproject.toml uv.lock cxfreeze_setup.py
+gh run list --branch main --limit 10   # find that commit's row
 ```
 
-The most recent `CI` run for the tip commit on `main` must show
-`completed` / `success`. If it's still `in_progress`, wait for it rather than
-assuming; if it's `failure`, stop — fix the issue, push, and wait for a green
-run before releasing. Don't substitute a local `pytest`/`ruff` run for this:
-the point is releasing exactly what CI already validated, not re-validating it
-a different way.
+That commit's `CI` run must show `completed` / `success`. If it's still
+`in_progress`, wait for it rather than assuming; if it's `failure`, stop —
+fix the issue, push, and wait for a green run before releasing. Don't
+substitute a local `pytest`/`ruff` run for this: the point is releasing
+exactly what CI already validated, not re-validating it a different way.
 
 If you genuinely need a full local run — CI itself looks suspect, or you're
 testing something CI wouldn't catch — use the `qa-zlog` skill, which owns that
