@@ -75,7 +75,8 @@ Follow [release-workflow.md](release-workflow.md) and the `release-zlog` skill.
       confirmed against this exact build (`MainWindowTitle=zLog - Live Log
       Viewer`, exe icon 32x32 via `System.Drawing.Icon`), then stopped
       cleanly.
-- [ ] Tag pushed, release notes published (via `release.yml` off the `v1.3.0` tag).
+- [x] Tag pushed, release notes published (via `release.yml` off the `v1.3.0`
+      tag) — `zlog-v1.3.0-win64.zip` attached, published 2026-08-19T12:05:39Z.
 
 ## Open questions
 
