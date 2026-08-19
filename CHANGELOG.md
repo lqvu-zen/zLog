@@ -4,6 +4,16 @@ All notable changes to zLog are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-08-17
+
+### Added
+- **A real app icon.** zLog's window, taskbar, and the built `.exe` all used
+  Qt's generic default icon until now.
+- Settings' adb-path row gained a **Use downloaded copy** button — if zLog has
+  already fetched its own adb for you but a different one on `PATH` is
+  winning, this lets you explicitly point at the one zLog downloaded instead
+  of typing the path by hand.
+
 ## [1.2.0] — 2026-08-17
 
 ### Added
@@ -184,6 +194,7 @@ PySide6 and managed with uv.
   log for troubleshooting (Help → Open Log Folder); illustrated user guide in
   `docs/GUIDE.md`.
 
+[1.3.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.3.0
 [1.2.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.2.0
 [1.1.1]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.0

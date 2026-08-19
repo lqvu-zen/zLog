@@ -37,6 +37,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [log-format-export-import.md](log-format-export-import.md) | Done | Export/Import buttons in the Log Formats dialog to save/share user-defined formats as JSON |
 | [app-icon.md](app-icon.md) | Done | Real app icon (Terminal Caret concept) for the window, taskbar, and built `.exe` |
 | [use-downloaded-adb.md](use-downloaded-adb.md) | Done | Settings button to explicitly use zLog's already-downloaded adb copy over a different one on PATH |
+| [release-1.3.0.md](release-1.3.0.md) | Done | Cut the 1.3.0 release — app icon + adb Settings button; first release gated on CI instead of a local test run |
 | [multi-line-entries.md](multi-line-entries.md) | Draft — deferred | Stack traces/payloads as one entry — recorded so the decision isn't re-litigated |
 | [ui-toolbar-width-and-tab-labels.md](ui-toolbar-width-and-tab-labels.md) | Done | UI review: device bar hard-floors the window at ~1671px; "This PC" tab shows raw `local:dbwin` instead of a name |
 | [ci-windows-job.md](ci-windows-job.md) | Done | Run CI on `windows-latest` too — 754 lines of Windows-only code currently never execute |
