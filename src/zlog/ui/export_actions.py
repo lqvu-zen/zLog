@@ -12,6 +12,7 @@ never import `main_window` and stays independently testable.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ from zlog.core.export import to_print_html
 from zlog.core.models import LogEntry
 from zlog.core.redact import redact_entries
 from zlog.core.session import entries_to_text
+from zlog.core.symbolicate import Symbolicator
 from zlog.ui.pdf_export import write_pdf
 
 # Rendering more than this synchronously on the UI thread freezes zLog for too
@@ -38,6 +40,25 @@ def maybe_redact(entries: list[LogEntry], redact: bool) -> list[LogEntry]:
     return redact_entries(entries) if redact else entries
 
 
+def symbolicate_entries(
+    entries: list[LogEntry], symbolicator: Symbolicator | None
+) -> list[LogEntry]:
+    """Deobfuscated/symbolicated copies of `entries` — same non-destructive
+    shape as `redact_entries` (a copy via `dataclasses.replace`, master list
+    untouched), skipping the copy for a message the symbolicator didn't
+    change. Applied unconditionally whenever a `Symbolicator` is given:
+    unlike redaction, this isn't hiding anything, so there's no separate
+    opt-in toggle — export/copy just match what the live view already shows
+    (see docs/plans/crash-symbolication.md)."""
+    if symbolicator is None:
+        return entries
+    out = []
+    for e in entries:
+        new_message = symbolicator.apply(e.message)
+        out.append(e if new_message == e.message else dataclasses.replace(e, message=new_message))
+    return out
+
+
 def write_log(
     parent: QWidget,
     entries: list[LogEntry],
@@ -45,12 +66,14 @@ def write_log(
     redact: bool,
     report: Report,
     remember_recent: Callable[[str], None] | None = None,
+    symbolicator: Symbolicator | None = None,
 ) -> None:
     path, _ = QFileDialog.getSaveFileName(
         parent, "Save Log", default_name, "Log files (*.log);;All files (*)"
     )
     if not path:
         return
+    entries = symbolicate_entries(entries, symbolicator)
     entries = maybe_redact(entries, redact)
     try:
         with open(path, "w", encoding="utf-8") as fh:
@@ -72,6 +95,7 @@ def export_formatted(
     entries: list[LogEntry],
     redact: bool,
     report: Report,
+    symbolicator: Symbolicator | None = None,
 ) -> None:
     """Save `entries` via `formatter` (CSV/JSON/HTML/Markdown/message-only)."""
     stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -80,6 +104,7 @@ def export_formatted(
     )
     if not path:
         return
+    entries = symbolicate_entries(entries, symbolicator)
     entries = maybe_redact(entries, redact)
     try:
         with open(path, "w", encoding="utf-8") as fh:
@@ -97,8 +122,10 @@ def export_pdf(
     redact: bool,
     query_text: str,
     report: Report,
+    symbolicator: Symbolicator | None = None,
 ) -> None:
     """Export `entries` to PDF, capped at PDF_ROW_CAP (see module docstring)."""
+    entries = symbolicate_entries(entries, symbolicator)
     entries = maybe_redact(entries, redact)
     if len(entries) > PDF_ROW_CAP:
         reply = QMessageBox.question(

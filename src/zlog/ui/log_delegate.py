@@ -71,6 +71,7 @@ class LogItemDelegate(QStyledItemDelegate):
         self.wrap = False  # wrap long messages across as many lines as needed
         self.collapse = False  # paint a ×N badge on collapsed-duplicate representatives
         self.view = None  # set by MainWindow; used to read the column width in sizeHint
+        self.symbolicator = None  # core.symbolicate.Symbolicator, set by MainWindow
 
     def set_theme(
         self,
@@ -146,13 +147,27 @@ class LogItemDelegate(QStyledItemDelegate):
             x += proc_w + cw
         return x + 3 * cw
 
+    def _display_message(self, entry, spans) -> str:
+        """The message text to paint: symbolicated when a Symbolicator is
+        loaded, *except* when search/highlight match spans are present —
+        those are index positions into the raw captured text, and a
+        symbolicated string is a different length, so applying them to it
+        would render highlighting at the wrong offsets. Raw wins in that
+        case; see docs/plans/crash-symbolication.md."""
+        if self.symbolicator is not None and not spans:
+            return self.symbolicator.apply(entry.message)
+        return entry.message
+
     def sizeHint(self, option, index):
         fm = QFontMetrics(option.font)
         line_h = fm.height()
         if not self.wrap or index is None or not index.isValid():
             return QSize(0, line_h + self.row_pad)
         entry = index.data(Qt.UserRole)
-        message = entry.message if entry is not None else (index.data(Qt.DisplayRole) or "")
+        if entry is not None:
+            message = self._display_message(entry, index.data(MATCH_SPANS_ROLE))
+        else:
+            message = index.data(Qt.DisplayRole) or ""
         # sizeHintForRow doesn't give the column width in option.rect, so read it
         # from the view (a single stretched column == the viewport width).
         width = option.rect.width()
@@ -213,7 +228,10 @@ class LogItemDelegate(QStyledItemDelegate):
 
         if entry is None or not entry.level:
             painter.setPen(base_fg)
-            text = time_str if entry is None else entry.message
+            if entry is None:
+                text = time_str
+            else:
+                text = self._display_message(entry, index.data(MATCH_SPANS_ROLE))
             if self.wrap:
                 flags = Qt.AlignTop | Qt.AlignLeft | Qt.TextWordWrap
             else:
@@ -270,7 +288,8 @@ class LogItemDelegate(QStyledItemDelegate):
         # Stack-trace disclosure: a ▶/▼ glyph on a header row that has frames,
         # with a "… N frames" hint appended when folded.
         fold = index.data(FOLD_ROLE)
-        message = entry.message
+        spans = index.data(MATCH_SPANS_ROLE)
+        message = self._display_message(entry, spans)
         if fold:
             _has, folded, count = fold
             painter.setPen(base_fg)
@@ -284,7 +303,6 @@ class LogItemDelegate(QStyledItemDelegate):
         msg_color = self._sel_fg if selected else lvl_color
         painter.setPen(msg_color)
         mr = QRect(x, top, option.rect.right() - x - self._pad, height)
-        spans = index.data(MATCH_SPANS_ROLE)
         if spans:
             self._draw_message_with_spans(painter, mr, message, spans, option.font, msg_color)
         elif self.wrap:

@@ -33,6 +33,7 @@ def test_dialog_reflects_initial_values(qapp):
         "max_rows": 10000,
         "clear_on_start": True,
         "adb_path": "/opt/platform-tools/adb",
+        "addr2line_path": "/opt/ndk/addr2line",
         "follow": False,
         "reopen_last": True,
         "autosave": True,

@@ -64,7 +64,7 @@ from PySide6.QtWidgets import (
 )
 
 from zlog.adb.connect import connect as adb_connect
-from zlog.adb.devices import list_devices
+from zlog.adb.devices import device_abi, list_devices
 from zlog.adb.packages import clear_logcat
 from zlog.adb.processes import list_process_map
 from zlog.adb.reader import AdbReader
@@ -101,6 +101,7 @@ from zlog.core.logformat import (
     resolve_format,
 )
 from zlog.core.models import LEVEL_RANK, LogEntry, all_unparsed
+from zlog.core.native_trace import parse_native_frame
 from zlog.core.palette import match_commands
 from zlog.core.parser import BUILTIN_LOG_FORMATS
 from zlog.core.plugins import load_colorizers
@@ -111,12 +112,14 @@ from zlog.core.presets import (
     remove_preset,
     upsert_preset,
 )
+from zlog.core.proguard import parse_mapping
 from zlog.core.query import parse_query, remove_span
 from zlog.core.search import compile_matcher
 from zlog.core.session import entries_to_text, text_to_entries
 from zlog.core.settings import DEFAULTS, load_settings, save_settings
 from zlog.core.sparkline import error_rate_sparkline
 from zlog.core.summary import format_level_summary, tag_counts
+from zlog.core.symbolicate import Symbolicator
 from zlog.core.tabstate import TabState, tabs_from_json, tabs_to_json
 from zlog.core.tabtitle import (
     DISCONNECTED,
@@ -139,6 +142,7 @@ from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
 from zlog.ui.log_format_dialog import LogFormatDialog
 from zlog.ui.log_session import LogSession
 from zlog.ui.menus import build_menus
+from zlog.ui.native_symbolicator import NativeSymbolResolver
 from zlog.ui.preset_dialog import PresetDialog
 from zlog.ui.settings_dialog import SettingsDialog
 from zlog.ui.sticky_header import StickyHeader
@@ -200,6 +204,13 @@ class MainWindow(QMainWindow):
         self._watch_cmd_last = 0.0  # monotonic time of last command spawn (throttle)
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
         self._log_formats: list[LogFormat] = []  # user-defined formats (see core.logformat)
+        self._symbolicator = Symbolicator()  # see core.symbolicate, crash-symbolication.md
+        self._mapping_path = ""  # loaded ProGuard/R8 mapping.txt path ("" = none)
+        self._symbols_dir = ""  # loaded native symbols directory ("" = none)
+        self._addr2line_path = ""  # explicit addr2line path ("" = "addr2line" from PATH)
+        self._native_pending: set[tuple[str, str]] = set()  # (lib, offset) resolution in flight
+        self._native_resolvers: list[NativeSymbolResolver] = []  # keep refs so they aren't GC'd
+        self._device_abi_cache: tuple[str, str | None] | None = None  # (serial, abi), memoized
         # Owns reader attach/detach for every capture kind (see CaptureController);
         # `capture.extra_readers` holds the merged-view / DBWIN companions.
         self.capture = CaptureController(
@@ -252,6 +263,7 @@ class MainWindow(QMainWindow):
         self._search_error_color = THEMES["Light"].search_error  # apply_theme overrides per theme
 
         self._build_widgets()
+        self.log_delegate.symbolicator = self._symbolicator
         self._build_layout()
         self._build_menus()
         self._connect_signals()
@@ -560,6 +572,11 @@ class MainWindow(QMainWindow):
         # filter the viewports, since that is where wheel events are delivered.
         self.table.viewport().installEventFilter(self)
         self.detail.viewport().installEventFilter(self)
+        self.load_mapping_btn.clicked.connect(self._load_mapping_file)
+        self.clear_mapping_btn.clicked.connect(self._clear_mapping_file)
+        self.load_symbols_btn.clicked.connect(self._load_native_symbols_dir)
+        self.clear_symbols_btn.clicked.connect(self._clear_native_symbols_dir)
+        self.symbolicate_check.toggled.connect(self._toggle_symbolicate)
         self.load_pkgs_btn.clicked.connect(self.load_packages)
         self.apply_pkg_btn.clicked.connect(self.apply_package_filter)
         self.clear_pkg_btn.clicked.connect(self.clear_package_filter)
@@ -2045,6 +2062,7 @@ class MainWindow(QMainWindow):
             "wrap": self.log_delegate.wrap,
             "line_numbers": self.log_delegate.line_numbers,
             "adb_path": self._adb_path_setting,
+            "addr2line_path": self._addr2line_path,
         }
 
     def _open_settings(self) -> None:
@@ -2111,6 +2129,7 @@ class MainWindow(QMainWindow):
         self.table.viewport().update()
         self.log_header.update()
         self._adb_path_setting = v["adb_path"]
+        self._addr2line_path = v["addr2line_path"]
         self._save_settings()
 
     def _clear_device_buffer(self) -> None:
@@ -2215,7 +2234,8 @@ class MainWindow(QMainWindow):
         return [self.model.entry_at(row) for row in source_rows]
 
     def _selected_text(self) -> str:
-        return entries_to_text(self._selected_entries())
+        entries = export_actions.symbolicate_entries(self._selected_entries(), self._symbolicator)
+        return entries_to_text(entries)
 
     def copy_selection(self) -> None:
         text = self._selected_text()
@@ -2229,6 +2249,7 @@ class MainWindow(QMainWindow):
         entries = self._selected_entries()
         if not entries:
             return
+        entries = export_actions.symbolicate_entries(entries, self._symbolicator)
         QApplication.clipboard().setText(to_markdown(entries))
         self.statusBar().showMessage(f"Copied {len(entries)} line(s) as Markdown.")
 
@@ -2236,6 +2257,7 @@ class MainWindow(QMainWindow):
         entries = self._selected_entries()
         if not entries:
             return
+        entries = export_actions.symbolicate_entries(entries, self._symbolicator)
         QApplication.clipboard().setText(to_messages(entries))
         self.statusBar().showMessage(f"Copied {len(entries)} message(s).")
 
@@ -2243,6 +2265,7 @@ class MainWindow(QMainWindow):
         entries = self._selected_entries()
         if not entries:
             return
+        entries = export_actions.symbolicate_entries(entries, self._symbolicator)
         mime = QMimeData()
         mime.setHtml(to_html(entries))
         mime.setText(to_messages(entries))  # plain-text fallback for non-rich targets
@@ -2405,6 +2428,7 @@ class MainWindow(QMainWindow):
             self.redact_action.isChecked(),
             self.statusBar().showMessage,
             self._remember_recent,
+            symbolicator=self._symbolicator,
         )
 
     def save_filtered_log(self) -> None:
@@ -2416,6 +2440,7 @@ class MainWindow(QMainWindow):
             self.redact_action.isChecked(),
             self.statusBar().showMessage,
             self._remember_recent,
+            symbolicator=self._symbolicator,
         )
 
     def _export(self, name, formatter, ext) -> None:
@@ -2428,6 +2453,7 @@ class MainWindow(QMainWindow):
             self._filtered_entries(),
             self.redact_action.isChecked(),
             self.statusBar().showMessage,
+            symbolicator=self._symbolicator,
         )
 
     def _export_pdf(self) -> None:
@@ -2437,6 +2463,7 @@ class MainWindow(QMainWindow):
             self.redact_action.isChecked(),
             self.query.text(),
             self.statusBar().showMessage,
+            symbolicator=self._symbolicator,
         )
 
     # --- sessions ----------------------------------------------------------
@@ -2712,6 +2739,7 @@ class MainWindow(QMainWindow):
         formats, format_name = self._resolve_active_format(lines[:DETECT_SAMPLE_LINES])
         entries = text_to_entries(text, formats)
         self.model.append_entries(entries)
+        self._maybe_resolve_native_frames(entries)
         note = _UNPARSED_NOTE if all_unparsed(entries) else ""
         note += self._format_note(format_name)
         self.statusBar().showMessage(f"Loaded {len(entries)} lines from {Path(path).name}.{note}")
@@ -2750,6 +2778,7 @@ class MainWindow(QMainWindow):
             self._forget_recent(path)
 
         loader.batch_ready.connect(self.model.append_entries)
+        loader.batch_ready.connect(self._maybe_resolve_native_frames)
         loader.progress.connect(on_progress)
         loader.done.connect(on_done)
         loader.error.connect(on_error)
@@ -2900,7 +2929,7 @@ class MainWindow(QMainWindow):
         )
         if entry.source:  # merged multi-device view
             header += f"    device {entry.source}"
-        text = header + "\n\n" + entry.message
+        text = header + "\n\n" + self._symbolicator.apply(entry.message)
         fields = self.model.extract_fields(src)
         if fields:
             text += "\n\nExtracted fields:\n" + "\n".join(f"  {k} = {v}" for k, v in fields.items())
@@ -3006,6 +3035,36 @@ class MainWindow(QMainWindow):
 
         def set_log_formats(v):
             self._log_formats = formats_from_json(v)
+
+        def set_mapping_path(v):
+            path = str(v) if v else ""
+            # A moved/deleted file is dropped quietly (see formats_from_json's
+            # own defensive-skip pattern) rather than erroring on every launch.
+            if not path or not os.path.isfile(path):
+                return
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    self._symbolicator.mapping = parse_mapping(fh.read())
+            except OSError:
+                return
+            self._mapping_path = path
+            self.mapping_path_edit.setText(os.path.basename(path))
+            self.mapping_path_edit.setToolTip(path)
+
+        def set_symbols_dir(v):
+            path = str(v) if v else ""
+            if not path or not os.path.isdir(path):
+                return
+            self._symbols_dir = path
+            self.symbols_dir_edit.setText(os.path.basename(path.rstrip("/\\")) or path)
+            self.symbols_dir_edit.setToolTip(path)
+
+        def set_addr2line_path(v):
+            self._addr2line_path = str(v) if v else ""
+
+        def set_symbolicate_enabled(v):
+            self._symbolicator.enabled = bool(v)
+            self.symbolicate_check.setChecked(bool(v))
 
         def set_collapse(v):
             self.collapse_action.setChecked(bool(v))
@@ -3158,6 +3217,14 @@ class MainWindow(QMainWindow):
             ("watch_command", lambda: self._watch_command, set_watch_command),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
             ("log_formats", lambda: formats_to_json(self._log_formats), set_log_formats),
+            ("mapping_path", lambda: self._mapping_path, set_mapping_path),
+            ("symbols_dir", lambda: self._symbols_dir, set_symbols_dir),
+            ("addr2line_path", lambda: self._addr2line_path, set_addr2line_path),
+            (
+                "symbolicate_enabled",
+                lambda: self._symbolicator.enabled,
+                set_symbolicate_enabled,
+            ),
             ("collapse", self.collapse_action.isChecked, set_collapse),
             ("fold_traces", self.fold_action.isChecked, set_fold),
             (
@@ -3533,11 +3600,120 @@ class MainWindow(QMainWindow):
             at_bottom = sb.value() >= sb.maximum() - 4
             was_at_bottom = at_bottom and not self.table.selectionModel().hasSelection()
         sess.model.append_entries(entries)
+        self._maybe_resolve_native_frames(entries)
         if active:
             if self.follow_check.isChecked() and was_at_bottom:
                 self._scroll_timer.start()  # coalesced follow scroll
             else:
                 self._scroll_timer.stop()  # user scrolled up (or off): cancel pending scroll
+
+    # --- symbolication (Java/Kotlin deobfuscation + native NDK symbolication) --
+    # See docs/plans/crash-symbolication.md. The Symbolicator itself never
+    # mutates the raw captured message (see that plan's "Why filtering stays
+    # raw"); it's applied at display time in log_delegate.py/_update_detail
+    # and at export/copy time via export_actions.symbolicate_entries.
+    def _load_mapping_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load ProGuard/R8 mapping.txt", "", "Text files (*.txt);;All files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError as exc:
+            self.statusBar().showMessage(f"Could not read mapping file: {exc}")
+            return
+        self._symbolicator.mapping = parse_mapping(text)
+        self._mapping_path = path
+        self.mapping_path_edit.setText(os.path.basename(path))
+        self.mapping_path_edit.setToolTip(path)
+        self._save_settings()
+        self._refresh_symbolication_display()
+        self.statusBar().showMessage(f"Loaded mapping: {os.path.basename(path)}")
+
+    def _clear_mapping_file(self) -> None:
+        self._symbolicator.mapping = None
+        self._mapping_path = ""
+        self.mapping_path_edit.clear()
+        self.mapping_path_edit.setToolTip("")
+        self._save_settings()
+        self._refresh_symbolication_display()
+
+    def _load_native_symbols_dir(self) -> None:
+        path = QFileDialog.getExistingDirectory(self, "Load native symbols directory")
+        if not path:
+            return
+        self._symbols_dir = path
+        label = os.path.basename(path.rstrip("/\\")) or path
+        self.symbols_dir_edit.setText(label)
+        self.symbols_dir_edit.setToolTip(path)
+        self._save_settings()
+        self.statusBar().showMessage(f"Native symbols directory set: {path}")
+
+    def _clear_native_symbols_dir(self) -> None:
+        self._symbols_dir = ""
+        self.symbols_dir_edit.clear()
+        self.symbols_dir_edit.setToolTip("")
+        self._save_settings()
+
+    def _toggle_symbolicate(self, checked: bool) -> None:
+        self._symbolicator.enabled = bool(checked)
+        self._save_settings()
+        self._refresh_symbolication_display()
+
+    def _refresh_symbolication_display(self) -> None:
+        self.table.viewport().update()
+        self._update_detail(self.table.currentIndex())
+
+    def _device_abi_for_native(self) -> str | None:
+        """Best-effort, memoized per serial — see core/native_symbols.py's
+        resolution order. A `getprop` call per resolution batch is fine
+        (matches how list_devices/clear_logcat already run adb synchronously
+        on the UI thread), but not once per line."""
+        serial = self._current_serial()
+        if not serial:
+            return None
+        if self._device_abi_cache is not None and self._device_abi_cache[0] == serial:
+            return self._device_abi_cache[1]
+        abi = device_abi(serial, self._adb_path())
+        self._device_abi_cache = (serial, abi)
+        return abi
+
+    def _maybe_resolve_native_frames(self, entries: list[LogEntry]) -> None:
+        if not self._symbols_dir or not self._symbolicator.enabled:
+            return
+        pending: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for e in entries:
+            frame = parse_native_frame(e.message)
+            if frame is None:
+                continue
+            key = (frame.lib, frame.offset)
+            if key in seen or key in self._native_pending or key in self._symbolicator.native_cache:
+                continue
+            seen.add(key)
+            pending.append(key)
+        if not pending:
+            return
+        self._native_pending.update(pending)
+        resolver = NativeSymbolResolver(
+            pending,
+            self._symbols_dir,
+            self._addr2line_path,
+            self._device_abi_for_native(),
+            parent=self,
+        )
+        resolver.resolved.connect(lambda result, r=resolver: self._on_native_resolved(r, result))
+        self._native_resolvers.append(resolver)
+        resolver.start()
+
+    def _on_native_resolved(self, resolver, result: dict) -> None:
+        if resolver in self._native_resolvers:
+            self._native_resolvers.remove(resolver)
+        self._native_pending.difference_update(result.keys())
+        self._symbolicator.native_cache.update(result)
+        self._refresh_symbolication_display()
 
     def _toggle_pause(self) -> None:
         self._paused = not self._paused

@@ -55,6 +55,10 @@ DEFAULTS: dict = {
     "adb_setup_asked": False,  # the fetch-adb prompt has been offered once (see bundle-adb.md)
     "last_launch": {"exe": "", "args": "", "cwd": ""},  # prefills Launch App… next time
     "log_formats": [],  # user-defined LogFormat dicts (see core/logformat.py); builtins are code
+    "mapping_path": "",  # ProGuard/R8 mapping.txt for Java/Kotlin deobfuscation
+    "symbols_dir": "",  # directory of unstripped .so files for native symbolication
+    "addr2line_path": "",  # addr2line/llvm-addr2line executable ("" = "addr2line" from PATH)
+    "symbolicate_enabled": True,  # the Symbol bar's on/off toggle
 }
 
 

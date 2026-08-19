@@ -1,4 +1,7 @@
-"""list_devices retries once on an empty result (the adb-server-race case)."""
+"""list_devices retries once on an empty result (the adb-server-race case);
+device_abi is a best-effort getprop wrapper for native symbol resolution."""
+
+import subprocess
 
 from zlog.adb import devices as devices_mod
 
@@ -61,3 +64,33 @@ def test_genuinely_empty_stays_empty_after_one_retry(monkeypatch):
     devices = devices_mod.list_devices()
     assert devices == []
     assert len(calls) == 2  # exactly one retry, not an infinite loop
+
+
+def test_device_abi_returns_the_property_value(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        assert cmd[-1] == "ro.product.cpu.abi"
+        return _result("arm64-v8a\n")
+
+    monkeypatch.setattr(devices_mod.subprocess, "run", fake_run)
+    assert devices_mod.device_abi("emulator-5554") == "arm64-v8a"
+
+
+def test_device_abi_returns_none_on_empty_property(monkeypatch):
+    monkeypatch.setattr(devices_mod.subprocess, "run", lambda cmd, **kw: _result(""))
+    assert devices_mod.device_abi("emulator-5554") is None
+
+
+def test_device_abi_returns_none_when_adb_is_missing(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise OSError("adb not found")
+
+    monkeypatch.setattr(devices_mod.subprocess, "run", fake_run)
+    assert devices_mod.device_abi("emulator-5554") is None
+
+
+def test_device_abi_returns_none_on_timeout(monkeypatch):
+    def fake_run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 5.0))
+
+    monkeypatch.setattr(devices_mod.subprocess, "run", fake_run)
+    assert devices_mod.device_abi("emulator-5554") is None

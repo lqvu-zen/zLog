@@ -340,6 +340,44 @@ def scenario_settings_capture(window: MainWindow) -> None:
     _shot(dlg, "settings-capture")
 
 
+def scenario_crash_symbolication(window: MainWindow) -> None:
+    # A Java/Kotlin obfuscated crash (deobfuscated via a loaded mapping.txt)
+    # next to a native crash (symbolicated via a pre-populated cache, as if
+    # addr2line had already resolved it), with the new Symbol bar visible.
+    from zlog.core.proguard import parse_mapping
+
+    def _e(msg, lvl="E", tag="AndroidRuntime"):
+        return LogEntry("06-30 12:34:56.220", "1287", "1342", lvl, tag, msg)
+
+    mapping_text = (
+        "com.example.app.MainActivity -> com.example.app.a:\n"
+        "    void onCreate(android.os.Bundle) -> a\n"
+        "com.example.app.NetworkException -> com.example.app.b:\n"
+    )
+    window._symbolicator.mapping = parse_mapping(mapping_text)
+    window._mapping_path = "mapping.txt"
+    window.mapping_path_edit.setText("mapping.txt")
+    window._symbolicator.native_cache[("libnative.so", "00001a2b")] = "crash_handler+32"
+    window._symbols_dir = "symbols/"
+    window.symbols_dir_edit.setText("symbols")
+
+    window.model.append_entries(
+        [
+            SAMPLE[0],
+            _e("FATAL EXCEPTION: main"),
+            _e("com.example.app.b: Something went wrong"),
+            _e("    at com.example.app.a.a(SourceFile:1)"),
+            _e(
+                "    #00 pc 00001a2b  /system/lib64/libnative.so (offset 0x1a2b)",
+                lvl="F",
+                tag="DEBUG",
+            ),
+            SAMPLE[6],
+        ]
+    )
+    _shot(window, "crash-symbolication")
+
+
 def scenario_log_formats(window: MainWindow) -> None:
     # LogFormatDialog.exec() blocks; show it non-modally instead (same trick
     # as scenario_settings_capture) so it can be grabbed like any other widget.
@@ -633,6 +671,7 @@ SCENARIOS = {
     "details": scenario_details,
     "settings-capture": scenario_settings_capture,
     "log-formats": scenario_log_formats,
+    "crash-symbolication": scenario_crash_symbolication,
     "adb-setup-prompt": scenario_adb_setup_prompt,
     "guide-streaming": scenario_guide_streaming,
     "guide-dark": scenario_guide_dark,

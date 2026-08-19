@@ -41,3 +41,29 @@ def _list_devices_once(adb_path: str, timeout: float) -> list[Device]:
         timeout=timeout,
     )
     return parse_devices(proc.stdout)
+
+
+def device_abi(serial: str, adb_path: str = "adb", timeout: float = 5.0) -> str | None:
+    """The attached device's primary ABI (e.g. "arm64-v8a"), for native
+    symbol-file resolution (see core/native_symbols.py). Best-effort: any
+    failure (no device, adb missing, property read error) returns `None`
+    rather than raising — this is one input among several to symbol
+    resolution, not a required one.
+
+    Split into two `except` clauses on purpose — the installed ruff formatter
+    mangles a parenthesized `except (OSError, TimeoutExpired)` tuple (see
+    core/settings.py's load_settings for the same workaround).
+    """
+    try:
+        proc = subprocess.run(
+            [adb_path, "-s", serial, "shell", "getprop", "ro.product.cpu.abi"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except OSError:
+        return None
+    except subprocess.TimeoutExpired:
+        return None
+    abi = proc.stdout.strip()
+    return abi or None

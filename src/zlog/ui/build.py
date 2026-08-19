@@ -204,6 +204,24 @@ def build_widgets(win) -> None:
         "Detected crashes/ANRs — View → Next/Previous Incident to jump to one"
     )
 
+    # Symbol bar: load/clear a ProGuard/R8 mapping.txt and a native symbols
+    # directory (see docs/plans/crash-symbolication.md).
+    win.mapping_path_edit = QLineEdit()
+    win.mapping_path_edit.setReadOnly(True)
+    win.mapping_path_edit.setPlaceholderText("No mapping.txt loaded")
+    win.load_mapping_btn = QPushButton("Load…")
+    win.clear_mapping_btn = QPushButton("Clear")
+    win.symbols_dir_edit = QLineEdit()
+    win.symbols_dir_edit.setReadOnly(True)
+    win.symbols_dir_edit.setPlaceholderText("No native symbols loaded")
+    win.load_symbols_btn = QPushButton("Load…")
+    win.clear_symbols_btn = QPushButton("Clear")
+    win.symbolicate_check = QCheckBox("Symbolicate")
+    win.symbolicate_check.setChecked(True)
+    win.symbolicate_check.setToolTip(
+        "Deobfuscate/symbolicate crash traces using the loaded mapping/symbols"
+    )
+
     # Single query bar, parsed into the filters.
     win.query = QueryLineEdit()
     win.query.setPlaceholderText("Filter — e.g. level:E tag:Activity package:com.x -noise text")
@@ -281,6 +299,24 @@ def build_layout(win) -> None:
     top_row.addWidget(win.level_box)
     top_row.addStretch(1)
 
+    # Symbol bar: deobfuscate/symbolicate crash traces (Java/Kotlin mapping.txt,
+    # native NDK symbols) — see docs/plans/crash-symbolication.md. Sits directly
+    # under the device bar, above the query row.
+    symbol_row = QHBoxLayout()
+    symbol_row.addWidget(QLabel("Mapping:"))
+    symbol_row.addWidget(win.mapping_path_edit)
+    symbol_row.addWidget(win.load_mapping_btn)
+    symbol_row.addWidget(win.clear_mapping_btn)
+    symbol_row.addSpacing(12)
+    symbol_row.addWidget(_vsep())
+    symbol_row.addSpacing(12)
+    symbol_row.addWidget(QLabel("Native symbols:"))
+    symbol_row.addWidget(win.symbols_dir_edit)
+    symbol_row.addWidget(win.load_symbols_btn)
+    symbol_row.addWidget(win.clear_symbols_btn)
+    symbol_row.addStretch(1)
+    symbol_row.addWidget(win.symbolicate_check)
+
     # Filter bar: the query box on its own full-width row, plus match
     # navigation (F3/Shift+F3) feedback for the free-text portion of it.
     filter_row = QHBoxLayout()
@@ -308,6 +344,7 @@ def build_layout(win) -> None:
     layout = QVBoxLayout()
     layout.addLayout(tab_row)
     layout.addLayout(top_row)
+    layout.addLayout(symbol_row)
     layout.addLayout(filter_row)
     layout.addWidget(win.chip_bar)
     layout.addWidget(win.histogram_bar)

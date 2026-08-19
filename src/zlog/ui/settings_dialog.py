@@ -159,12 +159,21 @@ class SettingsDialog(QDialog):
             download_btn = QPushButton("Download adb…")
             download_btn.clicked.connect(on_download_adb)
             adb_path_row.addWidget(download_btn)
+        self.addr2line_path_edit = QLineEdit(values.get("addr2line_path", ""))
+        self.addr2line_path_edit.setPlaceholderText("addr2line (from PATH)")
+        addr2line_browse = QPushButton("Browse…")
+        addr2line_browse.clicked.connect(self._browse_addr2line_path)
+        addr2line_path_row = QHBoxLayout()
+        addr2line_path_row.addWidget(self.addr2line_path_edit)
+        addr2line_path_row.addWidget(addr2line_browse)
+
         capture = QFormLayout()
         capture.addRow(buf_box)
         capture.addRow("Start from", self.tail_box)
         capture.addRow("Buffer limit (lines)", self.max_spin)
         capture.addRow(self.clear_start_chk)
         capture.addRow("adb path", adb_path_row)
+        capture.addRow("addr2line path", addr2line_path_row)
         if adb_effective is not None:
             path, source = adb_effective
             # word-wrap: a real adb path (e.g. the nested AppData\Local\Android\Sdk\
@@ -226,6 +235,11 @@ class SettingsDialog(QDialog):
         if path:
             self.adb_path_edit.setText(path)
 
+    def _browse_addr2line_path(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Locate addr2line/llvm-addr2line executable")
+        if path:
+            self.addr2line_path_edit.setText(path)
+
     def get_values(self) -> dict:
         return {
             "theme": self.theme_box.currentData(),
@@ -245,6 +259,7 @@ class SettingsDialog(QDialog):
             "max_rows": self.max_spin.value(),
             "clear_on_start": self.clear_start_chk.isChecked(),
             "adb_path": self.adb_path_edit.text().strip(),
+            "addr2line_path": self.addr2line_path_edit.text().strip(),
             "follow": self.follow_chk.isChecked(),
             "reopen_last": self.reopen_chk.isChecked(),
             "autosave": self.autosave_chk.isChecked(),
