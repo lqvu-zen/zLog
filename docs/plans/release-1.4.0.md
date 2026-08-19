@@ -64,7 +64,8 @@ Follow [release-workflow.md](release-workflow.md) and the `release-zlog` skill.
 - [x] Windows build succeeds (`cx_Freeze`); `zlog.exe` launched, a real
       top-level window came up (`MainWindowTitle=zLog - Live Log Viewer`),
       then stopped cleanly.
-- [ ] Tag pushed, release notes published (via `release.yml` off the `v1.4.0` tag).
+- [x] Tag pushed, release notes published (via `release.yml` off the `v1.4.0`
+      tag) — `zlog-v1.4.0-win64.zip` attached, published 2026-08-19T14:45:03Z.
 
 ## Open questions
 
