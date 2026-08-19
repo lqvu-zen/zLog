@@ -4,6 +4,18 @@ All notable changes to zLog are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-08-19
+
+### Added
+- **Deobfuscate/symbolicate Android crash traces.** A new Symbol bar under the
+  device bar loads a ProGuard/R8 `mapping.txt` and/or a directory of unstripped
+  native `.so` files. Java/Kotlin traces are deobfuscated instantly (class and
+  method names, the exception header); native (NDK) backtrace frames are
+  resolved via `addr2line` on a background thread and cached, without ever
+  blocking the UI. Applies to the live view, the detail pane, and
+  export/copy — an unmapped class or unresolved offset is always left in its
+  raw form rather than guessed.
+
 ## [1.3.0] — 2026-08-17
 
 ### Added
@@ -194,6 +206,7 @@ PySide6 and managed with uv.
   log for troubleshooting (Help → Open Log Folder); illustrated user guide in
   `docs/GUIDE.md`.
 
+[1.4.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.4.0
 [1.3.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.3.0
 [1.2.0]: https://github.com/lqvu-zen/zLog/releases/tag/v1.2.0
 [1.1.1]: https://github.com/lqvu-zen/zLog/releases/tag/v1.1.1
