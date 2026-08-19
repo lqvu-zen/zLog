@@ -1,6 +1,6 @@
 ---
 name: release-zlog
-description: 'Cut a versioned release of the zLog desktop app and build its Windows executable with cx_Freeze. Use this whenever the user wants to ship, release, tag, or publish a new version of zLog — e.g. "cut the 1.1 release", "build the exe", "make a Windows build", "ship a new version", "tag a release", or "publish zLog on GitHub". This skill carries the release gate (tests + lint), the version-bump rule (versions change only at release), the CHANGELOG update, the cx_Freeze build, and the tag/GitHub-release steps. Do NOT use it to add a feature (use add-zlog-feature) or to just run the app (use run-zlog).'
+description: 'Cut a versioned release of the zLog desktop app and build its Windows executable with cx_Freeze. Use this whenever the user wants to ship, release, tag, or publish a new version of zLog — e.g. "cut the 1.1 release", "build the exe", "make a Windows build", "ship a new version", "tag a release", or "publish zLog on GitHub". This skill carries the release gate (confirm CI is green on the commits going in — it does not re-run the test suite locally; see qa-zlog for that), the version-bump rule (versions change only at release), the CHANGELOG update, the cx_Freeze build, and the tag/GitHub-release steps. Do NOT use it to add a feature (use add-zlog-feature), to just run the app (use run-zlog), or to run the full test suite outside a release (use qa-zlog).'
 ---
 
 # Releasing zLog
@@ -25,17 +25,32 @@ convenience `build.bat`). The actual build must run on **Windows** to produce a
 
 ## The workflow
 
-### 1. Release gate — everything must be green
+### 1. Release gate — check CI, don't re-run tests locally
+
+Releasing doesn't run the test suite itself — that's `ci.yml`'s job, and it
+already ran on every commit going into this release when it was pushed.
+Re-running the full suite here is slow (routinely exceeds a 10-minute
+foreground command and has to background) and redundant. Instead, confirm CI
+is actually green on the commit that's about to be tagged:
 
 ```bash
-cd D:/Projects/zLog
-uv run pytest
-uv run ruff check .
-uv run ruff format --check .
+gh run list --branch main --limit 5
 ```
 
+The most recent `CI` run for the tip commit on `main` must show
+`completed` / `success`. If it's still `in_progress`, wait for it rather than
+assuming; if it's `failure`, stop — fix the issue, push, and wait for a green
+run before releasing. Don't substitute a local `pytest`/`ruff` run for this:
+the point is releasing exactly what CI already validated, not re-validating it
+a different way.
+
+If you genuinely need a full local run — CI itself looks suspect, or you're
+testing something CI wouldn't catch — use the `qa-zlog` skill, which owns that
+job. It's deliberately decoupled from releasing: a full suite is a QA-pass
+concern, not a per-release one.
+
 Also confirm every plan in `docs/plans/` intended for this release is **Done**. If
-anything is red or unfinished, stop and fix it before releasing.
+anything is unfinished, stop and finish it before releasing.
 
 ### 2. Pick the version and bump both files
 

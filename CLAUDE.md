@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 in this repository. It is the load-bearing summary to read before touching the
 code; deeper rationale lives in `docs/ARCHITECTURE.md`, plans live in `docs/plans/`,
 and the actual workflows live in `.claude/skills/` (`add-zlog-feature`,
-`review-zlog-ui`, `run-zlog`, `release-zlog`).
+`review-zlog-ui`, `run-zlog`, `release-zlog`, `qa-zlog`).
 
 zLog is a **Windows-first live log viewer**: Android `adb logcat`, Windows
 debug output/Event Log, a launched app's console, and followed log files all land
