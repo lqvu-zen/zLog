@@ -817,3 +817,34 @@ def test_device_gate_filters_by_source(qapp):
     proxy.set_devices(None)
     proxy.set_exclude_devices({"devA"})
     assert _messages(model, proxy) == ["from B"]
+
+
+def test_extract_fields_combines_regex_and_json(qapp):
+    """docs/plans/json-field-filter.md: regex-extracted fields and
+    auto-detected JSON fields both surface through extract_fields(), with
+    regex winning a name collision since it's the deliberate, user-authored
+    one."""
+    model, _proxy = _wire(qapp)
+    model.append_entries([_entry(message='latency=42ms {"latency": "should-lose", "status": 200}')])
+    model.set_extractors([r"latency=(?P<latency>\d+)ms"])
+    model.set_json_autodetect(True)
+    assert model.extract_fields(0) == {"latency": "42", "status": "200"}
+
+
+def test_extract_fields_json_only_when_no_regex_matches():
+    model = LogTableModel()
+    model.append_entries([_entry(message='{"a": 1}')])
+    model.set_json_autodetect(True)
+    assert model.extract_fields(0) == {"a": "1"}
+
+
+def test_extract_fields_json_autodetect_off_by_default():
+    model = LogTableModel()
+    model.append_entries([_entry(message='{"a": 1}')])
+    assert model.extract_fields(0) == {}  # auto-detect must be explicitly enabled
+
+
+def test_extract_fields_out_of_range_row_is_empty():
+    model = LogTableModel()
+    model.set_json_autodetect(True)
+    assert model.extract_fields(0) == {}

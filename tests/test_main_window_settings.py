@@ -1277,3 +1277,35 @@ def test_settings_load_skips_custom_theme_colliding_with_builtin(qapp, tmp_path,
     w = MainWindow()  # must not crash, and must not clobber the real "Dark"
     assert THEMES["Dark"] is DARK
     assert not any(t.name == "Dark" for t in w._custom_themes)
+
+
+# --- JSON field auto-detect (docs/plans/json-field-filter.md) ---------------
+
+
+def test_json_autodetect_toggle_updates_model_and_detail_pane(window):
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", '{"status": 200}')])
+    window.table.setCurrentIndex(window.proxy.index(0, 0))
+    assert "Extracted fields" not in window.detail.toPlainText()
+
+    window.json_autodetect_action.setChecked(True)
+    assert "status = 200" in window.detail.toPlainText()
+
+    window.json_autodetect_action.setChecked(False)
+    assert "Extracted fields" not in window.detail.toPlainText()
+
+
+def test_json_autodetect_round_trips_through_settings(window):
+    window.json_autodetect_action.setChecked(True)
+    window._save_settings()
+
+    from zlog.ui.main_window import MainWindow
+
+    w2 = MainWindow()
+    try:
+        w2._load_and_apply_settings()
+        assert w2.json_autodetect_action.isChecked() is True
+        assert w2.model._json_autodetect is True
+    finally:
+        w2.close()

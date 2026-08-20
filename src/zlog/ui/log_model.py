@@ -27,7 +27,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QColor
 
-from zlog.core.extract import compile_extractors, extract
+from zlog.core.extract import compile_extractors, extract, extract_json
 from zlog.core.incidents import classify_incident
 from zlog.core.models import LEVEL_RANK, LogEntry
 from zlog.core.plugins import apply_colorizers
@@ -76,6 +76,7 @@ class LogTableModel(QAbstractTableModel):
         self._max_rows = 0  # ring-buffer cap; 0 = unlimited
         self._colorizers = []  # plugin colorize(entry) callables
         self._extractors = []  # compiled user regexes with named groups (EXTRACT_ROLE)
+        self._json_autodetect = False  # auto-detect an embedded JSON object as fields
         self._pid_names: dict[str, str] = {}  # pid -> process/package name
         self._tags: set[str] = set()  # distinct tags seen (query autocomplete)
         self._pids: set[str] = set()  # distinct PIDs seen (query autocomplete)
@@ -131,7 +132,7 @@ class LogTableModel(QAbstractTableModel):
         if role == PROCESS_ROLE:
             return self._pid_names.get(entry.pid, "")
         if role == EXTRACT_ROLE:
-            return extract(entry.message, self._extractors) if self._extractors else {}
+            return self._extract_all(entry.message)
         if role == SOURCE_ROLE:
             return entry.source
         if role == HIGHLIGHT_ROLE:
@@ -474,11 +475,26 @@ class LogTableModel(QAbstractTableModel):
         """Install user regex named-group extractors (see core.extract)."""
         self._extractors = compile_extractors(list(patterns))
 
+    def set_json_autodetect(self, enabled: bool) -> None:
+        """Toggle auto-detecting an embedded JSON object as extra fields (see
+        core.extract.extract_json, docs/plans/json-field-filter.md)."""
+        self._json_autodetect = bool(enabled)
+
+    def _extract_all(self, message: str) -> dict[str, str]:
+        """Regex-extractor fields plus, if enabled, auto-detected JSON fields
+        (regex wins on a name collision — it's the deliberate, user-authored
+        one)."""
+        fields = extract(message, self._extractors) if self._extractors else {}
+        if self._json_autodetect:
+            for name, value in extract_json(message).items():
+                fields.setdefault(name, value)
+        return fields
+
     def extract_fields(self, source_row: int) -> dict[str, str]:
-        """Extracted `{name: value}` for a row ({} if none / no extractors)."""
-        if not self._extractors or not (0 <= source_row < len(self._rows)):
+        """Extracted `{name: value}` for a row ({} if none apply)."""
+        if not (0 <= source_row < len(self._rows)):
             return {}
-        return extract(self._rows[source_row].message, self._extractors)
+        return self._extract_all(self._rows[source_row].message)
 
     def tag_colors(self) -> dict[str, str]:
         """Current tag highlights as hex strings (for saving)."""

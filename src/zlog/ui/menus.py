@@ -201,6 +201,14 @@ def build_menus(win) -> None:
     jank_summary_act.triggered.connect(win._show_jank_summary)
     extract_act = view_menu.addAction("&Extract Fields…")
     extract_act.triggered.connect(win._edit_extractors)
+    win.json_autodetect_action = QAction("Auto-detect JSON Fields", win)
+    win.json_autodetect_action.setCheckable(True)
+    win.json_autodetect_action.setToolTip(
+        "Parse an embedded JSON object in each line into extra fields, shown "
+        "in the detail pane alongside any regex-extracted ones"
+    )
+    win.json_autodetect_action.toggled.connect(win._on_json_autodetect_toggled)
+    view_menu.addAction(win.json_autodetect_action)
     log_formats_act = view_menu.addAction("Log &Formats…")
     log_formats_act.triggered.connect(win._open_log_format_dialog)
     highlight_rules_act = view_menu.addAction("&Highlight Rules…")

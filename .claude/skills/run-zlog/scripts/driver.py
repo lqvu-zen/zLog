@@ -548,6 +548,29 @@ def scenario_details(window: MainWindow) -> None:
     _shot(window, "details")
 
 
+def scenario_json_autodetect(window: MainWindow) -> None:
+    # docs/plans/json-field-filter.md: a line whose message embeds a JSON
+    # object gets those keys parsed into fields, shown in the detail pane —
+    # no user regex needed.
+    window.model.append_entries(
+        [
+            LogEntry(
+                "06-30 12:00:00.000",
+                "1287",
+                "1287",
+                "I",
+                "ApiClient",
+                'request handled {"status": 200, "path": "/v1/users", "user": {"id": 42}}',
+            )
+        ]
+    )
+    window.json_autodetect_action.setChecked(True)
+    index = window.proxy.index(0, 0)
+    window.table.setCurrentIndex(index)
+    window._update_detail(index)
+    _shot(window, "json-autodetect")
+
+
 def scenario_highlight(window: MainWindow) -> None:
     _seed(window, 8)
     window.model.set_tag_color("Choreographer", "#b3e5fc")
@@ -781,6 +804,7 @@ SCENARIOS = {
     "bookmarks": scenario_bookmarks,
     "bookmark-notes": scenario_bookmark_notes,
     "watch-webhook": scenario_watch_webhook,
+    "json-autodetect": scenario_json_autodetect,
     "incidents": scenario_incidents,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,

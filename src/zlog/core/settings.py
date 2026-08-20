@@ -47,6 +47,7 @@ DEFAULTS: dict = {
     "watch_command": "",  # optional argv template run (no shell) on a watch hit
     "watch_webhook": "",  # optional URL POSTed to (JSON) on a watch hit
     "extract_patterns": [],  # user regex named-group field extractors (see core.extract)
+    "json_autodetect": False,  # auto-detect an embedded JSON object as extra fields
     "show_process": False,  # show the resolved process/package-name column
     "wrap": True,  # wrap long messages across as many lines as needed
     "show_histogram": False,  # show the timeline volume/error band above the log

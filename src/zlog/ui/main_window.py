@@ -3035,6 +3035,13 @@ class MainWindow(QMainWindow):
         self._update_detail(self.table.currentIndex())  # refresh the shown fields
         self._save_settings()
 
+    def _on_json_autodetect_toggled(self, checked: bool) -> None:
+        """Auto-detect an embedded JSON object as extra fields, shown in the
+        detail pane alongside any regex-extracted ones (see
+        docs/plans/json-field-filter.md)."""
+        self.model.set_json_autodetect(checked)
+        self._update_detail(self.table.currentIndex())  # refresh the shown fields
+
     def _update_detail(self, current, previous=None) -> None:
         if current is None or not current.isValid():
             self.detail.clear()
@@ -3155,6 +3162,10 @@ class MainWindow(QMainWindow):
             items = v if isinstance(v, list) else []
             self._extract_patterns = [str(p) for p in items if str(p).strip()]
             self.model.set_extractors(self._extract_patterns)
+
+        def set_json_autodetect(v):
+            # setChecked fires _on_json_autodetect_toggled, which applies it.
+            self.json_autodetect_action.setChecked(bool(v))
 
         def set_log_formats(v):
             self._log_formats = formats_from_json(v)
@@ -3340,6 +3351,11 @@ class MainWindow(QMainWindow):
             ("watch_command", lambda: self._watch_command, set_watch_command),
             ("watch_webhook", lambda: self._watch_webhook, set_watch_webhook),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
+            (
+                "json_autodetect",
+                self.json_autodetect_action.isChecked,
+                set_json_autodetect,
+            ),
             ("log_formats", lambda: formats_to_json(self._log_formats), set_log_formats),
             ("mapping_path", lambda: self._mapping_path, set_mapping_path),
             ("symbols_dir", lambda: self._symbols_dir, set_symbols_dir),
