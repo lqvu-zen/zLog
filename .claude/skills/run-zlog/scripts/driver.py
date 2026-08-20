@@ -332,6 +332,22 @@ def scenario_search_all_tabs(window: MainWindow) -> None:
     _shot(dlg, "search-all-tabs")
 
 
+def scenario_docker_attach(window: MainWindow) -> None:
+    # docs/plans/docker-log-source.md: show the container picker populated —
+    # Docker itself is never invoked here (see list_containers in
+    # docker_dialog.py), just its pure view with a fake container list.
+    from zlog.core.containers import Container
+    from zlog.ui.docker_dialog import DockerDialog
+
+    containers = [
+        Container("a1b2c3d4e5f6", "web", "Up 5 minutes"),
+        Container("f6e5d4c3b2a1", "worker", "Up 2 hours"),
+    ]
+    dlg = DockerDialog(containers, refresh=lambda: None, parent=window)
+    dlg.show()
+    _shot(dlg, "docker-attach")
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -686,6 +702,7 @@ SCENARIOS = {
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
     "search-all-tabs": scenario_search_all_tabs,
+    "docker-attach": scenario_docker_attach,
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,

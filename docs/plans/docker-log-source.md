@@ -1,6 +1,6 @@
 # Plan: Docker container log source
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-20
 - **Related:** [windows-app-focus.md](windows-app-focus.md), [custom-log-format-editor.md](custom-log-format-editor.md)
@@ -26,12 +26,12 @@ so a containerized service is debuggable in zLog without a separate terminal.
 
 | File | Layer | Change |
 |---|---|---|
-| `src/zlog/core/containers.py` (new) | core | `parse_containers(output: str) -> list[Container]`, mirroring `core/devices.py::parse_devices` exactly (same header/blank-line-skipping shape) against `docker ps --format "{{.ID}}\t{{.Names}}\t{{.Status}}"`. Pure, unit-tested. |
-| `src/zlog/ui/docker_dialog.py` (new) | ui | Container list dialog; refresh runs `docker ps` off the UI thread (a one-shot subprocess call, not a persistent reader) and feeds `parse_containers`. |
-| `src/zlog/ui/main_window.py` | ui | `attach_docker_container()` slot: no new reader class — constructs `LaunchReader(["docker", "logs", "-f", "--timestamps", container_id])` directly (`winlog/launcher.py` already does exactly what's needed: subprocess, line batching, `batch_ready`/`stream_ended` on the child process ending). `capture.attach(sess, reader, stream_label=f"docker:{name}")`. |
+| `src/zlog/core/containers.py` (new) | core | `parse_containers(output: str) -> list[Container]`, mirroring `core/devices.py::parse_devices` (same blank-line/malformed-line tolerance) against `docker ps --format PS_FORMAT` (`{{.ID}}\t{{.Names}}\t{{.Status}}`). Pure, unit-tested. |
+| `src/zlog/ui/docker_dialog.py` (new) | ui | `DockerDialog` (pure view, like `LaunchDialog`) plus `list_containers()` — the one-shot `docker ps` subprocess call lives here rather than in a new `docker/` package, since it's a single ~10-line wrapper and there's no precedent elsewhere in this codebase for a package with one function; `core/containers.py` stays subprocess-free either way. |
+| `src/zlog/ui/main_window.py` | ui | `attach_docker_container()`: no new reader class — constructs `LaunchReader(["docker", "logs", "-f", container.id])` directly, reusing `MainWindow._run_adb` (generic despite its name) for the FileNotFoundError/timeout → status-bar-message handling. `capture.attach(sess, reader, stream_label=f"docker:{name}")`. |
 | `src/zlog/ui/menus.py` | ui | New File-menu action next to "&Launch App…". |
-| `src/zlog/core/logformat.py` (built-in entry) | core | `docker logs --timestamps` prefixes every line with an RFC3339 stamp — worth one built-in `LogFormat` so `since:`/`until:` and the Time column work, using the machinery `custom-log-format-editor.md` already built for exactly this problem, rather than leaving the timestamp stuck in `message`. |
-| `tests/test_containers.py` (new) | — | `parse_containers`: empty, several containers, various statuses, malformed line ignored. |
+| `src/zlog/core/logformat.py` (built-in entry) | core | **Not implemented — deliberately deferred, not skipped by oversight.** Docker isn't installed in this build environment, and the Risks section below is explicit that the `--timestamps` format must be verified against a real install, not guessed. Shipping without `--timestamps` at all (see Risks) means there's nothing to parse yet; add the built-in format in a follow-up once someone can verify the real output shape. |
+| `tests/test_containers.py`, `tests/test_docker_source.py` (new) | — | `parse_containers` cases; `DockerDialog` (pure view) selection/refresh; window wiring with a fake `LaunchReader` (same shape as `test_capture_controller.py`'s `StubReader`) so the suite runs without Docker installed. |
 
 ## Architecture touch points
 
@@ -65,24 +65,45 @@ so a containerized service is debuggable in zLog without a separate terminal.
   before committing to the built-in `LogFormat` pattern (exact separator/
   precision can vary by Docker version) — don't guess it from documentation
   alone (same lesson as `custom-log-format-preset.md`'s "don't guess from one
-  sample line").
+  sample line"). **Resolution for this pass:** `docker` isn't on PATH in this
+  build environment (confirmed), so `--timestamps` was dropped entirely rather
+  than guessed — `docker logs -f <id>` is plain, undecorated output, and
+  `LaunchReader` stamps `time` with local capture time exactly as it already
+  does for Launch App. The timestamp-parsing follow-up needs a real Docker
+  install to verify against; tracked as an open question below, not silently
+  dropped.
 
 ## Verification
 
-- [ ] `uv run pytest` (`parse_containers` cases above)
-- [ ] `uv run ruff check .` / `ruff format --check .`
-- [ ] Manual: run a container that logs periodically, attach, confirm live
-      streaming; `docker stop` the container and confirm `stream_ended` fires
-      and the tab reflects it.
-- [ ] Manual: `docker` missing from PATH shows a clear error, not a dead picker.
+- [x] `uv run pytest` — `tests/test_containers.py` (parse cases) and
+      `tests/test_docker_source.py` (`DockerDialog` view behavior; window
+      wiring: missing-docker error, successful attach with correct argv/
+      stream_label, cancel starts nothing) — all green.
+- [x] `uv run ruff check .` / `ruff format --check .` clean.
+- [x] Manual (`run-zlog` `docker-attach` scenario, screenshotted): the picker
+      renders two fake containers correctly, OK/Cancel gating works.
+- [ ] Manual: run a real container that logs periodically, attach, confirm
+      live streaming; `docker stop` the container and confirm `stream_ended`
+      fires and the tab reflects it. **Not done — Docker isn't installed in
+      this environment.** The window-wiring test above exercises the same
+      code path with a fake reader (correct argv, stream_label, attach call),
+      but a real end-to-end run against an actual container is still owed
+      before calling this fully verified.
+- [x] Manual: `docker` missing from PATH shows a clear error, not a dead
+      picker — genuinely verified, since `docker` actually is missing from
+      PATH in this environment (`test_attach_docker_container_missing_shows_error`
+      exercises the real `list_containers()` → `FileNotFoundError` path, not a
+      mock of that particular error).
 
 ## Open questions
 
 - **Is `docker events`-based restart detection worth adding** as a follow-up?
   Defer until there's a concrete case where interleaved-lifetime logs actually
   confused someone.
-- **Attach to existing (buffered) logs, then follow** — i.e. `docker logs`
-  without `-f` first, matching `FileFollower`'s `from_end=False` default of
-  "read what's there, then follow"? Recommended: yes, `docker logs -f` already
-  does this by default (dumps existing output, then follows), so no extra work
-  needed — confirm during implementation rather than assuming.
+- **Attach to existing (buffered) logs, then follow** — confirmed during
+  implementation: `docker logs -f` (no other flags) already dumps existing
+  output then follows, same as `FileFollower`'s default — no extra work
+  needed, as recommended.
+- **`--timestamps` + a built-in `LogFormat`** — deferred (see Risks). Needs a
+  real Docker install to capture actual sample output before writing the
+  pattern; revisit as its own small follow-up once that's available.

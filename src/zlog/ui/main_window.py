@@ -3562,6 +3562,58 @@ class MainWindow(QMainWindow):
         _log.info("Launched app capture: %r", exe)
         self.statusBar().showMessage(f"Launched {reader.app_name} — capturing output…")
 
+    def attach_docker_container(self) -> None:
+        """Attach to a running Docker container's `docker logs -f` — the same
+        console-capture shape as Launch App, via the same `LaunchReader` (no new
+        reader class; see docs/plans/docker-log-source.md). Timestamps are left
+        in `message` as docker prints them rather than parsed into `time`: doing
+        that correctly needs a format verified against a real Docker install,
+        which isn't available in this environment — a follow-up, not guessed.
+        """
+        from zlog.ui.docker_dialog import DockerDialog, list_containers
+        from zlog.winlog.launcher import LaunchReader
+
+        missing_msg = "docker not found — install Docker and add it to PATH."
+
+        def fetch():
+            # _run_adb is generic (fn/missing_msg/error_prefix/report) despite
+            # its name — reused here rather than duplicating the same
+            # FileNotFoundError/timeout handling for a second external tool.
+            return self._run_adb(
+                list_containers,
+                missing_msg=missing_msg,
+                error_prefix="Could not list containers",
+                report=self.statusBar().showMessage,
+            )
+
+        containers = fetch()
+        if containers is None:
+            return
+
+        def refresh() -> None:
+            updated = fetch()
+            if updated is not None:
+                dlg.set_containers(updated)
+
+        dlg = DockerDialog(containers, refresh, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        container = dlg.selected_container()
+        if container is None:
+            return
+
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        reader = LaunchReader(["docker", "logs", "-f", container.id])
+        self.capture.attach(sess, reader, stream_label=f"docker:{container.name}")
+        self._set_tab_label(sess)
+        self._set_streaming_controls()
+        _log.info("Attached to Docker container: %s (%s)", container.name, container.id)
+        self.statusBar().showMessage(f"Attached to {container.name} — capturing docker logs…")
+
     def _start_dbwin_alongside(self) -> None:
         """Add a DBWIN capture to the active tab (Windows only, best-effort): a
         launched app's debug output is a different channel from its console."""

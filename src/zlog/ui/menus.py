@@ -70,6 +70,9 @@ def build_menus(win) -> None:
         "debug output) from the first line"
     )
     win.launch_app_act.triggered.connect(win.launch_app)
+    win.docker_attach_act = file_menu.addAction("Attach to Docker &Container…")
+    win.docker_attach_act.setToolTip("Capture a running container's `docker logs -f` output")
+    win.docker_attach_act.triggered.connect(win.attach_docker_container)
     file_menu.addSeparator()
     win.redact_action = QAction("Redact secrets", win)
     win.redact_action.setCheckable(True)
