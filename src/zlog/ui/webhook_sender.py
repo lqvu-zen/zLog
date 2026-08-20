@@ -48,6 +48,18 @@ class _WebhookWorker(QObject, QRunnable):
             self.finished.emit(False, str(exc))
 
 
+# `QRunnable.autoDelete()` defaults to True: QThreadPool deletes the C++ side of
+# the runnable the instant `run()` returns. Since `_WebhookWorker` is the *same*
+# object on both its QObject and QRunnable sides, that delete fires before the
+# `finished` signal (queued, cross-thread) has been delivered to the main
+# thread — a real, reproducible use-after-free (`Fatal Python error: Aborted`
+# deep in shiboken/Qt) once the queued event is processed. `setAutoDelete(False)`
+# plus keeping every in-flight worker alive here in `_inflight` (nothing else
+# holds a Python reference once `send_webhook` returns) fixes both halves of
+# that lifetime bug at once.
+_inflight: set = set()
+
+
 def send_webhook(url: str, payload: dict, on_done) -> None:
     """POST `payload` as JSON to `url` on a `QThreadPool` worker thread.
 
@@ -57,5 +69,12 @@ def send_webhook(url: str, payload: dict, on_done) -> None:
     manual marshaling needed.
     """
     worker = _WebhookWorker(url, payload)
-    worker.finished.connect(on_done)
+    worker.setAutoDelete(False)  # see the module-level note above `_inflight`
+    _inflight.add(worker)
+
+    def _finish(success: bool, message: str) -> None:
+        _inflight.discard(worker)
+        on_done(success, message)
+
+    worker.finished.connect(_finish)
     QThreadPool.globalInstance().start(worker)
