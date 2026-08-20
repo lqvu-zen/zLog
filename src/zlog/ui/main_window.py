@@ -170,6 +170,14 @@ BASE_FONT_PT = 11  # readable default; the zoom offset (font_delta) adjusts it
 _UNPARSED_NOTE = " Format not recognized — level/tag/time filters won't apply."
 
 
+def _notes_or_none(notes) -> list[str] | None:
+    """`list(notes)` if any entry is non-empty, else None — so an export with no
+    bookmark notes at all gets no `note` column, byte-for-byte the same output
+    as before this feature existed (see docs/plans/bookmark-note-export.md)."""
+    notes = list(notes)
+    return notes if any(notes) else None
+
+
 class MainWindow(QMainWindow):
     _open_windows: list = []  # keeps New-Window spawns alive (not garbage-collected)
 
@@ -1461,7 +1469,12 @@ class MainWindow(QMainWindow):
         for src in self.model.bookmarked_rows():
             entry = self.model.entry_at(src)
             label = self.model.bookmark_label(src)
-            preview = label or (entry.message[:60] if entry is not None else "")
+            # A note may now span multiple lines (see bookmark-note-export.md);
+            # the dock list shows one line per bookmark, so only its first line.
+            first_line = label.splitlines()[0] if label else ""
+            preview = first_line or (entry.message[:60] if entry is not None else "")
+            if label and "\n" in label:
+                preview += "…"
             item = QListWidgetItem(f"line {src + 1}  •  {preview}")
             item.setData(Qt.UserRole, src)
             self.bookmarks_list.addItem(item)
@@ -1485,7 +1498,7 @@ class MainWindow(QMainWindow):
             return
         src = int(item.data(Qt.UserRole))
         current = self.model.bookmark_label(src)
-        text, ok = QInputDialog.getText(self, "Edit bookmark note", "Note:", text=current)
+        text, ok = QInputDialog.getMultiLineText(self, "Edit bookmark note", "Note:", current)
         if ok:
             self.model.set_bookmark_label(src, text.strip())
 
@@ -2226,12 +2239,23 @@ class MainWindow(QMainWindow):
         self.table.set_placeholder(text)
 
     # --- copy / selection --------------------------------------------------
+    def _selected_source_rows(self) -> list[int]:
+        """Source-model row for each selected row, top-to-bottom, mapped from
+        the proxy (what's visible) back to the source model."""
+        rows = self.table.selectionModel().selectedRows()
+        return sorted(self.proxy.mapToSource(index).row() for index in rows)
+
     def _selected_entries(self) -> list[LogEntry]:
         """The entries for the selected rows, in top-to-bottom order, mapped from
         the proxy (what's visible) back to the source model."""
-        rows = self.table.selectionModel().selectedRows()
-        source_rows = sorted(self.proxy.mapToSource(index).row() for index in rows)
-        return [self.model.entry_at(row) for row in source_rows]
+        return [self.model.entry_at(row) for row in self._selected_source_rows()]
+
+    def _selected_notes(self) -> list[str] | None:
+        """Bookmark notes aligned with `_selected_entries()` — see `_filtered_notes`
+        for the None-when-nothing-bookmarked rule."""
+        return _notes_or_none(
+            self.model.bookmark_label(row) for row in self._selected_source_rows()
+        )
 
     def _selected_text(self) -> str:
         entries = export_actions.symbolicate_entries(self._selected_entries(), self._symbolicator)
@@ -2249,8 +2273,9 @@ class MainWindow(QMainWindow):
         entries = self._selected_entries()
         if not entries:
             return
+        notes = self._selected_notes()
         entries = export_actions.symbolicate_entries(entries, self._symbolicator)
-        QApplication.clipboard().setText(to_markdown(entries))
+        QApplication.clipboard().setText(to_markdown(entries, notes))
         self.statusBar().showMessage(f"Copied {len(entries)} line(s) as Markdown.")
 
     def _copy_messages(self) -> None:
@@ -2265,9 +2290,10 @@ class MainWindow(QMainWindow):
         entries = self._selected_entries()
         if not entries:
             return
+        notes = self._selected_notes()
         entries = export_actions.symbolicate_entries(entries, self._symbolicator)
         mime = QMimeData()
-        mime.setHtml(to_html(entries))
+        mime.setHtml(to_html(entries, notes))
         mime.setText(to_messages(entries))  # plain-text fallback for non-rich targets
         QApplication.clipboard().setMimeData(mime)
         self.statusBar().showMessage(f"Copied {len(entries)} line(s) as HTML.")
@@ -2412,12 +2438,27 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Cleared tag highlights.")
 
     # --- save / load -------------------------------------------------------
-    def _filtered_entries(self) -> list[LogEntry]:
-        """The entries currently visible through the proxy (in order)."""
+    def _filtered_source_rows(self) -> list[int]:
+        """Source-model row for each currently visible (filtered) row, in order."""
         return [
-            self.model.entry_at(self.proxy.mapToSource(self.proxy.index(row, 0)).row())
+            self.proxy.mapToSource(self.proxy.index(row, 0)).row()
             for row in range(self.proxy.rowCount())
         ]
+
+    def _filtered_entries(self) -> list[LogEntry]:
+        """The entries currently visible through the proxy (in order)."""
+        return [self.model.entry_at(row) for row in self._filtered_source_rows()]
+
+    def _filtered_notes(self) -> list[str] | None:
+        """Bookmark notes aligned with `_filtered_entries()` ("" where none) —
+        see docs/plans/bookmark-note-export.md. Positional alignment (rather than
+        a source-row dict) sidesteps the index-space mismatch between the master
+        list and a filtered view. Returns None (no `note` column at all) when
+        nothing in view is bookmarked, so an export with no notes is byte-for-byte
+        what it was before this feature existed."""
+        return _notes_or_none(
+            self.model.bookmark_label(row) for row in self._filtered_source_rows()
+        )
 
     def save_log(self) -> None:
         stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
@@ -2454,6 +2495,7 @@ class MainWindow(QMainWindow):
             self.redact_action.isChecked(),
             self.statusBar().showMessage,
             symbolicator=self._symbolicator,
+            notes=self._filtered_notes(),
         )
 
     def _export_pdf(self) -> None:
@@ -2464,6 +2506,7 @@ class MainWindow(QMainWindow):
             self.query.text(),
             self.statusBar().showMessage,
             symbolicator=self._symbolicator,
+            notes=self._filtered_notes(),
         )
 
     # --- sessions ----------------------------------------------------------

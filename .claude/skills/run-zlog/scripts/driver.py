@@ -576,6 +576,19 @@ def scenario_bookmarks(window: MainWindow) -> None:
     _shot(window, "bookmarks")
 
 
+def scenario_bookmark_notes(window: MainWindow) -> None:
+    # docs/plans/bookmark-note-export.md: a multi-line note attached to a
+    # bookmark shows (first line + ellipsis) in the Bookmarks dock, and the
+    # dock is visible so the note preview can be checked against the row it
+    # belongs to.
+    _seed(window, 6)
+    window.model.toggle_bookmark(2)
+    window.model.set_bookmark_label(2, "Follow up: why did this frame skip?\nCheck GPU trace.")
+    window.model.toggle_bookmark(4)  # left unlabeled, for contrast
+    window.bookmarks_dock.setVisible(True)
+    _shot(window, "bookmark-notes")
+
+
 def scenario_incidents(window: MainWindow) -> None:
     # Seed a few reps of SAMPLE (each has one FATAL EXCEPTION line) so the
     # status-bar incident badge shows a nonzero count, then jump to the first
@@ -656,6 +669,7 @@ SCENARIOS = {
     "no-match": scenario_no_match,
     "copy": scenario_copy,
     "bookmarks": scenario_bookmarks,
+    "bookmark-notes": scenario_bookmark_notes,
     "incidents": scenario_incidents,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,

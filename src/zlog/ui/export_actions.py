@@ -22,7 +22,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox, QWidget
 from zlog.core.bundle import make_bundle
 from zlog.core.export import to_print_html
 from zlog.core.models import LogEntry
-from zlog.core.redact import redact_entries
+from zlog.core.redact import redact_entries, redact_text
 from zlog.core.session import entries_to_text
 from zlog.core.symbolicate import Symbolicator
 from zlog.ui.pdf_export import write_pdf
@@ -38,6 +38,15 @@ def maybe_redact(entries: list[LogEntry], redact: bool) -> list[LogEntry]:
     """Mask secrets when the caller's Redact-on-Export toggle is on; else pass
     through. Non-destructive — redaction runs on a copy, never the master list."""
     return redact_entries(entries) if redact else entries
+
+
+def maybe_redact_notes(notes: list[str] | None, redact: bool) -> list[str] | None:
+    """Same masking as `maybe_redact`, applied to bookmark note text — a note is
+    user-authored and exported the same way a message is, so it gets the same
+    treatment when Redact-on-Export is on."""
+    if notes is None or not redact:
+        return notes
+    return [redact_text(n) for n in notes]
 
 
 def symbolicate_entries(
@@ -90,14 +99,21 @@ def write_log(
 def export_formatted(
     parent: QWidget,
     name: str,
-    formatter: Callable[[list[LogEntry]], str],
+    formatter: Callable[..., str],
     ext: str,
     entries: list[LogEntry],
     redact: bool,
     report: Report,
     symbolicator: Symbolicator | None = None,
+    notes: list[str] | None = None,
 ) -> None:
-    """Save `entries` via `formatter` (CSV/JSON/HTML/Markdown/message-only)."""
+    """Save `entries` via `formatter` (CSV/JSON/HTML/Markdown/message-only).
+
+    `notes` (optional): a bookmark note per entry, same order as `entries` —
+    forwarded to `formatter` so CSV/JSON/HTML/Markdown gain a `note`
+    column/field (see `core/export.py`); omit for message-only export, which
+    has no room for extra fields.
+    """
     stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
     path, _ = QFileDialog.getSaveFileName(
         parent, f"Export {name}", f"zlog-{stamp}.{ext}", f"{name} (*.{ext});;All files (*)"
@@ -106,9 +122,10 @@ def export_formatted(
         return
     entries = symbolicate_entries(entries, symbolicator)
     entries = maybe_redact(entries, redact)
+    notes = maybe_redact_notes(notes, redact)
     try:
         with open(path, "w", encoding="utf-8") as fh:
-            fh.write(formatter(entries))
+            fh.write(formatter(entries, notes) if notes is not None else formatter(entries))
     except OSError as exc:
         report(f"Could not export: {exc}")
         return
@@ -123,10 +140,17 @@ def export_pdf(
     query_text: str,
     report: Report,
     symbolicator: Symbolicator | None = None,
+    notes: list[str] | None = None,
 ) -> None:
-    """Export `entries` to PDF, capped at PDF_ROW_CAP (see module docstring)."""
+    """Export `entries` to PDF, capped at PDF_ROW_CAP (see module docstring).
+
+    `notes` (optional): see `export_formatted` — must be truncated alongside
+    `entries` if the PDF_ROW_CAP truncation below applies, or the two would
+    drift out of alignment.
+    """
     entries = symbolicate_entries(entries, symbolicator)
     entries = maybe_redact(entries, redact)
+    notes = maybe_redact_notes(notes, redact)
     if len(entries) > PDF_ROW_CAP:
         reply = QMessageBox.question(
             parent,
@@ -141,13 +165,15 @@ def export_pdf(
         if reply != QMessageBox.Yes:
             return
         entries = entries[:PDF_ROW_CAP]
+        if notes is not None:
+            notes = notes[:PDF_ROW_CAP]
     stamp = f"{datetime.now():%Y%m%d-%H%M%S}"
     path, _ = QFileDialog.getSaveFileName(
         parent, "Export PDF", f"zlog-{stamp}.pdf", "PDF files (*.pdf);;All files (*)"
     )
     if not path:
         return
-    doc_html = to_print_html(entries, title="zLog export", query=query_text)
+    doc_html = to_print_html(entries, notes=notes, title="zLog export", query=query_text)
     try:
         pages = write_pdf(doc_html, path)
     except OSError as exc:

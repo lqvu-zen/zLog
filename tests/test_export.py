@@ -87,3 +87,57 @@ def test_messages_only():
     ]
     assert to_messages(entries) == "first\nsecond\n"
     assert to_messages([]) == ""
+
+
+# --- bookmark notes (docs/plans/bookmark-note-export.md) -------------------
+
+
+def test_csv_adds_note_column_only_when_notes_given():
+    rows = list(csv.reader(io.StringIO(to_csv(_entries(), ["first note", ""]))))
+    assert rows[0] == [*FIELDS, "note"]
+    assert rows[1][-1] == "first note"
+    assert rows[2][-1] == ""  # unbookmarked row gets an empty cell, not a missing one
+
+
+def test_csv_omits_note_column_when_notes_is_none():
+    rows = list(csv.reader(io.StringIO(to_csv(_entries()))))
+    assert rows[0] == list(FIELDS)  # unchanged from before the feature existed
+
+
+def test_json_note_key_present_only_when_given():
+    with_notes = json.loads(to_json(_entries(), ["a note\nwith two lines", ""]))
+    assert with_notes[0]["note"] == "a note\nwith two lines"
+    assert with_notes[1]["note"] == ""
+    without_notes = json.loads(to_json(_entries()))
+    assert "note" not in without_notes[0]
+
+
+def test_html_note_column_escaped():
+    out = to_html(_entries(), ["<script>", ""])
+    assert "<th>Note</th>" in out
+    assert "&lt;script&gt;" in out
+    assert "<script>" not in out
+
+
+def test_markdown_note_column():
+    from zlog.core.export import to_markdown
+
+    entries = [LogEntry("t", "1", "2", "I", "Tag", "hello")]
+    md = to_markdown(entries, ["multi\nline note"]).splitlines()
+    assert md[0] == "| time | pid | tid | level | tag | message | note |"
+    assert "multi line note" in md[2]  # embedded newline flattened like the message
+
+
+def test_print_html_note_column():
+    out = to_print_html(_entries(), notes=["a note", ""], generated="2026-08-20 00:00:00")
+    assert "<th>Note</th>" in out
+    assert "<td>a note</td>" in out
+
+
+def test_notes_shorter_than_entries_pads_with_empty():
+    # A caller-side bug (mismatched lengths) degrades to an empty cell rather
+    # than raising, matching how the rest of this module never crashes on odd
+    # input.
+    rows = list(csv.reader(io.StringIO(to_csv(_entries(), ["only one note"]))))
+    assert rows[1][-1] == "only one note"
+    assert rows[2][-1] == ""

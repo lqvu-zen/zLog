@@ -49,6 +49,15 @@ def test_redact_toggle_drives_maybe_redact(window):
     assert maybe_redact(entries, window.redact_action.isChecked())[0].message == "mail [email]"
 
 
+def test_redact_toggle_drives_maybe_redact_notes():
+    from zlog.ui.export_actions import maybe_redact_notes
+
+    notes = ["contact a@b.com", ""]
+    assert maybe_redact_notes(notes, False) == notes  # unchanged when the toggle is off
+    assert maybe_redact_notes(notes, True) == ["contact [email]", ""]
+    assert maybe_redact_notes(None, True) is None  # nothing to redact when there are no notes
+
+
 def test_settings_round_trip(qapp, tmp_path, monkeypatch):
     from zlog.ui.main_window import MainWindow
 
@@ -187,6 +196,49 @@ def test_bookmark_toggle_and_navigation(window):
     assert window.table.currentIndex().row() in (3, 4)  # next bookmark after row 2
     window._clear_bookmarks()
     assert window.model.bookmarked_rows() == []
+
+
+def test_bookmark_notes_export_alignment(window):
+    """docs/plans/bookmark-note-export.md: notes must line up positionally with
+    the filtered/selected entries they're exported alongside, and a capture with
+    no notes at all must yield None (no `note` column added)."""
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", f"line {i}") for i in range(5)])
+    assert window._filtered_notes() is None  # nothing bookmarked yet
+
+    window.model.toggle_bookmark(1)
+    window.model.set_bookmark_label(1, "multi\nline note")
+    window.model.toggle_bookmark(3)  # bookmarked but left unlabeled
+
+    notes = window._filtered_notes()
+    assert notes == ["", "multi\nline note", "", "", ""]
+
+    window.search.setText("line 1")  # filters down to just row 1
+    assert window._filtered_notes() == ["multi\nline note"]
+
+
+def test_edit_bookmark_note_accepts_multiple_lines(window, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+
+    from zlog.core.models import LogEntry
+
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", f"line {i}") for i in range(3)])
+    window.model.toggle_bookmark(1)  # bookmarksChanged -> _rebuild_bookmarks_list
+    window.bookmarks_list.setCurrentRow(0)
+
+    monkeypatch.setattr(
+        QInputDialog, "getMultiLineText", staticmethod(lambda *a, **k: ("line one\nline two", True))
+    )
+    window._edit_bookmark_note()
+    assert window.model.bookmark_label(1) == "line one\nline two"
+
+
+def test_notes_or_none_helper():
+    from zlog.ui.main_window import _notes_or_none
+
+    assert _notes_or_none(["", "", ""]) is None
+    assert _notes_or_none(["", "a note", ""]) == ["", "a note", ""]
 
 
 def test_query_bar_drives_filters(window):

@@ -21,24 +21,51 @@ def _row(entry: LogEntry) -> list[str]:
     return [entry.time, entry.pid, entry.tid, entry.level, entry.tag, entry.message]
 
 
-def to_csv(entries: list[LogEntry]) -> str:
-    """CSV with a header row; the `csv` module quotes commas/quotes/newlines."""
+def _note_at(notes: list[str] | None, i: int) -> str:
+    """The note for row `i`, or "" when there are no notes or this row has none —
+    so a formatter never has to special-case a short/missing `notes` list."""
+    if notes is None or i >= len(notes):
+        return ""
+    return notes[i]
+
+
+def to_csv(entries: list[LogEntry], notes: list[str] | None = None) -> str:
+    """CSV with a header row; the `csv` module quotes commas/quotes/newlines.
+
+    `notes` (optional): a bookmark note per entry, same length/order as
+    `entries`, "" where a row has none. Adds a trailing `note` column only when
+    given, so a caller that never passes it gets the exact output as before.
+    """
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(FIELDS)
-    for entry in entries:
-        writer.writerow(_row(entry))
+    writer.writerow((*FIELDS, "note") if notes is not None else FIELDS)
+    for i, entry in enumerate(entries):
+        row = _row(entry)
+        if notes is not None:
+            row.append(_note_at(notes, i))
+        writer.writerow(row)
     return buf.getvalue()
 
 
-def to_json(entries: list[LogEntry]) -> str:
-    """A JSON array of objects keyed by FIELDS (pretty-printed)."""
-    data = [dict(zip(FIELDS, _row(entry), strict=True)) for entry in entries]
+def to_json(entries: list[LogEntry], notes: list[str] | None = None) -> str:
+    """A JSON array of objects keyed by FIELDS (pretty-printed).
+
+    `notes`: see `to_csv` — adds a `note` key to every object only when given.
+    """
+    data = []
+    for i, entry in enumerate(entries):
+        obj = dict(zip(FIELDS, _row(entry), strict=True))
+        if notes is not None:
+            obj["note"] = _note_at(notes, i)
+        data.append(obj)
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 
-def to_html(entries: list[LogEntry]) -> str:
-    """A standalone, level-colored HTML table (everything escaped)."""
+def to_html(entries: list[LogEntry], notes: list[str] | None = None) -> str:
+    """A standalone, level-colored HTML table (everything escaped).
+
+    `notes`: see `to_csv` — adds a `Note` column only when given.
+    """
     head = (
         '<!DOCTYPE html>\n<html><head><meta charset="utf-8">\n'
         "<title>zLog export</title>\n<style>\n"
@@ -51,10 +78,13 @@ def to_html(entries: list[LogEntry]) -> str:
         "  .lvl-I { color: #2e7d32; } .lvl-D { color: #3b6ea5; } .lvl-V { color: #6a6a6a; }\n"
         "</style>\n</head>\n<body>\n<table>\n"
     )
-    header = "<tr>" + "".join(f"<th>{html.escape(f)}</th>" for f in FIELDS) + "</tr>\n"
+    field_names = (*FIELDS, "Note") if notes is not None else FIELDS
+    header = "<tr>" + "".join(f"<th>{html.escape(f)}</th>" for f in field_names) + "</tr>\n"
     body = []
-    for entry in entries:
+    for i, entry in enumerate(entries):
         cells = "".join(f"<td>{html.escape(v)}</td>" for v in _row(entry))
+        if notes is not None:
+            cells += f"<td>{html.escape(_note_at(notes, i))}</td>"
         body.append(f'<tr class="lvl-{html.escape(entry.level)}">{cells}</tr>')
     return head + header + "\n".join(body) + "\n</table>\n</body>\n</html>\n"
 
@@ -62,6 +92,7 @@ def to_html(entries: list[LogEntry]) -> str:
 def to_print_html(
     entries: list[LogEntry],
     *,
+    notes: list[str] | None = None,
     title: str = "zLog export",
     query: str = "",
     generated: str | None = None,
@@ -69,7 +100,8 @@ def to_print_html(
     """Print-oriented HTML for :class:`QTextDocument` -> PDF: the same level-
     colored table as `to_html`, plus a small header (title/query/line count)
     and `page-break-inside: avoid` on rows so a line never splits across pages.
-    `generated` defaults to the current time; pass a fixed string in tests."""
+    `generated` defaults to the current time; pass a fixed string in tests.
+    `notes`: see `to_csv` — adds a `Note` column only when given."""
     stamp = generated if generated is not None else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     meta = [f"Generated {html.escape(stamp)}", f"{len(entries)} line(s)"]
     if query:
@@ -92,27 +124,37 @@ def to_print_html(
         f"<p class='meta'>{' &middot; '.join(meta)}</p>\n"
         "<table>\n"
     )
-    header = "<tr>" + "".join(f"<th>{html.escape(f)}</th>" for f in FIELDS) + "</tr>\n"
+    field_names = (*FIELDS, "Note") if notes is not None else FIELDS
+    header = "<tr>" + "".join(f"<th>{html.escape(f)}</th>" for f in field_names) + "</tr>\n"
     body = []
-    for entry in entries:
+    for i, entry in enumerate(entries):
         cells = "".join(f"<td>{html.escape(v)}</td>" for v in _row(entry))
+        if notes is not None:
+            cells += f"<td>{html.escape(_note_at(notes, i))}</td>"
         body.append(f'<tr class="lvl-{html.escape(entry.level)}">{cells}</tr>')
     return head + header + "\n".join(body) + "\n</table>\n</body>\n</html>\n"
 
 
-def to_markdown(entries: list[LogEntry]) -> str:
+def to_markdown(entries: list[LogEntry], notes: list[str] | None = None) -> str:
     """A GitHub-flavored Markdown table. Pipes are escaped and newlines flattened
-    so a log message can't break the table."""
+    so a log message can't break the table.
+
+    `notes`: see `to_csv` — adds a `note` column only when given.
+    """
 
     def cell(value: str) -> str:
         return value.replace("|", "\\|").replace("\n", " ")
 
+    field_names = (*FIELDS, "note") if notes is not None else FIELDS
     lines = [
-        "| " + " | ".join(FIELDS) + " |",
-        "|" + "|".join(["---"] * len(FIELDS)) + "|",
+        "| " + " | ".join(field_names) + " |",
+        "|" + "|".join(["---"] * len(field_names)) + "|",
     ]
-    for entry in entries:
-        lines.append("| " + " | ".join(cell(v) for v in _row(entry)) + " |")
+    for i, entry in enumerate(entries):
+        row = _row(entry)
+        if notes is not None:
+            row.append(_note_at(notes, i))
+        lines.append("| " + " | ".join(cell(v) for v in row) + " |")
     return "\n".join(lines) + "\n"
 
 
