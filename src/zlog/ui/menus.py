@@ -37,6 +37,12 @@ def build_menus(win) -> None:
         "for apps that rotate logs by filename"
     )
     follow_folder_act.triggered.connect(win.follow_folder)
+    listen_network_act = file_menu.addAction("Listen on &Network…")
+    listen_network_act.setToolTip(
+        "Accept a newline-delimited text stream over TCP — any process that can "
+        "open a socket becomes a source, with no adb and no file"
+    )
+    listen_network_act.triggered.connect(win.listen_network)
     win._rebuild_recent_menu()
     save_act = file_menu.addAction("&Save Log…")
     save_act.setShortcut("Ctrl+S")

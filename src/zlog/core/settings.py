@@ -59,6 +59,7 @@ DEFAULTS: dict = {
     "symbols_dir": "",  # directory of unstripped .so files for native symbolication
     "addr2line_path": "",  # addr2line/llvm-addr2line executable ("" = "addr2line" from PATH)
     "symbolicate_enabled": True,  # the Symbol bar's on/off toggle
+    "last_network_port": 0,  # prefills Listen on Network… next time (0 = choose a port)
 }
 
 

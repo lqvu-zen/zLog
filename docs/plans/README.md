@@ -31,7 +31,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 
 | Plan | Status | Summary |
 |---|---|---|
-| [network-log-source.md](network-log-source.md) | Approved | TCP listener source — any socket-speaking process becomes a log source, no adb/file needed |
+| [network-log-source.md](network-log-source.md) | Done | TCP listener source — any socket-speaking process becomes a log source, no adb/file needed |
 | [json-field-filter.md](json-field-filter.md) | Approved | JSON auto-fields + a `field:` query token, closing the filter gap `regex-extract-columns.md` left open |
 | [directory-glob-follow.md](directory-glob-follow.md) | Done | Follow the newest file matching a glob (filename-rotated logs, vs. inode-rotated in `file-follow.md`) |
 | [docker-log-source.md](docker-log-source.md) | Done | Attach to a running Docker container's `docker logs -f` via the existing `LaunchReader` |

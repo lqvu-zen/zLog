@@ -373,6 +373,35 @@ def scenario_follow_folder(window: MainWindow) -> None:
     reader.stop()
 
 
+def scenario_listen_network(window: MainWindow) -> None:
+    # docs/plans/network-log-source.md: a real NetworkReader on an ephemeral
+    # loopback port, streaming a line from a real socket connection.
+    import socket
+    import time
+
+    from zlog.net.reader import NetworkReader
+
+    reader = NetworkReader("127.0.0.1", 0)
+    window.capture.attach(window._active, reader, stream_label="tcp:127.0.0.1")
+    for _ in range(20):
+        QApplication.processEvents()
+        if reader.port:
+            break
+        time.sleep(0.05)
+    window._active.stream_label = f"tcp:{reader.port}"
+    window._set_tab_label(window._active)
+
+    client = socket.create_connection(("127.0.0.1", reader.port), timeout=2)
+    client.sendall(b"06-30 12:00:00.000 1287 1287 I NetSource: hello from a socket\n")
+    client.sendall(b"06-30 12:00:00.100 1287 1287 W NetSource: no adb, no file, just TCP\n")
+    for _ in range(25):
+        QApplication.processEvents()
+        time.sleep(0.05)
+    _shot(window, "listen-network")
+    client.close()
+    reader.stop()
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -729,6 +758,7 @@ SCENARIOS = {
     "search-all-tabs": scenario_search_all_tabs,
     "docker-attach": scenario_docker_attach,
     "follow-folder": scenario_follow_folder,
+    "listen-network": scenario_listen_network,
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,

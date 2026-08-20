@@ -226,6 +226,7 @@ class MainWindow(QMainWindow):
             self._on_batch, self.on_error, self._on_stream_ended, parent=self
         )
         self._last_launch = None  # (exe, args, cwd) prefilled into the Launch App dialog
+        self._last_network_port = 0  # prefills Listen on Network… next time
         self._pending_tabs = []  # tab states loaded from settings, restored after construction
         self._active_preset_name = None  # the applied preset the Save/Update button targets
         self._watch_last = 0.0  # monotonic time of last notification (throttle)
@@ -3334,6 +3335,11 @@ class MainWindow(QMainWindow):
                 lambda v: setattr(self, "_adb_setup_asked", bool(v)),
             ),
             ("last_launch", get_last_launch, set_last_launch),
+            (
+                "last_network_port",
+                lambda: self._last_network_port,
+                lambda v: setattr(self, "_last_network_port", int(v) if isinstance(v, int) else 0),
+            ),
         ]
         # Guard against a setting being added to DEFAULTS but not here (or vice
         # versa) — the exact drift that silently breaks save/restore.
@@ -3564,6 +3570,40 @@ class MainWindow(QMainWindow):
         """A directory-follow moved to a newer file — surfaced so a swap is
         never mistaken for a gap in the stream (see the plan's Risks)."""
         self.statusBar().showMessage(f"Switched to newest file: {name}")
+
+    def listen_network(self) -> None:
+        """Listen on a TCP port and stream whatever newline-delimited text
+        connects — any process that can open a socket becomes a source, with
+        no adb and no file. See docs/plans/network-log-source.md."""
+        from zlog.net.reader import NetworkReader
+        from zlog.ui.network_dialog import NetworkDialog
+
+        dlg = NetworkDialog(self._last_network_port, self)
+        if dlg.exec() != QDialog.Accepted:
+            return
+        host, port = dlg.get_values()
+        self._last_network_port = port
+
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        reader = NetworkReader(host, port)
+        reader.listening.connect(lambda p, s=sess: self._on_network_listening(s, p))
+        self.capture.attach(sess, reader, stream_label=f"tcp:{host}")
+        self._set_tab_label(sess)
+        self._set_streaming_controls()
+        _log.info("Listening on %s:%s (requested port %s)", host, port, port or "any")
+        self.statusBar().showMessage(f"Starting a listener on {host}…")
+
+    def _on_network_listening(self, sess, port: int) -> None:
+        """The listener finished binding — only now is the real port known
+        (a requested port of 0 resolves to whatever the OS assigned)."""
+        sess.stream_label = f"tcp:{port}"
+        self._set_tab_label(sess)
+        if sess is self._active:
+            self.statusBar().showMessage(f"Listening on port {port} — waiting for a connection…")
 
     def launch_app(self) -> None:
         """Start a program and capture it from its first line: its console output
