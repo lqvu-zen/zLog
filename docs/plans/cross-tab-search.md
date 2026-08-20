@@ -1,6 +1,6 @@
 # Plan: Search across all open tabs
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-20
 - **Related:** [device-tabs.md](device-tabs.md), [saved-filters-sidebar.md](saved-filters-sidebar.md)
@@ -28,7 +28,7 @@ several device/file/app tabs are open at the same time (`device-tabs.md`).
 | File | Layer | Change |
 |---|---|---|
 | `src/zlog/core/logfilter.py` | core | **Reused as-is** — `build_predicate(spec, case)` (`core/logfilter.py:22`) already turns a `QuerySpec` into a plain `LogEntry -> bool` callable, built for exactly this "filter headlessly, no proxy" need (today used by CLI tail mode). This plan's whole value is that the predicate logic already exists and doesn't need reinventing. |
-| `src/zlog/ui/log_model.py` | ui | `LogTableModel` needs a read-only accessor to its rows — there isn't one today (`self._rows` is private, `log_model.py:58`). Add `def rows(self) -> list[LogEntry]: return list(self._rows)` (or an iterator, to avoid copying a huge list — decide based on measured cost). |
+| `src/zlog/ui/log_model.py` | ui | **No change needed** — `all_entries()` (`log_model.py:369-371`) already returns `list(self._rows)`, exactly the accessor this plan sketched adding. |
 | `src/zlog/ui/cross_tab_search.py` (new) | ui | `search_sessions(sessions, spec, case) -> list[TabMatch]`: for each session, `build_predicate(spec, case)` then filter `session.model.rows()`, keeping (session, source_row, entry) tuples. Thin — the real logic is `build_predicate`, already core and already tested. |
 | `src/zlog/ui/cross_tab_search_dialog.py` (new) | ui | Query input (reuse `QueryLineEdit`/completion popup if practical) + a results table (tab name, entry summary); double-click activates that tab and scrolls the table to the matched row (reuse whatever `_goto_bookmark`/`_goto_incident`-style jump helper already exists for "activate a row by source index"). |
 | `src/zlog/ui/main_window.py` | ui | `_search_all_tabs()` slot wiring the dialog to `self._sessions`. |
@@ -67,18 +67,32 @@ several device/file/app tabs are open at the same time (`device-tabs.md`).
 
 ## Verification
 
-- [ ] `uv run pytest` (`search_sessions` cases above)
-- [ ] `uv run ruff check .` / `ruff format --check .`
-- [ ] Manual: open 3 tabs (two files + a device capture), search a term present
-      in two of them, confirm both appear grouped correctly and double-click
-      jumps to the right tab + row.
-- [ ] Manual: a query using `since:`/`proc:` shows the "not supported here" note
-      rather than silently matching everything.
+- [x] `uv run pytest` — `tests/test_cross_tab_search.py` (pure `search_sessions`/
+      `unsupported_gates` cases, stubbed sessions) and
+      `tests/test_main_window_tabs.py::test_search_all_tabs_jumps_to_matching_tab`
+      / `test_search_all_tabs_flags_unsupported_gates` — all green.
+- [x] `uv run ruff check .` / `ruff format --check .` clean.
+- [x] Manual (`run-zlog` `search-all-tabs` scenario, screenshotted): two tabs
+      seeded, a term matching rows in the background tab found and grouped
+      under that tab's name with correct line numbers; the double-click → jump
+      path itself is covered by the automated test above (activates the tab
+      via `tab_bar.setCurrentIndex`, re-roots `model`/`proxy`, selects the row).
+- [x] Covered by `test_search_all_tabs_flags_unsupported_gates` and
+      `test_unsupported_gates_flagged_without_crashing`: `proc:`/`since:` are
+      flagged, and the search still runs rather than crashing or silently
+      matching everything.
 
 ## Open questions
 
 - **Reuse the query bar's completion popup in the search dialog**, or keep it a
-  plain line edit for v1? Leaning plain for v1 — the completion popup is wired
-  fairly specifically to the active session's live tag/pid/proc values today.
-- **Cap match count per tab** — what's a sane default (e.g. 500) before this
-  needs testing against a real large capture?
+  plain line edit for v1? **Resolved: plain `QLineEdit`** for v1, as leaned —
+  the completion popup is wired specifically to the active session's live
+  tag/pid/proc values, which doesn't generalize cleanly across tabs.
+- **Cap match count per tab** — what's a sane default before this needs testing
+  against a real large capture? **Resolved differently than sketched:** capped
+  the *total displayed* rows at 2000 (`_MAX_RESULTS` in
+  `cross_tab_search_dialog.py`) rather than per-tab, with a hint line when
+  truncated. `search_sessions` itself returns every match uncapped — only the
+  dialog's table population is bounded, so a future caller (e.g. exporting all
+  matches) isn't limited by the display cap. Revisit if a real large-capture
+  test shows this isn't the right knob.

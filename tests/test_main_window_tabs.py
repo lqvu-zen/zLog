@@ -76,6 +76,48 @@ def test_idle_local_source_tab_shows_friendly_name(window):
     assert window.tab_bar.tabText(0) == "This PC (debug output)"
 
 
+def test_search_all_tabs_jumps_to_matching_tab(window, monkeypatch):
+    """docs/plans/cross-tab-search.md: a match found in a background tab jumps
+    there and selects the row, without touching that tab's own query/filter."""
+    from PySide6.QtWidgets import QDialog
+
+    from zlog.ui.cross_tab_search_dialog import CrossTabSearchDialog
+
+    window.model.append_entries([LogEntry("t", "1", "1", "I", "T", "alpha")])  # tab 0
+    window._new_tab()  # tab 1 becomes active
+    window.model.append_entries(
+        [
+            LogEntry("t", "1", "1", "I", "T", "nothing here"),
+            LogEntry("t", "1", "1", "E", "T", "boom target"),
+        ]
+    )
+    window.tab_bar.setCurrentIndex(0)  # back to tab 0 as the starting point
+
+    def fake_exec(self):
+        self.query_edit.setText("target")
+        self._run_search()
+        assert len(self._matches) == 1
+        assert self._matches[0].session_index == 1
+        assert self._matches[0].source_row == 1
+        self._activate_row(0, 0)
+        return QDialog.Accepted
+
+    monkeypatch.setattr(CrossTabSearchDialog, "exec", fake_exec)
+    window._search_all_tabs()
+
+    assert window._active_index == 1  # jumped to the tab with the match
+    assert window.table.currentIndex().row() == 1  # and selected the matching row
+
+
+def test_search_all_tabs_flags_unsupported_gates(window):
+    from zlog.core.query import parse_query
+    from zlog.ui.cross_tab_search import unsupported_gates
+
+    assert unsupported_gates(parse_query("proc:com.example")) is True
+    assert unsupported_gates(parse_query("since:10:00:00")) is True
+    assert unsupported_gates(parse_query("level:E tag:Activity")) is False
+
+
 def test_idle_real_device_tab_still_shows_bare_serial(window):
     """A real adb serial *is* already the recognizable name — must be
     unaffected by the local-source label resolution."""

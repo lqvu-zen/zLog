@@ -311,6 +311,27 @@ def scenario_two_tabs(window: MainWindow) -> None:
     _shot(window, "two-tabs")
 
 
+def scenario_search_all_tabs(window: MainWindow) -> None:
+    # docs/plans/cross-tab-search.md: seed two tabs, put a matching line in the
+    # background one, and show the dialog with results populated (bypassing its
+    # modal exec() loop, which would block this script).
+    from zlog.ui.cross_tab_search_dialog import CrossTabSearchDialog
+
+    window.model.append_entries(
+        [LogEntry("06-30 12:00:00.000", "1", "1", "I", "T", "nothing interesting")]
+    )
+    window._new_tab()
+    _seed(window)
+    window.tab_bar.setCurrentIndex(0)
+
+    tab_names = [window.tab_bar.tabText(i) for i in range(len(window._sessions))]
+    dlg = CrossTabSearchDialog(window._sessions, tab_names, lambda *_: None, window)
+    dlg.query_edit.setText("crash")
+    dlg._run_search()
+    dlg.show()
+    _shot(dlg, "search-all-tabs")
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -664,6 +685,7 @@ SCENARIOS = {
     "stack-trace-folding": scenario_stack_trace_folding,
     "opened": scenario_opened,
     "two-tabs": scenario_two_tabs,
+    "search-all-tabs": scenario_search_all_tabs,
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,

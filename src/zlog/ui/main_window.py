@@ -136,6 +136,7 @@ from zlog.core.watch_action import expand_command
 from zlog.ui import adb_setup_flow, export_actions
 from zlog.ui.build import build_layout, build_widgets
 from zlog.ui.capture_controller import CaptureController
+from zlog.ui.cross_tab_search_dialog import CrossTabSearchDialog
 from zlog.ui.device_controller import DeviceController
 from zlog.ui.file_loader import FileLoader
 from zlog.ui.highlight_rules_dialog import HighlightRulesDialog
@@ -1902,6 +1903,25 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Double-click a tag to filter to it:"))
         layout.addWidget(table)
+        dlg.exec()
+
+    def _search_all_tabs(self) -> None:
+        """Search every open tab's full row list at once (docs/plans/cross-tab-search.md)
+        — a one-shot, read-only lookup; it never changes any tab's own query."""
+        tab_names = [self.tab_bar.tabText(i) for i in range(len(self._sessions))]
+
+        def jump(session_index: int, source_row: int) -> None:
+            self.tab_bar.setCurrentIndex(session_index)  # -> _switch_tab, re-roots model/proxy
+            proxy_row = self.proxy.mapFromSource(self.model.index(source_row, 0)).row()
+            if proxy_row < 0:  # hidden by that tab's own filter
+                self.statusBar().showMessage("That match is hidden by the tab's current filter.")
+                return
+            index = self.proxy.index(proxy_row, 0)
+            self.table.setCurrentIndex(index)
+            self.table.selectRow(proxy_row)
+            self.table.scrollTo(index)
+
+        dlg = CrossTabSearchDialog(self._sessions, tab_names, jump, self)
         dlg.exec()
 
     def _show_jank_summary(self) -> None:
