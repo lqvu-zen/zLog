@@ -4,9 +4,17 @@
 - **Owner:** unassigned
 - **Created:** 2026-07-14
 
-## Status (2026-07-24)
+## Status (2026-08-20)
 
-**The backlog is empty — every remaining candidate now has its own Draft plan.**
+Seven new candidates from a brainstorm session each got a Draft plan directly
+(see the [plans index](README.md)) rather than sitting here as one-liners:
+[network-log-source.md](network-log-source.md), [json-field-filter.md](json-field-filter.md),
+[directory-glob-follow.md](directory-glob-follow.md), [docker-log-source.md](docker-log-source.md),
+[cross-tab-search.md](cross-tab-search.md), [watch-webhook-notify.md](watch-webhook-notify.md),
+[bookmark-note-export.md](bookmark-note-export.md). None are Approved yet — each
+still needs a deliberate yes (see `docs/ROADMAP.md`: "a new feature idea gets a
+plan and a deliberate decision, not a reflexive yes") before implementation starts.
+
 This file stays as the place new raw ideas land before they earn a plan.
 
 Everything previously listed here has either shipped (see the

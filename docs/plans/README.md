@@ -31,6 +31,13 @@ For the prioritized, cross-release picture these plans execute against, see the
 
 | Plan | Status | Summary |
 |---|---|---|
+| [network-log-source.md](network-log-source.md) | Approved | TCP listener source — any socket-speaking process becomes a log source, no adb/file needed |
+| [json-field-filter.md](json-field-filter.md) | Approved | JSON auto-fields + a `field:` query token, closing the filter gap `regex-extract-columns.md` left open |
+| [directory-glob-follow.md](directory-glob-follow.md) | Approved | Follow the newest file matching a glob (filename-rotated logs, vs. inode-rotated in `file-follow.md`) |
+| [docker-log-source.md](docker-log-source.md) | Approved | Attach to a running Docker container's `docker logs -f` via the existing `LaunchReader` |
+| [cross-tab-search.md](cross-tab-search.md) | Approved | Search-All-Tabs dialog reusing `core/logfilter.py`'s existing headless predicate |
+| [watch-webhook-notify.md](watch-webhook-notify.md) | Approved | Native off-thread webhook POST on a watch-pattern hit, alongside the existing run-command action |
+| [bookmark-note-export.md](bookmark-note-export.md) | Approved | Multi-line bookmark notes + include them in CSV/JSON/HTML/PDF export (currently silently dropped) |
 | [unparsed-level-hides-log.md](unparsed-level-hides-log.md) | Done | Status-bar note when a load comes back fully unparsed (the level-gate bug it was written for didn't reproduce) |
 | [custom-log-format-editor.md](custom-log-format-editor.md) | Done | User-defined formats — `LogFormat`, per-tab choice, auto-detect, live-preview dialog (View → Log Formats…) |
 | [custom-log-format-preset.md](custom-log-format-preset.md) | Draft — optional follow-up, blocked on sample lines | Ship one project's format as a built-in default, after the editor exists |
