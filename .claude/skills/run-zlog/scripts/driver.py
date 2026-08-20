@@ -680,6 +680,21 @@ def scenario_bookmark_notes(window: MainWindow) -> None:
     _shot(window, "bookmark-notes")
 
 
+def scenario_watch_webhook(window: MainWindow) -> None:
+    # docs/plans/watch-webhook-notify.md: the Watch Pattern dialog with all
+    # three fields filled — pattern, run-command, and the new webhook URL.
+    from zlog.ui.watch_dialog import WatchDialog
+
+    dlg = WatchDialog(
+        "FATAL EXCEPTION",
+        "notify-send {tag} {message}",
+        "https://hooks.example.com/services/T000/B000/xxx",
+        parent=window,
+    )
+    dlg.show()
+    _shot(dlg, "watch-webhook")
+
+
 def scenario_incidents(window: MainWindow) -> None:
     # Seed a few reps of SAMPLE (each has one FATAL EXCEPTION line) so the
     # status-bar incident badge shows a nonzero count, then jump to the first
@@ -765,6 +780,7 @@ SCENARIOS = {
     "copy": scenario_copy,
     "bookmarks": scenario_bookmarks,
     "bookmark-notes": scenario_bookmark_notes,
+    "watch-webhook": scenario_watch_webhook,
     "incidents": scenario_incidents,
     "match-nav": scenario_match_nav,
     "highlight": scenario_highlight,

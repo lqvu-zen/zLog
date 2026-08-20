@@ -211,6 +211,9 @@ class MainWindow(QMainWindow):
         self._watch_pattern = ""
         self._watch_command = ""  # optional argv template run on a watch hit
         self._watch_cmd_last = 0.0  # monotonic time of last command spawn (throttle)
+        self._watch_webhook = ""  # optional URL POSTed to (JSON) on a watch hit
+        self._webhook_last = 0.0  # monotonic time of last webhook POST (throttle)
+        self._webhook_pending = False  # at most one in-flight webhook request at a time
         self._extract_patterns = []  # user regex named-group extractors (see core.extract)
         self._log_formats: list[LogFormat] = []  # user-defined formats (see core.logformat)
         self._symbolicator = Symbolicator()  # see core.symbolicate, crash-symbolication.md
@@ -1797,10 +1800,10 @@ class MainWindow(QMainWindow):
 
     # --- watch pattern -----------------------------------------------------
     def _set_watch_dialog(self) -> None:
-        dlg = WatchDialog(self._watch_pattern, self._watch_command, self)
+        dlg = WatchDialog(self._watch_pattern, self._watch_command, self._watch_webhook, self)
         if dlg.exec() != QDialog.Accepted:
             return
-        pattern, command = dlg.get_values()
+        pattern, command, webhook = dlg.get_values()
         if command and command != self._watch_command:
             reply = QMessageBox.question(
                 self,
@@ -1813,12 +1816,33 @@ class MainWindow(QMainWindow):
             )
             if reply != QMessageBox.Yes:
                 command = self._watch_command  # keep the previous (already-confirmed) command
-        self._apply_watch(pattern, command)
+        if webhook and webhook != self._watch_webhook:
+            reply = QMessageBox.question(
+                self,
+                "Send data to a webhook on watch hit?",
+                "Whenever the watch pattern matches a line, zLog will POST that line's "
+                "text (message/tag/pid/level/time) as JSON to:\n\n"
+                f"    {webhook}\n\n"
+                "Only confirm if you trust this endpoint with your log data.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,  # default to the safe answer
+            )
+            if reply != QMessageBox.Yes:
+                webhook = self._watch_webhook  # keep the previous (already-confirmed) URL
+        self._apply_watch(pattern, command, webhook)
 
-    def _apply_watch(self, pattern: str, command: str | None = None, announce: bool = True) -> None:
+    def _apply_watch(
+        self,
+        pattern: str,
+        command: str | None = None,
+        webhook: str | None = None,
+        announce: bool = True,
+    ) -> None:
         self._watch_pattern = pattern or ""
         if command is not None:
             self._watch_command = command
+        if webhook is not None:
+            self._watch_webhook = webhook
         self._watch = (
             compile_matcher(self._watch_pattern, regex=False) if self._watch_pattern else None
         )
@@ -1876,6 +1900,38 @@ class MainWindow(QMainWindow):
             )
         except OSError as exc:
             self.statusBar().showMessage(f"Watch command failed: {exc}")
+
+    def _run_watch_webhook(self, entry) -> None:
+        """Fire-and-forget the configured webhook POST — same throttle window
+        as `_run_watch_command`, plus a bound of at most one in-flight request,
+        so a slow/unreachable endpoint can't pile up outstanding requests (see
+        docs/plans/watch-webhook-notify.md)."""
+        if not self._watch_webhook:
+            return
+        now = time.monotonic()
+        if now - self._webhook_last < 10.0:
+            return
+        if self._webhook_pending:
+            return
+        self._webhook_last = now
+        self._webhook_pending = True
+        from zlog.core.webhook import build_payload
+        from zlog.ui.webhook_sender import send_webhook
+
+        send_webhook(self._watch_webhook, build_payload(entry), self._on_webhook_done)
+
+    def _on_webhook_done(self, success: bool, message: str) -> None:
+        """Log-only, like the beep/command — best-effort, not a critical path.
+        Only the host is logged, never the full URL (it may carry a secret
+        token, e.g. a Slack incoming-webhook path)."""
+        from urllib.parse import urlsplit
+
+        self._webhook_pending = False
+        host = urlsplit(self._watch_webhook).netloc if self._watch_webhook else "?"
+        if success:
+            _log.info("Webhook to %s delivered (%s)", host, message)
+        else:
+            _log.warning("Webhook to %s failed: %s", host, message)
 
     def _show_tag_summary(self) -> None:
         """Modal list of tags in the current view by count; double-click filters."""
@@ -3092,6 +3148,9 @@ class MainWindow(QMainWindow):
         def set_watch_command(v):
             self._watch_command = str(v) if isinstance(v, str) else ""
 
+        def set_watch_webhook(v):
+            self._watch_webhook = str(v) if isinstance(v, str) else ""
+
         def set_extract_patterns(v):
             items = v if isinstance(v, list) else []
             self._extract_patterns = [str(p) for p in items if str(p).strip()]
@@ -3279,6 +3338,7 @@ class MainWindow(QMainWindow):
             ("tabs", lambda: tabs_to_json(self._tab_states()), set_tabs),
             ("watch", lambda: self._watch_pattern, set_watch),
             ("watch_command", lambda: self._watch_command, set_watch_command),
+            ("watch_webhook", lambda: self._watch_webhook, set_watch_webhook),
             ("extract_patterns", lambda: self._extract_patterns, set_extract_patterns),
             ("log_formats", lambda: formats_to_json(self._log_formats), set_log_formats),
             ("mapping_path", lambda: self._mapping_path, set_mapping_path),
@@ -3784,6 +3844,7 @@ class MainWindow(QMainWindow):
         if hits:
             self._notify_watch(hits[-1])
             self._run_watch_command(hits[-1])
+            self._run_watch_webhook(hits[-1])
         active = sess is self._active
         if sess.paused:
             sess.pause_buffer.extend(entries)

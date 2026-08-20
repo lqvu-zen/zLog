@@ -18,23 +18,28 @@ from PySide6.QtWidgets import (
 
 
 class WatchDialog(QDialog):
-    def __init__(self, pattern="", command="", parent=None):
+    def __init__(self, pattern="", command="", webhook="", parent=None):
         super().__init__(parent)
         self.setWindowTitle("Watch Pattern")
-        self.resize(460, 150)
+        self.resize(460, 190)
 
         self.pattern_edit = QLineEdit(pattern)
         self.pattern_edit.setPlaceholderText("Notify on lines containing… (blank to clear)")
         self.command_edit = QLineEdit(command)
         self.command_edit.setPlaceholderText("e.g. myscript.exe {tag} {message}  (optional)")
+        self.webhook_edit = QLineEdit(webhook)
+        self.webhook_edit.setPlaceholderText("e.g. https://hooks.example.com/…  (optional)")
 
         form = QFormLayout()
         form.addRow("Pattern", self.pattern_edit)
         form.addRow("Run command", self.command_edit)
+        form.addRow("Webhook URL", self.webhook_edit)
 
         hint = QLabel(
-            "Placeholders: {message} {tag} {pid} {level} {time} {line}. Runs without a "
-            "shell — never types requiring shell features (pipes, &&, etc.)."
+            "Command placeholders: {message} {tag} {pid} {level} {time} {line}. Runs "
+            "without a shell — never types requiring shell features (pipes, &&, etc.).\n"
+            "Webhook: a JSON POST with the same fields, off the UI thread. The URL is "
+            "stored in plain text in zLog's settings file, like other saved paths."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet("color: gray; font-size: 11px;")
@@ -48,5 +53,9 @@ class WatchDialog(QDialog):
         layout.addWidget(hint)
         layout.addWidget(self.buttons)
 
-    def get_values(self) -> tuple[str, str]:
-        return self.pattern_edit.text(), self.command_edit.text().strip()
+    def get_values(self) -> tuple[str, str, str]:
+        return (
+            self.pattern_edit.text(),
+            self.command_edit.text().strip(),
+            self.webhook_edit.text().strip(),
+        )

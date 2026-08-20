@@ -36,7 +36,7 @@ For the prioritized, cross-release picture these plans execute against, see the
 | [directory-glob-follow.md](directory-glob-follow.md) | Done | Follow the newest file matching a glob (filename-rotated logs, vs. inode-rotated in `file-follow.md`) |
 | [docker-log-source.md](docker-log-source.md) | Done | Attach to a running Docker container's `docker logs -f` via the existing `LaunchReader` |
 | [cross-tab-search.md](cross-tab-search.md) | Done | Search-All-Tabs dialog reusing `core/logfilter.py`'s existing headless predicate |
-| [watch-webhook-notify.md](watch-webhook-notify.md) | Approved | Native off-thread webhook POST on a watch-pattern hit, alongside the existing run-command action |
+| [watch-webhook-notify.md](watch-webhook-notify.md) | Done | Native off-thread webhook POST on a watch-pattern hit, alongside the existing run-command action |
 | [bookmark-note-export.md](bookmark-note-export.md) | Done | Multi-line bookmark notes + include them in CSV/JSON/HTML/PDF export (currently silently dropped) |
 | [unparsed-level-hides-log.md](unparsed-level-hides-log.md) | Done | Status-bar note when a load comes back fully unparsed (the level-gate bug it was written for didn't reproduce) |
 | [custom-log-format-editor.md](custom-log-format-editor.md) | Done | User-defined formats — `LogFormat`, per-tab choice, auto-detect, live-preview dialog (View → Log Formats…) |

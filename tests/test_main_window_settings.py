@@ -892,6 +892,108 @@ def test_apply_watch_leaves_command_unchanged_when_not_passed(window):
     assert window._watch_command == ""
 
 
+# --- webhook (docs/plans/watch-webhook-notify.md) --------------------------
+
+
+def test_run_watch_webhook_sends_and_throttles(window, monkeypatch):
+    import zlog.ui.webhook_sender as ws
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(
+        ws, "send_webhook", lambda url, payload, on_done: calls.append((url, payload))
+    )
+    window._watch_webhook = "https://example.com/hook"
+    window._webhook_last = 0.0
+    entry = LogEntry("t", "1", "2", "E", "Crash", "boom")
+    window._run_watch_webhook(entry)
+    window._run_watch_webhook(entry)  # throttled: no second POST
+    assert len(calls) == 1
+    assert calls[0][0] == "https://example.com/hook"
+    assert calls[0][1]["message"] == "boom"
+
+
+def test_run_watch_webhook_no_url_does_nothing(window, monkeypatch):
+    import zlog.ui.webhook_sender as ws
+    from zlog.core.models import LogEntry
+
+    calls = []
+    monkeypatch.setattr(ws, "send_webhook", lambda *a: calls.append(a))
+    window._watch_webhook = ""
+    window._run_watch_webhook(LogEntry("t", "1", "2", "E", "Crash", "boom"))
+    assert calls == []
+
+
+def test_run_watch_webhook_bounds_in_flight_requests(window, monkeypatch):
+    import zlog.ui.webhook_sender as ws
+    from zlog.core.models import LogEntry
+
+    on_dones = []
+    monkeypatch.setattr(ws, "send_webhook", lambda url, payload, on_done: on_dones.append(on_done))
+    window._watch_webhook = "https://example.com/hook"
+    window._webhook_last = 0.0
+    entry = LogEntry("t", "1", "2", "E", "Crash", "boom")
+    window._run_watch_webhook(entry)
+    assert window._webhook_pending is True
+
+    window._webhook_last = 0.0  # bypass the time throttle to isolate the in-flight bound
+    window._run_watch_webhook(entry)
+    assert len(on_dones) == 1  # second call skipped: a request is still pending
+
+    on_dones[0](True, "HTTP 200")  # simulate the async completion
+    assert window._webhook_pending is False
+
+
+def test_apply_watch_leaves_webhook_unchanged_when_not_passed(window):
+    window._watch_webhook = "https://example.com/hook"
+    window._apply_watch("newpattern", announce=False)
+    assert window._watch_webhook == "https://example.com/hook"
+    window._apply_watch("otherpattern", webhook="", announce=False)
+    assert window._watch_webhook == ""
+
+
+def test_set_watch_dialog_confirms_new_webhook(window, monkeypatch):
+    from PySide6.QtWidgets import QDialog, QMessageBox
+
+    from zlog.ui.watch_dialog import WatchDialog
+
+    class FakeDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.Accepted
+
+        def get_values(self):
+            return ("boom", "", "https://example.com/hook")
+
+    monkeypatch.setattr("zlog.ui.main_window.WatchDialog", FakeDialog)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
+    window._set_watch_dialog()
+    assert window._watch_webhook == "https://example.com/hook"
+    assert isinstance(WatchDialog, type)  # the real class is untouched elsewhere
+
+
+def test_set_watch_dialog_declined_webhook_keeps_previous(window, monkeypatch):
+    from PySide6.QtWidgets import QDialog, QMessageBox
+
+    class FakeDialog:
+        def __init__(self, *a, **k):
+            pass
+
+        def exec(self):
+            return QDialog.Accepted
+
+        def get_values(self):
+            return ("boom", "", "https://new.example.com/hook")
+
+    window._watch_webhook = "https://old.example.com/hook"
+    monkeypatch.setattr("zlog.ui.main_window.WatchDialog", FakeDialog)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.No)
+    window._set_watch_dialog()
+    assert window._watch_webhook == "https://old.example.com/hook"  # declined, unchanged
+
+
 def test_new_window_is_independent(window):
     from zlog.ui.main_window import MainWindow
 

@@ -1,6 +1,6 @@
 # Plan: Webhook notification on a watch-pattern hit
 
-- **Status:** Approved  <!-- Draft | Approved | In progress | Done | Abandoned -->
+- **Status:** Done  <!-- Draft | Approved | In progress | Done | Abandoned -->
 - **Owner:** unassigned
 - **Created:** 2026-08-20
 - **Related:** [watch-pattern.md](watch-pattern.md), [watch-run-command.md](watch-run-command.md)
@@ -39,12 +39,12 @@ Two things make a dedicated feature worth it anyway:
 
 | File | Layer | Change |
 |---|---|---|
-| `src/zlog/core/webhook.py` (new) | core | `build_payload(entry, template) -> dict`: same placeholder substitution as `core/watch_action.py::expand_command`, but templating into a JSON-serializable dict/string body rather than an argv list. Pure, unit-tested — no network code here. |
-| `src/zlog/ui/webhook_sender.py` (new) | ui | A `QRunnable` (via `QThreadPool`) or a small dedicated `QThread` that POSTs the built payload using `urllib.request` — **must not run inline on the UI thread**, since a slow/unreachable endpoint would otherwise freeze the whole window during a watch hit (see Risks). Logs success/failure to `core.applog`, no UI feedback beyond that (best-effort, like the existing beep/command). |
-| `src/zlog/ui/watch_dialog.py` | ui | New "Webhook URL" field alongside `pattern_edit`/`command_edit`; `get_values()` returns the triple. |
-| `src/zlog/ui/main_window.py` | ui | `self._watch_webhook = ""`; a `_webhook_last` throttle var mirroring `_watch_cmd_last` (`main_window.py:204`); `_run_watch_webhook(entry)` mirroring `_run_watch_command` (`main_window.py:1842`), fired alongside it at `main_window.py:3585`. |
-| `src/zlog/core/settings.py` | core | `"watch_webhook": ""` in `DEFAULTS`, saved/loaded like `watch_command`. |
-| `tests/test_webhook.py` (new) | — | `build_payload`: all placeholders substituted, unknown placeholder left literal (matches `expand_command`'s documented behavior), blank template → no-op. |
+| `src/zlog/core/webhook.py` (new) | core | **`build_payload(entry) -> dict`, no `template` parameter** — the sketch's "template" concept (a user-authored JSON body shape) was dropped: the payload is a fixed shape (`message`/`tag`/`pid`/`level`/`time`/`line`, the same field set `expand_command` exposes), which is simpler, has no injection surface to reason about (proper `json.dumps`, not string substitution into a body), and is still generically useful — any receiver can pick the fields it wants from a fixed object. A per-URL custom body template is a candidate follow-up, not v1. |
+| `src/zlog/ui/webhook_sender.py` (new) | ui | `_WebhookWorker(QObject, QRunnable)` run via `QThreadPool.globalInstance()`, POSTing with `urllib.request`; its `finished(success, message)` signal is a normal Qt cross-thread connection back to `MainWindow` (safe because `MainWindow` lives on the thread with the real, running event loop — unlike the DirFollower situation in `directory-glob-follow.md`, where the *receiver* had no event loop). |
+| `src/zlog/ui/watch_dialog.py` | ui | New "Webhook URL" field alongside `pattern_edit`/`command_edit`; `get_values()` returns the triple; hint text updated to disclose the plaintext-storage posture (see Risks). |
+| `src/zlog/ui/main_window.py` | ui | `self._watch_webhook = ""`, `self._webhook_last = 0.0`, `self._webhook_pending = False`; `_run_watch_webhook(entry)` / `_on_webhook_done(success, message)`; `_apply_watch`/`_set_watch_dialog` extended with the same "confirm before enabling" flow the command field already has (a webhook sends log content to an external URL, which deserves the same explicit opt-in as running an arbitrary command). |
+| `src/zlog/core/settings.py` | core | `"watch_webhook": ""` in `DEFAULTS`, plus the matching `_settings_specs()` entry (both required — `test_specs_cover_exactly_defaults` guards this exact drift). |
+| `tests/test_webhook.py`, `tests/test_webhook_sender.py` (new) | — | `build_payload` field mapping + JSON-serializability; `send_webhook` against a **real local `http.server`** (loopback, ephemeral port) — POST delivered with the right body/content-type, and an unreachable endpoint reports failure without blocking; plus window-wiring tests (throttle, in-flight bound, confirm-before-enabling dialog flow). |
 
 ## Architecture touch points
 
@@ -78,21 +78,38 @@ Two things make a dedicated feature worth it anyway:
 
 ## Verification
 
-- [ ] `uv run pytest` (`build_payload` cases above)
-- [ ] `uv run ruff check .` / `ruff format --check .`
-- [ ] Manual: point at a real endpoint (a local test server, or
-      `https://httpbin.org/post`) and confirm delivery of a real hit.
-- [ ] Manual: point at an unreachable/slow endpoint and confirm the UI does not
-      freeze during a hit.
-- [ ] Manual: a burst of matching lines fires at most one webhook per throttle
-      window, matching the existing command throttle's behavior.
+- [x] `uv run pytest` — `tests/test_webhook.py` (payload fields, JSON
+      serializability), `tests/test_webhook_sender.py` (real local
+      `http.server`: POST delivered with correct body/headers, unreachable
+      endpoint reports failure), and the window-wiring tests in
+      `tests/test_main_window_settings.py` (throttle, in-flight bound,
+      no-URL no-op, `_apply_watch` webhook-preserved-when-not-passed,
+      confirm/decline dialog flow) — all green.
+- [x] `uv run ruff check .` / `ruff format --check .` clean.
+- [x] Manual (`run-zlog` `watch-webhook` scenario, screenshotted): the dialog
+      renders all three fields (pattern/command/webhook) with the disclosure
+      hint.
+- [x] Covered by `test_send_webhook_unreachable_reports_failure_without_blocking`:
+      a real dead endpoint (a port bound then released, so nothing accepts on
+      it) reports failure promptly via the callback rather than hanging — done
+      as an automated test against a real socket condition, not only "seemed
+      fine by hand."
+- [x] Covered by `test_run_watch_webhook_sends_and_throttles` and
+      `test_run_watch_webhook_bounds_in_flight_requests`: a second hit within
+      the throttle window, and a second hit while a request is still
+      in-flight, both fire at most once.
 
 ## Open questions
 
 - **JSON POST only, or also a simple templated-URL GET** for services that want
   that shape? Leaning POST-only for v1 — simplest, covers Slack/generic
-  receivers.
+  receivers. Unchanged by this pass.
 - **Worth adding HMAC signing** (a shared secret + signature header) for
   receivers that verify authenticity? Defer until a concrete receiver needs it.
-- **Any UI feedback on delivery failure**, or log-only? Leaning log-only —
-  matches this being a best-effort notification, not a critical path.
+- **Any UI feedback on delivery failure**, or log-only? **Resolved: log-only**,
+  as leaned — `_on_webhook_done` writes to `zlog.log` via the module logger,
+  no status-bar/toast, matching the beep/command's best-effort posture.
+- **A per-URL custom JSON body template** (the original `build_payload(entry,
+  template)` sketch) — worth adding if a real receiver needs a body shape the
+  fixed field set can't satisfy. Not needed yet; the fixed shape covers every
+  receiver considered so far.
