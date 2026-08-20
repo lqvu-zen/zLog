@@ -31,6 +31,12 @@ def build_menus(win) -> None:
     follow_act = file_menu.addAction("&Follow File…")
     follow_act.setToolTip("Watch a log file and stream new lines as they're written")
     follow_act.triggered.connect(win.follow_file)
+    follow_folder_act = file_menu.addAction("Follow F&older…")
+    follow_folder_act.setToolTip(
+        "Follow the newest file matching a glob pattern (e.g. app-*.log) — "
+        "for apps that rotate logs by filename"
+    )
+    follow_folder_act.triggered.connect(win.follow_folder)
     win._rebuild_recent_menu()
     save_act = file_menu.addAction("&Save Log…")
     save_act.setShortcut("Ctrl+S")

@@ -348,6 +348,31 @@ def scenario_docker_attach(window: MainWindow) -> None:
     _shot(dlg, "docker-attach")
 
 
+def scenario_follow_folder(window: MainWindow) -> None:
+    # docs/plans/directory-glob-follow.md: attach a DirFollower directly
+    # (bypassing the folder/pattern dialogs) against a real temp directory
+    # with a sample rotated-log file, and show the streaming tab state.
+    import tempfile
+    import time
+
+    from zlog.ui.dir_follower import DirFollower
+
+    tmp_dir = tempfile.mkdtemp(prefix="zlog-driver-")
+    with open(os.path.join(tmp_dir, "app-1.log"), "w", encoding="utf-8") as fh:
+        fh.write("06-30 12:00:00.000 1287 1287 I ActivityManager: Start proc\n")
+        fh.write("06-30 12:00:01.000 1287 1287 W Choreographer: Skipped 12 frames!\n")
+
+    reader = DirFollower(tmp_dir, "app-*.log")
+    window.capture.attach(window._active, reader, stream_label="app-*.log")
+    window._set_tab_label(window._active)
+    window._set_streaming_controls()
+    for _ in range(25):
+        QApplication.processEvents()
+        time.sleep(0.05)
+    _shot(window, "follow-folder")
+    reader.stop()
+
+
 def scenario_dark(window: MainWindow) -> None:
     window.apply_theme("Dark")
     _seed(window, 8)
@@ -703,6 +728,7 @@ SCENARIOS = {
     "two-tabs": scenario_two_tabs,
     "search-all-tabs": scenario_search_all_tabs,
     "docker-attach": scenario_docker_attach,
+    "follow-folder": scenario_follow_folder,
     "dark": scenario_dark,
     "empty": scenario_empty,
     "no-match": scenario_no_match,

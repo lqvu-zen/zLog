@@ -3519,6 +3519,52 @@ class MainWindow(QMainWindow):
             f"Following {reader.name} — new lines appear live.{self._format_note(format_name)}"
         )
 
+    def follow_folder(self) -> None:
+        """Follow the newest file matching a glob pattern in a directory — for
+        apps that rotate logs by filename (a fresh file per run/day) rather
+        than by inode, which `follow_file` already handles for one fixed path.
+        See docs/plans/directory-glob-follow.md."""
+        from zlog.core.dirfollow import pick_newest
+        from zlog.ui.dir_follower import DirFollower
+
+        dir_path = QFileDialog.getExistingDirectory(self, "Follow Folder")
+        if not dir_path:
+            return
+        pattern, ok = QInputDialog.getText(
+            self, "Follow Folder", "Glob pattern for files to follow:", text="*.log"
+        )
+        if not ok or not pattern.strip():
+            return
+        pattern = pattern.strip()
+
+        newest = pick_newest(dir_path, pattern)
+        if newest is None:
+            self.statusBar().showMessage(f"No files match {pattern!r} in {dir_path}.")
+            return
+
+        if not self._tab_is_reusable(self._active):
+            self._new_tab()
+        sess = self._active
+        if self.clear_on_start_action.isChecked():
+            self.model.clear()
+        sample = self._read_first_lines(newest, DETECT_SAMPLE_LINES)
+        formats, format_name = self._resolve_active_format(sample)
+        reader = DirFollower(dir_path, pattern, formats=formats)
+        reader.switched.connect(self._on_dir_follower_switched)
+        self.capture.attach(sess, reader, stream_label=pattern)
+        self._set_tab_label(sess)
+        self._set_streaming_controls()
+        _log.info("Following folder: %r (pattern=%r)", dir_path, pattern)
+        self.statusBar().showMessage(
+            f"Following {pattern} in {dir_path} — new lines appear live."
+            f"{self._format_note(format_name)}"
+        )
+
+    def _on_dir_follower_switched(self, name: str) -> None:
+        """A directory-follow moved to a newer file — surfaced so a swap is
+        never mistaken for a gap in the stream (see the plan's Risks)."""
+        self.statusBar().showMessage(f"Switched to newest file: {name}")
+
     def launch_app(self) -> None:
         """Start a program and capture it from its first line: its console output
         via LaunchReader, plus (on Windows) its OutputDebugString via the DBWIN
